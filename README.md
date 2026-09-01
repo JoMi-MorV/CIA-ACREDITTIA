@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # Consola Interna de Administración — código backend
 
 Tenemos la carpeta BASE donde esta el código de la plataforma base que nos paso la empresa.
@@ -37,4 +36,3 @@ docker compose up --build
 =======
 # CIA-ACREDITTIA
 Desarrollo de la consola interna de administración de la plataforma Acredittia
->>>>>>> 7bd86e66ca44497730e61ef36ade52ba6eca69ba
