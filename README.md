@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Consola Interna de Administración — código backend
 
 Tenemos la carpeta BASE donde esta el código de la plataforma base que nos paso la empresa.
@@ -33,3 +34,7 @@ docker compose up --build
     Python
 
     schema_version_esperada: int = 7  # <-- Debe actualizarse a 7 tras aplicar los scripts
+=======
+# CIA-ACREDITTIA
+Desarrollo de la consola interna de administración de la plataforma Acredittia
+>>>>>>> 7bd86e66ca44497730e61ef36ade52ba6eca69ba
