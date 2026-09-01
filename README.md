@@ -16,10 +16,11 @@ Bash
 cd app
 docker compose up --build
 
-## ⚠️ Problemas Encontrados y Notas de Configuración
+## ⚠️ Problemas Encontrados y Notas de Configuración Backend
 
     Actualización de versión esperada (config.py): Durante la puesta en marcha, la API fallaba al iniciar con un error de validación de esquema ("Esquema en versión 7, se esperaba 6"). Esto ocurría porque en la guía de instalación original no se especificaba que en el archivo config.py era necesario actualizar explícitamente el dígito de la variable de configuración de 6 a 7:
 
+## Front Y Back implementados
 Se Instalo el fronted tal como se especifica en README_ops_Front
 
 Se dejo el Mock=0 (.env.local) y esta funcionando con la poblacion de datos actual que es 1.
