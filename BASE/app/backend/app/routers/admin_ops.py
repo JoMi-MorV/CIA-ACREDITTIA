@@ -97,7 +97,8 @@ def _metricas_de(db: Session, mes: date) -> tuple[MetricasMensuales | None, bool
     """(fila, parcial). Mes en curso: cálculo en vivo vía ops_calc_metricas;
     histórico: snapshot (None si no existe)."""
     if _es_mes_actual(mes):
-        fila = db.execute(text("SELECT * FROM ops_calc_metricas(:m, :uf)"),
+        fila = db.execute(text(
+            "SELECT * FROM ops_calc_metricas(:m, CAST(:uf AS NUMERIC))"),
                           {"m": mes, "uf": ops_settings.ops_valor_uf}).one()
         return fila, True
     return _snapshot(db, mes), False
@@ -945,7 +946,7 @@ def indicadores_por_plan(resp: Response, mes: str | None = Query(None),
 
     if _es_mes_actual(m):
         filas = db.execute(text(
-            "SELECT * FROM ops_calc_metricas_plan(:m, :uf)"),
+            "SELECT * FROM ops_calc_metricas_plan(:m, CAST(:uf AS NUMERIC))"),
             {"m": m, "uf": ops_settings.ops_valor_uf}).all()
         parcial = True
     else:

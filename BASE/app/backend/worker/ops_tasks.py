@@ -97,7 +97,8 @@ def run_metricas_snapshot(db, mes: str | None = None, forzar: bool = False, **_)
     if mes:
         objetivo = date(int(mes[:4]), int(mes[5:7]), 1)
         db.execute(text(
-            "SELECT ops_snapshot_metricas(:m, :uf, true, :fz)"),
+            # ops_valor_uf llega desde Python como float; la función SQL exige numeric.
+            "SELECT ops_snapshot_metricas(:m, CAST(:uf AS NUMERIC), true, :fz)"),
             {"m": objetivo, "uf": uf, "fz": forzar})
         db.commit()
         return 1, f"Snapshot de {mes} recalculado"
@@ -106,10 +107,14 @@ def run_metricas_snapshot(db, mes: str | None = None, forzar: bool = False, **_)
     n = 0
     if hoy.day == 1:
         anterior = (hoy - timedelta(days=1)).replace(day=1)
-        db.execute(text("SELECT ops_snapshot_metricas(:m, :uf, true, false)"),
+        db.execute(text(
+            # El casteo evita que psycopg envíe la UF como double precision.
+            "SELECT ops_snapshot_metricas(:m, CAST(:uf AS NUMERIC), true, false)"),
                    {"m": anterior, "uf": uf})
         n += 1
-    db.execute(text("SELECT ops_snapshot_metricas(:m, :uf, false, false)"),
+    db.execute(text(
+        # Mantener el mismo tipo numeric en el snapshot del mes en curso.
+        "SELECT ops_snapshot_metricas(:m, CAST(:uf AS NUMERIC), false, false)"),
                {"m": hoy.replace(day=1), "uf": uf})
     db.commit()
     return n + 1, f"Snapshot del mes en curso actualizado (UF {uf})"

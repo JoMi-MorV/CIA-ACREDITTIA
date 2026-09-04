@@ -20,7 +20,15 @@ docker compose up --build
 
     Actualización de versión esperada (config.py): Durante la puesta en marcha, la API fallaba al iniciar con un error de validación de esquema ("Esquema en versión 7, se esperaba 6"). Esto ocurría porque en la guía de instalación original no se especificaba que en el archivo config.py era necesario actualizar explícitamente el dígito de la variable de configuración de 6 a 7:
 
-## Front Y Back implementados
-Se Instalo el fronted tal como se especifica en README_ops_Front
 
+### Cambios 01-09-2026
+Se Instalo el fronted tal como se especifica en README_ops_Front
+Se Instalo el backend tal como se especifica en README_ops_Back
+Ambos con ajustes
 Se dejo el Mock=0 (.env.local) y esta funcionando con la poblacion de datos actual que es 1.
+
+### Cambios 04-09-2026
+Poblacion de datos a traves de seeds.py para sistema y procesos.
+Se a poblado con 3 empresas más.
+Se poblo los datos sobre los planes de negocio para visualizar que empresas tiene que plan
+Se corrigio `ops_tasks.py` para castear el valor UF de `double precision` a `numeric` antes de llamar a `ops_snapshot_metricas`, evitando el error de PostgreSQL al cargar los indicadores.
