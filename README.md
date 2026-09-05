@@ -29,6 +29,14 @@ Se dejo el Mock=0 (.env.local) y esta funcionando con la poblacion de datos actu
 
 ### Cambios 04-09-2026
 Poblacion de datos a traves de seeds.py para sistema y procesos.
-Se a poblado con 3 empresas más.
-Se poblo los datos sobre los planes de negocio para visualizar que empresas tiene que plan
+Se poblaron 16 empresas demo con industrias, usuarios y antigüedades diferentes para
+que los filtros y el resumen de clientes se parezcan a un entorno de producción.
+Se agregaron planes Básico, Pro y Enterprise con suscripciones activas, en trial,
+morosas y canceladas, además de facturas de ejemplo con estados variados.
+Se agregaron integraciones SIGA, Workmate, Metacontratas, WebControl, WhatsApp y
+Google Drive con estados activos, con error y desconectados, junto con sus logs de
+sincronización. Las credenciales son referencias ficticias a Key Vault y no secretos.
+La consola Ops ahora incluye disponibilidad variable, historial de jobs exitosos,
+fallidos y con timeout, además de incidentes abiertos/resueltos que representan
+decisiones operativas de producción.
 Se corrigio `ops_tasks.py` para castear el valor UF de `double precision` a `numeric` antes de llamar a `ops_snapshot_metricas`, evitando el error de PostgreSQL al cargar los indicadores.

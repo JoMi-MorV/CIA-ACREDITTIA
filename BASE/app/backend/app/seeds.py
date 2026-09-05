@@ -1,15 +1,17 @@
-"""Datos semilla idempotentes: catálogos, admin y empresa demo."""
+"""Datos semilla idempotentes: catálogos, clientes demo y telemetría de Ops."""
 from datetime import date, datetime, timedelta, timezone  # Manejo de fechas y deltas en el seed de ops/métricas
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from .models import (
     Company, DocEjemplo, Faena, FaenaPlataforma, RequisitoTemplate, User,
+    Factura, Integracion, SyncLog,
     Plan, Suscripcion,  # Datos comerciales usados por los indicadores Ops
 )
 from .models_ops import (  # Bloque completo para la consola interna de operaciones
     OpsComponente,
     OpsDisponibilidadDiaria,
+    OpsIncidente,
     OpsJob,
     OpsJobRun,
     MetricasMensuales,
@@ -183,41 +185,39 @@ def run(db: Session) -> None:
                     password_hash=hash_password("Admin2026!"),
                     role="admin", company_id=None, status="approved"))
 
-    if not db.scalar(select(User).where(User.email == "demo@acredittia.cl")):
-        demo = Company(nombre="DEMO SpA", rut="76.111.222-8",
-                       email="demo@acredittia.cl", status="approved")
-        db.add(demo)
-        db.flush()
-        db.add(User(email="demo@acredittia.cl",
-                    password_hash=hash_password("Demo2026!"),
-                    role="company", company_id=demo.id, status="approved"))
-    
-    if not db.scalar(select(User).where(User.email == "contacto@constructorasur.cl")):
-        comp1 = Company(nombre="Constructora del Sur SpA", rut="77.222.333-k",
-                        email="contacto@constructorasur.cl", status="approved")
-        db.add(comp1)
-        db.flush()
-        db.add(User(email="admin@constructorasur.cl",
-                    password_hash=hash_password("Password2026!"),
-                    role="company", company_id=comp1.id, status="approved"))
-
-    if not db.scalar(select(User).where(User.email == "ops@mineraandina.cl")):
-        comp2 = Company(nombre="Minera Andina Operations", rut="78.444.555-1",
-                        email="ops@mineraandina.cl", status="approved")
-        db.add(comp2)
-        db.flush()
-        db.add(User(email="supervisor@mineraandina.cl",
-                    password_hash=hash_password("Password2026!"),
-                    role="company", company_id=comp2.id, status="approved"))
-
-    if not db.scalar(select(User).where(User.email == "fleet@ltaustral.cl")):
-        comp3 = Company(nombre="Logística y Transportes Austral", rut="79.888.999-5",
-                        email="fleet@ltaustral.cl", status="approved")
-        db.add(comp3)
-        db.flush()
-        db.add(User(email="transporte@ltaustral.cl",
-                    password_hash=hash_password("Password2026!"),
-                    role="company", company_id=comp3.id, status="approved"))
+    # Empresas demo: variedad de industrias, tamaños y estados comerciales para
+    # que clientes, planes y filtros de Ops se parezcan a producción.
+    empresas_seed = [
+        ("DEMO SpA", "76.111.222-8", "demo@acredittia.cl", "mineria", "demo@acredittia.cl", "Demo2026!", True),
+        ("Constructora del Sur SpA", "77.222.333-k", "contacto@constructorasur.cl", "construccion", "admin@constructorasur.cl", "Password2026!", False),
+        ("Minera Andina Operations", "78.444.555-1", "ops@mineraandina.cl", "mineria", "supervisor@mineraandina.cl", "Password2026!", False),
+        ("Logística y Transportes Austral", "79.888.999-5", "fleet@ltaustral.cl", "industrial", "transporte@ltaustral.cl", "Password2026!", False),
+        ("Energía Cordillera SpA", "76.345.678-9", "operaciones@energiacordillera.cl", "energia", "operaciones@energiacordillera.cl", "Password2026!", False),
+        ("Servicios Industriales Norte Ltda", "77.456.789-0", "contacto@sinorte.cl", "industrial", "contacto@sinorte.cl", "Password2026!", False),
+        ("Obras Civiles Patagonia SpA", "78.567.890-1", "admin@obraspatagonia.cl", "construccion", "admin@obraspatagonia.cl", "Password2026!", False),
+        ("Mantenimiento Solar del Valle", "79.678.901-2", "mesa@solardelvalle.cl", "energia", "mesa@solardelvalle.cl", "Password2026!", False),
+        ("Transporte Ruta 5 Ltda", "76.789.012-3", "control@ruta5.cl", "industrial", "control@ruta5.cl", "Password2026!", False),
+        ("GeoPerforaciones Chile SpA", "77.890.123-4", "personas@geoperforaciones.cl", "mineria", "personas@geoperforaciones.cl", "Password2026!", False),
+        ("Montajes Eléctricos Andinos", "78.901.234-5", "acreditacion@montajesandinos.cl", "energia", "acreditacion@montajesandinos.cl", "Password2026!", False),
+        ("Ingeniería y Proyectos Delta", "79.012.345-6", "proyectos@deltaingenieria.cl", "otras", "proyectos@deltaingenieria.cl", "Password2026!", False),
+        ("Aseo Industrial Pacífico", "76.123.456-7", "servicios@aseopacifico.cl", "industrial", "servicios@aseopacifico.cl", "Password2026!", False),
+        ("Maquinarias Alto Maipo", "77.234.567-8", "flota@altomaipo.cl", "construccion", "flota@altomaipo.cl", "Password2026!", False),
+        ("Consultora Seguridad Integral", "78.345.678-9", "sso@seguridadintegral.cl", "otras", "sso@seguridadintegral.cl", "Password2026!", False),
+        ("Aguas y Procesos del Norte", "79.456.789-0", "operaciones@aguasprocesos.cl", "industrial", "operaciones@aguasprocesos.cl", "Password2026!", False),
+    ]
+    empresas = {}
+    for nombre, rut, email, industria, usuario_email, password, es_demo in empresas_seed:
+        empresa = db.scalar(select(Company).where(Company.rut == rut))
+        if empresa is None:
+            empresa = Company(nombre=nombre, rut=rut, email=email,
+                              status="approved", es_demo=es_demo)
+            db.add(empresa)
+            db.flush()
+        empresa.industria = industria
+        empresas[nombre] = empresa
+        if not db.scalar(select(User).where(User.email == usuario_email)):
+            db.add(User(email=usuario_email, password_hash=hash_password(password),
+                        role="company", company_id=empresa.id, status="approved"))
     db.commit()
 
     # ========================================================================
@@ -226,27 +226,42 @@ def run(db: Session) -> None:
     # planes y suscripciones; los snapshots no contienen cifras inventadas.
     # ========================================================================
     planes_demo = {
-        "Básico": (4.0, "UF"),
-        "Pro": (12.5, "UF"),
-        "Enterprise": (30.0, "UF"),
+        "Básico": (4.0, "UF", {"usuarios": 25, "faenas": 1}),
+        "Pro": (12.5, "UF", {"usuarios": 120, "faenas": 5}),
+        "Enterprise": (30.0, "UF", {"usuarios": 1000, "faenas": 50}),
     }
     planes = {}
-    for nombre, (precio, moneda) in planes_demo.items():
+    for nombre, (precio, moneda, limites) in planes_demo.items():
         plan = db.scalar(select(Plan).where(Plan.nombre == nombre))
         if plan is None:
             plan = Plan(nombre=nombre, precio=precio, moneda=moneda,
-                        periodo="mensual", activo=True)
+                        periodo="mensual", limites=limites, activo=True)
             db.add(plan)
             db.flush()
+        else:
+            plan.limites = limites
         planes[nombre] = plan
 
     empresas_demo = [
-        ("DEMO SpA", "Básico", 330),
-        ("Constructora del Sur SpA", "Pro", 240),
-        ("Minera Andina Operations", "Enterprise", 150),
-        ("Logística y Transportes Austral", "Pro", 60),
+        ("DEMO SpA", "Básico", "activa", 330),
+        ("Constructora del Sur SpA", "Pro", "activa", 240),
+        ("Minera Andina Operations", "Enterprise", "activa", 150),
+        ("Logística y Transportes Austral", "Pro", "morosa", 60),
+        ("Energía Cordillera SpA", "Enterprise", "activa", 410),
+        ("Servicios Industriales Norte Ltda", "Pro", "activa", 290),
+        ("Obras Civiles Patagonia SpA", "Básico", "trial", 18),
+        ("Mantenimiento Solar del Valle", "Pro", "activa", 125),
+        ("Transporte Ruta 5 Ltda", "Básico", "cancelada", 520),
+        ("GeoPerforaciones Chile SpA", "Enterprise", "activa", 85),
+        ("Montajes Eléctricos Andinos", "Pro", "activa", 205),
+        ("Ingeniería y Proyectos Delta", "Básico", "trial", 11),
+        ("Aseo Industrial Pacífico", "Básico", "activa", 75),
+        ("Maquinarias Alto Maipo", "Pro", "morosa", 305),
+        ("Consultora Seguridad Integral", "Básico", "activa", 190),
+        ("Aguas y Procesos del Norte", "Enterprise", "activa", 365),
     ]
-    for nombre, plan_nombre, antiguedad_dias in empresas_demo:
+    suscripciones = {}
+    for nombre, plan_nombre, estado, antiguedad_dias in empresas_demo:
         empresa = db.scalar(select(Company).where(Company.nombre == nombre))
         if empresa is None:
             continue
@@ -255,15 +270,90 @@ def run(db: Session) -> None:
         )
         if suscripcion is None:
             creada = datetime.now(timezone.utc) - timedelta(days=antiguedad_dias)
-            db.add(Suscripcion(
+            suscripcion = Suscripcion(
                 company_id=empresa.id,
                 plan_id=planes[plan_nombre].id,
-                estado="activa",
+                estado=estado,
+                trial_hasta=(creada + timedelta(days=14)).date()
+                if estado == "trial" else None,
                 periodo_actual_desde=creada.date(),
                 periodo_actual_hasta=(creada + timedelta(days=30)).date(),
+                medio_pago_ref=(f"pm_demo_{empresa.id.hex[:10]}"
+                                if estado != "trial" else None),
                 created_at=creada,
                 updated_at=creada,
+            )
+            db.add(suscripcion)
+            db.flush()
+        suscripciones[nombre] = suscripcion
+
+        # Una factura por cliente deja visibles pagos al día, pendientes y fallidos.
+        folio = f"DEMO-{empresa.rut.replace('-', '')}"
+        if not db.scalar(select(Factura).where(Factura.folio == folio)):
+            monto = float(planes[plan_nombre].precio) * 38500
+            factura_estado = {
+                "activa": "pagada", "trial": "pendiente",
+                "morosa": "fallida", "cancelada": "anulada",
+            }[estado]
+            emitida = datetime.now(timezone.utc) - timedelta(days=18)
+            db.add(Factura(
+                suscripcion_id=suscripcion.id, company_id=empresa.id,
+                folio=folio, monto=monto, moneda="CLP", estado=factura_estado,
+                gateway_ref=f"gw_demo_{empresa.rut.replace('-', '')}",
+                emitida_at=emitida,
+                pagada_at=emitida + timedelta(days=2)
+                if factura_estado == "pagada" else None,
             ))
+    db.commit()
+
+    # Integraciones y sincronizaciones: cada cliente muestra una combinación
+    # distinta de conectores activos, con error y desconectados.
+    integraciones_por_empresa = {
+        "DEMO SpA": [("siga", "activa"), ("gdrive", "activa")],
+        "Constructora del Sur SpA": [("workmate", "activa"), ("whatsapp", "activa")],
+        "Minera Andina Operations": [("siga", "activa"), ("metacontratas", "con_error"), ("webcontrol", "activa")],
+        "Logística y Transportes Austral": [("webcontrol", "con_error"), ("whatsapp", "desconectada")],
+        "Energía Cordillera SpA": [("workmate", "activa"), ("gdrive", "activa")],
+        "Servicios Industriales Norte Ltda": [("metacontratas", "activa")],
+        "Obras Civiles Patagonia SpA": [("webcontrol", "desconectada")],
+        "Mantenimiento Solar del Valle": [("gdrive", "activa"), ("whatsapp", "activa")],
+        "Transporte Ruta 5 Ltda": [("siga", "desconectada")],
+        "GeoPerforaciones Chile SpA": [("siga", "activa"), ("workmate", "activa"), ("gdrive", "con_error")],
+        "Montajes Eléctricos Andinos": [("metacontratas", "activa"), ("whatsapp", "activa")],
+        "Ingeniería y Proyectos Delta": [("gdrive", "desconectada")],
+        "Aseo Industrial Pacífico": [("workmate", "con_error")],
+        "Maquinarias Alto Maipo": [("webcontrol", "activa"), ("siga", "activa")],
+        "Consultora Seguridad Integral": [("whatsapp", "activa")],
+        "Aguas y Procesos del Norte": [("siga", "activa"), ("metacontratas", "activa"), ("gdrive", "activa")],
+    }
+    for nombre, integraciones in integraciones_por_empresa.items():
+        empresa = empresas.get(nombre)
+        if empresa is None:
+            continue
+        for tipo, estado in integraciones:
+            integ = db.scalar(select(Integracion).where(
+                Integracion.company_id == empresa.id, Integracion.tipo == tipo))
+            if integ is None:
+                ultima_sync = datetime.now(timezone.utc) - timedelta(hours=(2 + len(tipo)))
+                integ = Integracion(
+                    company_id=empresa.id, tipo=tipo, estado=estado,
+                    credenciales_ref=f"kv/demo/{empresa.id}/{tipo}",
+                    config={"frecuencia": "cada_6_horas", "ambiente": "demo",
+                            "registros_por_sync": 120 + len(tipo) * 11},
+                    ultima_sync_at=ultima_sync if estado != "desconectada" else None,
+                )
+                db.add(integ)
+                db.flush()
+            if not db.scalar(select(SyncLog).where(SyncLog.integracion_id == integ.id)):
+                base = datetime.now(timezone.utc) - timedelta(days=2)
+                db.add(SyncLog(
+                    integracion_id=integ.id, company_id=empresa.id,
+                    status="error" if estado == "con_error" else "exito",
+                    mensaje=("Token expirado; requiere reconexión."
+                             if estado == "con_error" else "Sincronización completada."),
+                    registros_procesados=0 if estado == "con_error" else 120 + len(tipo) * 11,
+                    started_at=base, finished_at=base + timedelta(seconds=38),
+                ))
     db.commit()
 
     # ========================================================================
@@ -300,49 +390,100 @@ def run(db: Session) -> None:
             db.add(OpsJob(clave=clave, nombre=nombre, tipo=tipo, cron_expr=cron, componente=comp, timeout_s=timeout, activo=True))
     db.flush()
 
-    # 3. Disponibilidad diaria de los últimos 30 días para que las barras luzcan operativas
+    # 3. Disponibilidad diaria variada de los últimos 30 días para que las
+    # barras distingan operación normal, degradación e incidentes.
     hoy = date.today()
-    for comp_tuple in componentes_data:
+    disponibilidad_base = {
+        "api": (99.98, 95), "db": (99.99, 70), "workers": (99.72, 240),
+        "storage": (99.94, 160), "ia": (98.85, 620),
+        "integraciones": (97.90, 840),
+    }
+    for indice, comp_tuple in enumerate(componentes_data):
         c_clave = comp_tuple[0]
         for i in range(30):
             d_fecha = hoy - timedelta(days=i)
-            # Evitamos duplicados si ya existe
+            uptime, latencia = disponibilidad_base[c_clave]
+            fallo = (i + indice) % 17 == 0
+            degradado = (i + indice) % 9 == 0
+            uptime_dia = 98.35 if fallo else (99.35 if degradado else uptime)
+            checks_fallidos = 24 if fallo else (8 if degradado else 1)
+            estado = "caido" if fallo else ("degradado" if degradado else "operativo")
             existe_disp = db.scalar(
                 select(OpsDisponibilidadDiaria).where(
                     OpsDisponibilidadDiaria.componente == c_clave,
                     OpsDisponibilidadDiaria.fecha == d_fecha
                 )
             )
-            if not existe_disp:
-                db.add(OpsDisponibilidadDiaria(
-                    componente=c_clave,
-                    fecha=d_fecha,
-                    estado="operativo",
-                    uptime_pct=99.95,
-                    latencia_p95_ms=120,
-                    checks_total=1440,
-                    checks_fallidos=0
-                ))
+            valores = {
+                "estado": estado, "uptime_pct": uptime_dia,
+                "latencia_p95_ms": latencia + (280 if degradado else 0),
+                "checks_total": 1440, "checks_fallidos": checks_fallidos,
+            }
+            if existe_disp is None:
+                db.add(OpsDisponibilidadDiaria(componente=c_clave,
+                                               fecha=d_fecha, **valores))
+            else:
+                for campo, valor in valores.items():
+                    setattr(existe_disp, campo, valor)
     db.flush()
 
-    # 4. Historial de ejecuciones recientes de procesos (para la tabla de procesos)
-    for clave, _, _, _, _, _ in jobs_data:
-        # Añadimos un run exitoso reciente por cada job si no tiene
-        ultimo_run = db.scalar(
-            select(OpsJobRun).where(OpsJobRun.job_clave == clave).order_by(OpsJobRun.created_at.desc())
-        )
-        if not ultimo_run:
-            ahora_utc = datetime.now(timezone.utc)
+    # 4. Historial de ejecuciones recientes con resultados distintos para la
+    # tabla de procesos y su diagnóstico operativo.
+    estados_runs = ["ok", "ok", "error", "timeout"]
+    for job_indice, (clave, _, _, _, _, _) in enumerate(jobs_data):
+        existentes = db.scalars(select(OpsJobRun).where(
+            OpsJobRun.job_clave == clave).order_by(OpsJobRun.created_at)).all()
+        ahora_utc = datetime.now(timezone.utc)
+        for run_indice in range(len(existentes), 4):
+            status = estados_runs[(job_indice + run_indice) % len(estados_runs)]
+            inicio = ahora_utc - timedelta(hours=run_indice * 8 + 1)
             db.add(OpsJobRun(
-                job_clave=clave,
-                status="ok",
-                disparo="cron",
-                params={},
-                started_at=ahora_utc - timedelta(minutes=15),
-                finished_at=ahora_utc - timedelta(minutes=14),
-                items_procesados=45,
-                mensaje="Ejecución exitosa completada sin incidentes."
+                job_clave=clave, status=status,
+                disparo="manual" if run_indice == 2 else "cron",
+                params={"origen": "seed_demo", "reintento": run_indice == 3},
+                started_at=inicio,
+                finished_at=(inicio + timedelta(minutes=2)
+                             if status != "timeout" else None),
+                items_procesados=(45 + job_indice * 7
+                                  if status == "ok" else 0),
+                mensaje=("Ejecución exitosa completada."
+                         if status == "ok" else
+                         "Timeout esperando respuesta del proveedor."
+                         if status == "timeout" else
+                         "Error controlado durante el procesamiento."),
             ))
+    db.flush()
+
+    # 5. Incidentes y decisiones operativas: mezcla de casos resueltos y
+    # abiertos para poblar la bandeja de seguimiento del administrador.
+    admin_user = db.scalar(select(User).where(User.email == "admin@acredittia.cl"))
+    incidentes_seed = [
+        ("integraciones", "caido", "Token SIGA expirado en clientes mineros",
+         "Se detectaron respuestas 401 en la sincronización de SIGA.", "resuelto"),
+        ("ia", "degradado", "Decisión operativa: limitar concurrencia de IA",
+         "La latencia p95 superó el umbral; se redujo la concurrencia para proteger la cola.", "monitoreando"),
+        ("workers", "degradado", "Reintentos elevados en documentos",
+         "La cola de documentos acumuló reintentos durante la ventana nocturna.", "resuelto"),
+        ("db", "caido", "Failover preventivo de base de datos",
+         "Se ejecutó cambio controlado a la réplica por mantenimiento del primario.", "resuelto"),
+        ("storage", "degradado", "Decisión operativa: ampliar retención temporal",
+         "Se amplió temporalmente la retención de blobs para facilitar auditoría.", "abierto"),
+    ]
+    for indice, (componente, severidad, titulo, descripcion, estado) in enumerate(incidentes_seed):
+        if db.scalar(select(OpsIncidente).where(OpsIncidente.titulo == titulo)):
+            continue
+        abierto_at = datetime.now(timezone.utc) - timedelta(days=indice + 1, hours=3)
+        db.add(OpsIncidente(
+            componente=componente, severidad=severidad, estado=estado,
+            origen="manual" if "Decisión" in titulo else "auto",
+            titulo=titulo, descripcion=descripcion,
+            resolucion=("Cambio aplicado y monitoreo normalizado."
+                         if estado == "resuelto" else None),
+            abierto_at=abierto_at,
+            resuelto_at=(abierto_at + timedelta(hours=2)
+                         if estado == "resuelto" else None),
+            creado_por=admin_user.id if admin_user else None,
+        ))
     db.flush()
 
     # ========================================================================
