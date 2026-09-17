@@ -1,0 +1,19 @@
+services:
+  api:
+    environment:
+      CORS_ORIGINS: https://${NGROK_DOMAIN}
+      PUBLIC_BASE_URL: https://${NGROK_DOMAIN}
+
+  web:
+    build:
+      args:
+        NEXT_PUBLIC_API_URL: ""
+
+  ngrok:
+    image: ngrok/ngrok:latest
+    command: http --authtoken=${NGROK_AUTHTOKEN} --domain=${NGROK_DOMAIN} web:3000
+    ports:
+      - "4040:4040"
+    depends_on:
+      - api
+      - web

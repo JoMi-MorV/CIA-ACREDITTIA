@@ -13,7 +13,8 @@
  */
 import { MOCK, mockLogin } from "./mock";
 
-const BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+//const BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"; cambio para usar ngrok
+const BASE = process.env.NEXT_PUBLIC_API_URL || "";
 const CLAVE_REFRESH = "ops_refresh";
 const CLAVE_USER = "ops_user";
 

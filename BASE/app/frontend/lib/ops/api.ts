@@ -10,7 +10,8 @@
 import { getAccess, refrescar } from "./auth";
 import { MOCK, mockDispatch } from "./mock";
 
-const BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+//const BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"; cambio para usar ngrok
+const BASE = process.env.NEXT_PUBLIC_API_URL || "";
 
 export type Query = Record<string, string | number | boolean | null | undefined>;
 

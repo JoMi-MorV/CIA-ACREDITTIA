@@ -127,3 +127,7 @@ celery.conf.beat_schedule = {
         "schedule": crontab(hour=4, minute=0),
     },
 }
+
+from worker.ops_tasks import registrar_ops  # noqa: E402
+
+registrar_ops(celery)
