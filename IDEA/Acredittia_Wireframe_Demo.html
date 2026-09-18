@@ -1,0 +1,841 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Acredittia · Wireframe de la app</title>
+<style>
+  :root{
+    --copper:#AC6E37; --copper-light:#C98A4B; --copper-dark:#6E3E18;
+    --charcoal:#16120E; --cream:#F5F0E8;
+    --w-bg:#F3F1EE; --w-line:#C9C2B8; --w-box:#E8E4DE; --w-txt:#3A342D; --w-mut:#8A8177;
+    --ok:#5B8A5E; --warn:#B98A2F; --bad:#B04A3A;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{font-family:'Liberation Sans',Arial,Helvetica,sans-serif;background:var(--w-bg);color:var(--w-txt);font-size:14px;}
+
+  /* ===== Barra del visor de wireframes ===== */
+  .viewer{
+    position:sticky;top:0;z-index:100;background:var(--charcoal);color:#fff;
+    display:flex;align-items:center;gap:14px;padding:10px 18px;flex-wrap:wrap;
+  }
+  .viewer .brand{font-weight:800;letter-spacing:2.5px;font-size:15px;}
+  .viewer .brand span{color:var(--copper-light);}
+  .viewer .vtag{font-size:11px;color:#B9B1A5;border-left:1px solid #ffffff33;padding-left:14px;}
+  .viewer nav{display:flex;gap:6px;flex-wrap:wrap;margin-left:auto;}
+  .viewer nav button{
+    background:transparent;border:1px solid #ffffff2e;color:#D8D1C7;border-radius:6px;
+    padding:4px 10px;font-size:12px;cursor:pointer;
+  }
+  .viewer nav button.act{background:var(--copper);border-color:var(--copper);color:#fff;font-weight:bold;}
+
+  .screen{display:none;}
+  .screen.act{display:block;}
+
+  /* ===== Shell de la app (sidebar + contenido) ===== */
+  .shell{display:flex;min-height:calc(100vh - 46px);}
+  .sidebar{
+    width:215px;background:var(--charcoal);color:#fff;flex-shrink:0;
+    display:flex;flex-direction:column;padding:18px 10px;gap:2px;
+  }
+  .sidebar .logo{font-weight:800;letter-spacing:2px;font-size:16px;padding:0 10px;}
+  .sidebar .sub{font-size:11px;color:#ffffff77;padding:0 10px 14px;}
+  .sidebar a{
+    display:flex;align-items:center;gap:9px;color:#D8D1C7;text-decoration:none;
+    padding:8px 10px;border-radius:8px;font-size:13px;cursor:pointer;
+  }
+  .sidebar a:hover{background:#ffffff12;}
+  .sidebar a.act{background:var(--copper);color:#fff;font-weight:bold;}
+  .sidebar a .ico{width:16px;height:16px;border:1.4px solid currentColor;border-radius:4px;display:inline-block;opacity:.75;}
+  .sidebar .badge{margin-left:auto;background:var(--bad);color:#fff;border-radius:99px;font-size:10px;font-weight:bold;padding:1px 7px;}
+  .sidebar .salir{margin-top:auto;color:#ffffff88;font-size:12px;}
+  .content{flex:1;padding:22px 26px;max-width:1120px;}
+
+  /* ===== Piezas de wireframe ===== */
+  h1.pg{font-size:20px;font-weight:800;color:var(--charcoal);}
+  .row{display:flex;gap:12px;align-items:center;flex-wrap:wrap;}
+  .row.head{justify-content:space-between;margin-bottom:16px;}
+  .btn{
+    display:inline-block;border-radius:7px;padding:7px 13px;font-size:12.5px;font-weight:bold;
+    border:1.5px solid var(--copper);color:var(--copper);background:#fff;cursor:pointer;
+  }
+  .btn.pri{background:var(--copper);color:#fff;}
+  .btn.ghost{border-color:var(--w-line);color:var(--w-mut);font-weight:normal;}
+  .card{background:#fff;border:1.5px solid var(--w-line);border-radius:10px;}
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px;}
+  .kpi{background:#fff;border:1.5px solid var(--w-line);border-radius:10px;padding:12px 14px;}
+  .kpi .t{font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:var(--w-mut);font-weight:bold;}
+  .kpi .v{font-size:22px;font-weight:800;color:var(--charcoal);margin-top:3px;}
+  .kpi .v.ok{color:var(--ok);} .kpi .v.warn{color:var(--warn);} .kpi .v.bad{color:var(--bad);} .kpi .v.cop{color:var(--copper);}
+  .kpi .s{font-size:10.5px;color:var(--w-mut);}
+  table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;}
+  .tbl th{
+    background:var(--w-box);text-align:left;padding:8px 12px;font-size:10.5px;
+    text-transform:uppercase;letter-spacing:.6px;color:var(--w-mut);border-bottom:1.5px solid var(--w-line);
+  }
+  .tbl td{padding:9px 12px;border-bottom:1px solid #E5E0D9;}
+  .tbl tr:last-child td{border-bottom:none;}
+  .lnk{color:var(--copper);font-weight:bold;text-decoration:underline;cursor:pointer;}
+  .chip{
+    display:inline-block;border-radius:99px;padding:2px 10px;font-size:10.5px;font-weight:bold;
+    border:1.4px solid var(--w-line);color:var(--w-mut);background:#fff;
+  }
+  .chip.ok{border-color:var(--ok);color:var(--ok);}
+  .chip.warn{border-color:var(--warn);color:var(--warn);}
+  .chip.bad{border-color:var(--bad);color:var(--bad);}
+  .chip.info{border-color:#5A7A96;color:#5A7A96;}
+  .ph{
+    background:repeating-linear-gradient(45deg,var(--w-box),var(--w-box) 6px,#F0EDE8 6px,#F0EDE8 12px);
+    border:1.5px dashed var(--w-line);border-radius:8px;color:var(--w-mut);
+    display:flex;align-items:center;justify-content:center;font-size:11px;text-align:center;padding:8px;
+  }
+  .note{
+    font-size:11px;color:var(--copper-dark);background:var(--cream);border-left:3px solid var(--copper);
+    border-radius:0 6px 6px 0;padding:6px 10px;margin-top:10px;line-height:1.5;
+  }
+  .grid2{display:grid;grid-template-columns:2fr 1fr;gap:14px;align-items:start;}
+  .grid3{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;}
+  .sec-t{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:var(--w-mut);
+    padding:10px 14px;border-bottom:1.5px solid var(--w-line);}
+  .inner{padding:12px 14px;}
+  .filters .inp{min-width:150px;}
+  .inp{
+    border:1.5px solid var(--w-line);border-radius:7px;background:#fff;color:var(--w-mut);
+    font-size:12px;padding:7px 10px;display:inline-block;
+  }
+  .inp .car{float:right;opacity:.6;font-size:10px;}
+  .tabs{display:flex;gap:4px;background:var(--w-box);border-radius:9px;padding:4px;width:max-content;max-width:100%;overflow-x:auto;margin-bottom:14px;}
+  .tabs span{padding:6px 13px;border-radius:6px;font-size:12px;font-weight:bold;color:var(--w-mut);white-space:nowrap;}
+  .tabs span.act{background:#fff;color:var(--copper);box-shadow:0 1px 2px #0002;}
+  .pager{font-size:11px;color:var(--w-mut);margin-top:10px;display:flex;gap:12px;align-items:center;}
+  .modalw{
+    border:2px solid var(--copper);border-radius:12px;background:#fff;max-width:430px;
+    box-shadow:0 8px 30px #00000018;
+  }
+  .modalw .mh{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1.5px solid var(--w-line);}
+  .modalw .mh b{color:var(--charcoal);font-size:14px;}
+  .modalw .mb{padding:14px 16px;display:flex;flex-direction:column;gap:10px;}
+  .fld label{display:block;font-size:11px;font-weight:bold;color:var(--w-txt);margin-bottom:3px;}
+  .fld .inp{width:100%;}
+  .mrow{display:flex;gap:24px;flex-wrap:wrap;align-items:start;margin-top:22px;}
+  .mlabel{font-size:11px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:var(--copper);margin-bottom:8px;}
+  .docrow{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid #E5E0D9;flex-wrap:wrap;}
+  .docrow:last-child{border-bottom:none;}
+  .docrow .dt{flex:1;min-width:180px;}
+  .docrow .dt b{font-size:12.5px;}
+  .docrow .dt small{display:block;color:var(--w-mut);font-size:10.5px;margin-top:2px;}
+  .alertrow{display:flex;gap:10px;align-items:flex-start;background:#fff;border:1.5px solid var(--w-line);
+    border-radius:10px;padding:10px 14px;margin-bottom:8px;flex-wrap:wrap;}
+  .alertrow.unread{border-color:var(--copper);}
+  .alertrow .at{flex:1;min-width:220px;font-size:12.5px;}
+  .alertrow .at small{display:block;color:var(--w-mut);font-size:10.5px;}
+  .donut{position:relative;width:92px;height:92px;}
+  .fcard{background:#fff;border:1.5px solid var(--w-line);border-radius:10px;padding:12px 14px;cursor:pointer;}
+  .fcard .bar{width:38px;height:5px;border-radius:99px;background:var(--copper);margin-bottom:6px;}
+  .fcard b{font-size:13px;color:var(--charcoal);}
+  .fcard small{display:block;color:var(--w-mut);font-size:10.5px;margin:2px 0 6px;}
+  .fcard .st{font-size:10.5px;color:var(--w-mut);display:flex;gap:10px;flex-wrap:wrap;}
+  .prop{font-size:8.5px;background:var(--copper);color:#fff;border-radius:4px;padding:1px 5px;margin-left:6px;vertical-align:middle;letter-spacing:.5px;}
+  .cal{display:grid;grid-template-columns:repeat(7,1fr);border:1.5px solid var(--w-line);border-radius:10px;overflow:hidden;background:#fff;}
+  .cal .hd{background:var(--w-box);font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;color:var(--w-mut);padding:6px 8px;border-bottom:1.5px solid var(--w-line);}
+  .cald{min-height:76px;border-right:1px solid #E5E0D9;border-bottom:1px solid #E5E0D9;padding:5px 6px;font-size:10px;color:var(--w-mut);}
+  .cald:nth-child(7n){border-right:none;}
+  .cald.out{background:#FAF8F5;color:#C9C2B8;}
+  .cald.today{background:var(--cream);box-shadow:inset 0 0 0 2px var(--copper);}
+  .cald .dn{font-weight:800;font-size:11px;color:var(--w-txt);}
+  .cald.today .dn{color:var(--copper);}
+  .ev{display:block;font-size:9px;font-weight:bold;border-radius:4px;padding:1px 4px;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border:1px solid;background:#fff;}
+  .ev.venc{color:var(--warn);border-color:var(--warn);}
+  .ev.vencb{color:var(--bad);border-color:var(--bad);}
+  .ev.man{color:#5A7A96;border-color:#5A7A96;}
+  .ev.cap{color:var(--ok);border-color:var(--ok);}
+  .leg{display:flex;gap:12px;flex-wrap:wrap;font-size:10.5px;color:var(--w-mut);align-items:center;}
+  .leg i{width:9px;height:9px;border-radius:99px;display:inline-block;margin-right:4px;vertical-align:middle;}
+  .login-wrap{min-height:calc(100vh - 46px);display:flex;align-items:center;justify-content:center;
+    background:linear-gradient(135deg,var(--charcoal) 0%, var(--copper-dark) 100%);padding:30px;}
+  .login-card{background:#fff;border-radius:14px;padding:30px 28px;width:100%;max-width:390px;}
+  .seg{display:grid;grid-template-columns:1fr 1fr;background:var(--w-box);border-radius:8px;padding:4px;margin:16px 0;}
+  .seg span{text-align:center;padding:7px;font-size:12.5px;font-weight:bold;color:var(--w-mut);border-radius:6px;}
+  .seg span.act{background:#fff;color:var(--copper);box-shadow:0 1px 2px #0002;}
+  .bignote{max-width:1120px;margin:0 auto;}
+</style>
+</head>
+<body>
+
+<div class="viewer">
+  <div class="brand">ACREDITTIA <span>· Wireframe de la app</span></div>
+  <div class="vtag">Generado desde el frontend real · demo@acredittia.cl · 15-09-2026</div>
+  <nav id="vnav">
+    <button data-s="s-login">Login</button>
+    <button data-s="s-inicio" class="act">Inicio</button>
+    <button data-s="s-contratos">Contratos</button>
+    <button data-s="s-contrato-det">Contrato: detalle</button>
+    <button data-s="s-faenas">Faenas</button>
+    <button data-s="s-personal">Personal</button>
+    <button data-s="s-expediente">Expediente</button>
+    <button data-s="s-equipos">Equipos</button>
+    <button data-s="s-alertas">Alertas</button>
+    <button data-s="s-reportes">Reportes ◆</button>
+    <button data-s="s-calendario">Calendario ◆</button>
+    <button data-s="s-admin">Panel admin</button>
+  </nav>
+</div>
+
+<!-- ============ LOGIN ============ -->
+<section class="screen" id="s-login">
+  <div class="login-wrap">
+    <div class="login-card">
+      <div style="text-align:center;font-weight:800;letter-spacing:2.5px;font-size:19px;color:var(--charcoal);">ACREDITTIA</div>
+      <div style="text-align:center;font-size:11.5px;color:var(--w-mut);">Acreditación de contratistas sin fricción</div>
+      <div class="seg"><span class="act">Ingresar</span><span>Crear cuenta</span></div>
+      <div class="fld" style="margin-bottom:10px;"><label>Email</label><span class="inp">demo@acredittia.cl</span></div>
+      <div class="fld" style="margin-bottom:14px;"><label>Contraseña</label><span class="inp">••••••••••</span></div>
+      <span class="btn pri" style="display:block;text-align:center;">Ingresar a la plataforma →</span>
+      <div style="text-align:center;font-size:11px;color:var(--w-mut);margin-top:12px;text-decoration:underline;">¿Olvidaste tu contraseña?</div>
+      <div class="note">Pestañas: <b>Ingresar / Crear cuenta / Recuperar</b>. El registro pide razón social, RUT de empresa, email y contraseña, y deja la cuenta «en revisión» hasta que un admin la aprueba. El login de un admin redirige a /admin; el resto a /dashboard.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ SHELL: pantallas con sidebar ============ -->
+<template id="tpl-sidebar"></template>
+
+<!-- INICIO -->
+<section class="screen act" id="s-inicio">
+  <div class="shell">
+    <aside class="sidebar" data-active="inicio"></aside>
+    <main class="content">
+      <h1 class="pg" style="margin-bottom:16px;">Inicio</h1>
+      <div class="kpis">
+        <div class="kpi"><div class="t">Contratos activos</div><div class="v">4</div></div>
+        <div class="kpi"><div class="t">Faenas activas</div><div class="v">3</div></div>
+        <div class="kpi"><div class="t">Personal acreditado</div><div class="v">38/45</div></div>
+        <div class="kpi"><div class="t">Equipos acreditados</div><div class="v">11/14</div></div>
+        <div class="kpi" style="display:flex;gap:10px;align-items:center;">
+          <svg class="donut" viewBox="0 0 100 100"><circle cx="50" cy="50" r="42" fill="none" stroke="#E5E0D9" stroke-width="10"/><circle cx="50" cy="50" r="42" fill="none" stroke="var(--copper)" stroke-width="10" stroke-dasharray="224 264" stroke-linecap="round" transform="rotate(-90 50 50)"/><text x="50" y="56" text-anchor="middle" font-size="19" font-weight="700" fill="var(--copper)">85%</text></svg>
+          <div style="font-size:10px;color:var(--w-mut);">Cumplimiento general<br>▲ 4 pts vs. mes anterior</div>
+        </div>
+      </div>
+      <div class="kpis" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr));max-width:560px;">
+        <div class="kpi"><div class="t">Documentos al día</div><div class="v">312/340</div></div>
+        <div class="kpi"><div class="t">Alertas críticas</div><div class="v bad">2</div></div>
+        <div class="kpi"><div class="t">Advertencias</div><div class="v warn">7</div></div>
+      </div>
+      <div class="grid2">
+        <div class="card">
+          <div class="sec-t">Cumplimiento por contrato</div>
+          <table class="tbl">
+            <tr><th>Contrato</th><th>Faena</th><th>%</th><th>Personal</th><th>Equipos</th><th>Alertas</th></tr>
+            <tr><td><span class="lnk">Mant. correas TIEX</span></td><td>Los Pelambres</td><td><b>92%</b></td><td>14/15</td><td>4/4</td><td>—</td></tr>
+            <tr><td><span class="lnk">Obras civiles fase 2</span></td><td>Centinela</td><td><b>78%</b></td><td>12/16</td><td>3/5</td><td><b style="color:var(--bad)">2</b></td></tr>
+            <tr><td><span class="lnk">Servicio aseo industrial</span></td><td>El Teniente</td><td><b>88%</b></td><td>9/10</td><td>2/2</td><td>—</td></tr>
+            <tr><td><span class="lnk">Transporte de personal</span></td><td>Candelaria</td><td><b>71%</b></td><td>3/4</td><td>2/3</td><td><b style="color:var(--bad)">1</b></td></tr>
+          </table>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:14px;">
+          <div class="card"><div class="sec-t">Acreditaciones</div>
+            <div class="inner" style="font-size:12.5px;display:flex;flex-direction:column;gap:6px;">
+              <div style="display:flex;justify-content:space-between;"><span><span class="chip ok">●</span> Acreditados</span><b>49</b></div>
+              <div style="display:flex;justify-content:space-between;"><span><span class="chip warn">●</span> Pendientes</span><b>7</b></div>
+              <div style="display:flex;justify-content:space-between;"><span><span class="chip bad">●</span> Vencidos</span><b>3</b></div>
+              <div style="display:flex;justify-content:space-between;border-top:1px solid var(--w-line);padding-top:5px;color:var(--w-mut);"><span>Total</span><b>59</b></div>
+            </div>
+          </div>
+          <div class="card"><div class="sec-t">Próximos vencimientos</div>
+            <div class="inner" style="display:flex;flex-direction:column;gap:7px;font-size:12px;">
+              <div style="display:flex;justify-content:space-between;gap:8px;"><span>Examen ocupacional — J. Rojas</span><span class="chip warn">6d</span></div>
+              <div style="display:flex;justify-content:space-between;gap:8px;"><span>Rev. técnica — GHXR-82</span><span class="chip warn">11d</span></div>
+              <div style="display:flex;justify-content:space-between;gap:8px;"><span>Póliza RC empresa</span><span class="chip warn">14d</span></div>
+              <div style="display:flex;justify-content:space-between;gap:8px;"><span>Licencia interna — P. Muñoz</span><span class="chip bad">Vencido</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="card" style="margin-top:14px;">
+        <div class="sec-t">Actividad reciente</div>
+        <div class="inner" style="font-size:12px;color:var(--w-mut);display:flex;flex-direction:column;gap:5px;">
+          <div>14-09 18:32 · La IA validó «Examen ocupacional» de M. Carvajal · demo@acredittia.cl</div>
+          <div>14-09 17:05 · Documento «Padrón GHXR-82» subido y en análisis</div>
+          <div>14-09 12:48 · Alerta resuelta: cambio de estándar SIGA en Centinela</div>
+          <div>13-09 09:15 · Trabajador agregado: P. Muñoz (Conductor Nacional) — 9 docs EMSIPOR instanciados</div>
+        </div>
+      </div>
+      <div class="note">KPIs y donut de cumplimiento con tendencia vs. periodo anterior. La tabla de contratos enlaza al detalle de cada contrato. Feed de actividad y vencimientos a 30 días paginados desde el backend.</div>
+    </main>
+  </div>
+</section>
+
+<!-- CONTRATOS -->
+<section class="screen" id="s-contratos">
+  <div class="shell">
+    <aside class="sidebar" data-active="contratos"></aside>
+    <main class="content">
+      <div class="row head"><h1 class="pg">Contratos</h1><span class="btn pri">+ Nuevo contrato</span></div>
+      <div class="card">
+        <table class="tbl">
+          <tr><th>Contrato</th><th>Código</th><th>Faena</th><th>Estado</th><th>%</th><th>Personal</th><th>Equipos</th><th></th></tr>
+          <tr><td><span class="lnk">Mant. correas TIEX</span></td><td>TIEX-MLP-OP-2026</td><td>Los Pelambres</td><td><span class="chip ok">Vigente</span></td><td><b>92%</b></td><td>14/15</td><td>4/4</td><td><span style="font-size:11px;color:var(--bad);text-decoration:underline;">Eliminar</span></td></tr>
+          <tr><td><span class="lnk">Obras civiles fase 2</span></td><td>OC-CEN-114</td><td>Centinela</td><td><span class="chip ok">Vigente</span></td><td><b>78%</b></td><td>12/16</td><td>3/5</td><td><span style="font-size:11px;color:var(--bad);text-decoration:underline;">Eliminar</span></td></tr>
+          <tr><td><span class="lnk">Servicio aseo industrial</span></td><td>—</td><td>El Teniente</td><td><span class="chip ok">Vigente</span></td><td><b>88%</b></td><td>9/10</td><td>2/2</td><td><span style="font-size:11px;color:var(--bad);text-decoration:underline;">Eliminar</span></td></tr>
+          <tr><td><span class="lnk">Transporte de personal</span></td><td>TP-CAND-09</td><td>Candelaria</td><td><span class="chip warn">Por vencer</span></td><td><b>71%</b></td><td>3/4</td><td>2/3</td><td><span style="font-size:11px;color:var(--bad);text-decoration:underline;">Eliminar</span></td></tr>
+        </table>
+      </div>
+      <div class="pager"><span>4 contratos</span><span class="btn ghost" style="font-size:11px;">← Anterior</span><span>Página 1 de 1</span><span class="btn ghost" style="font-size:11px;">Siguiente →</span></div>
+
+      <div class="mrow">
+        <div>
+          <div class="mlabel">Modal · Nuevo contrato</div>
+          <div class="modalw">
+            <div class="mh"><b>Nuevo contrato</b><span style="color:var(--w-mut);font-size:18px;">×</span></div>
+            <div class="mb">
+              <div class="fld"><label>Nombre del contrato *</label><span class="inp">&nbsp;</span></div>
+              <div class="fld"><label>Código / N° contrato</label><span class="inp">TIEX-MLP-OP-2026</span></div>
+              <div class="fld"><label>Faena *</label><span class="inp">Selecciona una faena… <span class="car">▼</span></span></div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                <div class="fld"><label>Fecha inicio</label><span class="inp">dd-mm-aaaa</span></div>
+                <div class="fld"><label>Fecha término</label><span class="inp">dd-mm-aaaa</span></div>
+              </div>
+              <div class="note" style="margin-top:0;">Al elegir faena se crean automáticamente los documentos de empresa del estándar de esa faena (plantilla del mandante).</div>
+              <span class="btn pri" style="text-align:center;">Crear contrato</span>
+            </div>
+          </div>
+        </div>
+        <div class="note" style="max-width:330px;">El selector de faenas viene agrupado por mandante (AMSA, Codelco, Lundin, Energía). Eliminar un contrato purga su personal, equipos y archivos, con confirmación previa.</div>
+      </div>
+    </main>
+  </div>
+</section>
+
+<!-- CONTRATO DETALLE -->
+<section class="screen" id="s-contrato-det">
+  <div class="shell">
+    <aside class="sidebar" data-active="contratos"></aside>
+    <main class="content">
+      <div style="font-size:12px;color:var(--w-mut);margin-bottom:8px;"><span class="lnk">Contratos</span> / Obras civiles fase 2</div>
+      <div class="row" style="margin-bottom:14px;">
+        <h1 class="pg">Obras civiles fase 2</h1>
+        <span class="chip ok">Vigente</span>
+        <span style="font-size:12px;color:var(--w-mut);">Centinela · Antofagasta Minerals · Antofagasta · OC-CEN-114</span>
+      </div>
+      <div class="tabs">
+        <span>Resumen</span><span class="act">Docs. empresa</span><span>Personal</span><span>Equipos</span><span>Matriz</span><span>Alertas</span><span>Historial</span>
+      </div>
+      <div class="card">
+        <div class="docrow">
+          <div class="dt"><b>Contrato marco firmado</b><small>📎 contrato_oc114.pdf</small></div>
+          <span class="chip ok">Vigente</span><span class="btn pri" style="font-size:11px;">📎 Subir</span>
+        </div>
+        <div class="docrow">
+          <div class="dt"><b>Póliza de responsabilidad civil</b><small>vence 29-09-2026 · 📎 poliza_rc.pdf</small></div>
+          <span class="chip warn">Por vencer</span><span class="btn pri" style="font-size:11px;">📎 Subir</span>
+        </div>
+        <div class="docrow">
+          <div class="dt"><b>Certificado F30-1</b><small>Subiendo el archivo… <span style="display:inline-block;width:120px;height:5px;background:var(--w-box);border-radius:99px;vertical-align:middle;"><span style="display:block;width:60%;height:100%;background:var(--copper);border-radius:99px;"></span></span> 60%</small></div>
+          <span class="chip">Pendiente</span><span class="btn ghost" style="font-size:11px;">Subiendo 60%</span>
+        </div>
+        <div class="docrow">
+          <div class="dt"><b>Reglamento interno HSEC</b><small style="color:#5A7A96;">🤖 Analizando el documento con IA…</small></div>
+          <span class="chip info">Analizando</span><span class="btn ghost" style="font-size:11px;">Analizando…</span>
+        </div>
+        <div class="docrow">
+          <div class="dt"><b>Anexo de seguridad (opcional)</b></div>
+          <span class="chip">Pendiente</span><span class="btn pri" style="font-size:11px;">📎 Subir</span>
+        </div>
+      </div>
+
+      <div class="mrow">
+        <div>
+          <div class="mlabel">Modal · Revisión IA (tras subir)</div>
+          <div class="modalw" style="max-width:470px;">
+            <div class="mh"><b>Revisión IA</b><span style="color:var(--w-mut);font-size:18px;">×</span></div>
+            <div class="mb" style="font-size:12px;">
+              <div class="row"><span class="chip bad">Con errores</span><span style="color:var(--w-mut);">Confianza: 93%</span></div>
+              <div style="border:1px solid var(--w-line);border-radius:8px;padding:8px 10px;">⛔ La póliza no cubre el monto mínimo exigido por la faena (UF 20.000).</div>
+              <div style="border:1px solid var(--w-line);border-radius:8px;padding:8px 10px;">⚠️ La firma del representante legal aparece solo en la primera página.</div>
+              <div style="border:1px solid var(--w-line);border-radius:8px;padding:8px 10px;">✅ Vigencia detectada: 01-01-2026 → 31-12-2026 (autocompletada).</div>
+            </div>
+          </div>
+        </div>
+        <div class="note" style="max-width:330px;">Pestañas del contrato: <b>Resumen</b> (KPIs y periodo), <b>Docs. empresa</b>, <b>Personal</b>, <b>Equipos</b>, <b>Matriz</b> (requisitos × sujetos, con «—» cuando no aplica), <b>Alertas</b> e <b>Historial</b>. La subida usa barra de progreso y la revisión IA es asíncrona: primero «Subiendo», luego «Analizando», y al final el veredicto con hallazgos.</div>
+      </div>
+    </main>
+  </div>
+</section>
+
+<!-- FAENAS -->
+<section class="screen" id="s-faenas">
+  <div class="shell">
+    <aside class="sidebar" data-active="faenas"></aside>
+    <main class="content">
+      <h1 class="pg" style="margin-bottom:16px;">Faenas de Chile</h1>
+      <div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:var(--w-mut);margin-bottom:8px;">Antofagasta Minerals</div>
+      <div class="grid3" style="margin-bottom:18px;">
+        <div class="fcard"><div class="bar"></div><b>Los Pelambres</b><small>AMSA · Coquimbo</small><div class="st"><span>📄 1</span><span>👷 14/15</span><span>🚛 4/4</span><span>✅ 92%</span></div></div>
+        <div class="fcard"><div class="bar"></div><b>Centinela</b><small>AMSA · Antofagasta</small><div class="st"><span>📄 1</span><span>👷 12/16</span><span>🚛 3/5</span><span>✅ 78%</span></div></div>
+        <div class="fcard"><div class="bar"></div><b>Antucoya</b><small>AMSA · Antofagasta</small><div class="st"><span>📄 0</span><span>👷 —</span><span>🚛 —</span></div></div>
+        <div class="fcard"><div class="bar"></div><b>Zaldívar</b><small>AMSA · Antofagasta</small><div class="st"><span>📄 0</span><span>👷 —</span><span>🚛 —</span></div></div>
+      </div>
+      <div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:var(--w-mut);margin-bottom:8px;">Codelco · Lundin Mining · Energía</div>
+      <div class="grid3">
+        <div class="fcard"><div class="bar"></div><b>El Teniente</b><small>Codelco · O'Higgins</small><div class="st"><span>📄 1</span><span>👷 9/10</span><span>🚛 2/2</span><span>✅ 88%</span></div></div>
+        <div class="fcard"><div class="bar"></div><b>Andina</b><small>Codelco · Valparaíso</small><div class="st"><span>📄 0</span><span>👷 —</span><span>🚛 —</span></div></div>
+        <div class="fcard"><div class="bar"></div><b>Candelaria</b><small>Lundin · Atacama</small><div class="st"><span>📄 1</span><span>👷 3/4</span><span>🚛 2/3</span><span>✅ 71%</span></div></div>
+        <div class="fcard"><div class="bar"></div><b>Caserones</b><small>Lundin · Atacama</small><div class="st"><span>📄 0</span><span>👷 —</span><span>🚛 —</span></div></div>
+        <div class="fcard"><div class="bar"></div><b>P. Eólico Antofagasta I</b><small>Energía · Antofagasta</small><div class="st"><span>📄 0</span><span>👷 —</span><span>🚛 —</span></div></div>
+      </div>
+
+      <div class="mrow">
+        <div>
+          <div class="mlabel">Modal · Plataformas del mandante (al clicar una faena)</div>
+          <div class="modalw" style="max-width:470px;">
+            <div class="mh"><b>Centinela — plataformas del mandante</b><span style="color:var(--w-mut);font-size:18px;">×</span></div>
+            <div class="mb" style="font-size:12px;">
+              <div style="background:var(--w-box);border-radius:8px;padding:8px 10px;">
+                <div class="row" style="justify-content:space-between;"><b>SIGA</b><span class="chip ok">Con acceso</span></div>
+                <small style="color:var(--w-mut);">solicitado 02-08-2026 · habilitado 11-08-2026</small>
+                <div style="margin-top:5px;"><span class="btn ghost" style="font-size:10.5px;">Abrir ↗</span></div>
+              </div>
+              <div style="background:var(--w-box);border-radius:8px;padding:8px 10px;">
+                <div class="row" style="justify-content:space-between;"><b>Webcontrol</b><span class="chip warn">Acceso solicitado</span></div>
+                <div style="margin-top:5px;"><span class="btn pri" style="font-size:10.5px;">Ya tengo acceso</span></div>
+              </div>
+              <div style="background:var(--w-box);border-radius:8px;padding:8px 10px;">
+                <div class="row" style="justify-content:space-between;"><b>Metacontratas</b><span class="chip">Sin acceso</span></div>
+                <div style="margin-top:5px;"><span class="btn ghost" style="font-size:10.5px;">Marcar como solicitado</span><span class="btn pri" style="font-size:10.5px;margin-left:6px;">Ya tengo acceso</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="note" style="max-width:330px;">Catálogo de faenas agrupado por mandante, con barra de color por faena y stats de contratos, personal, equipos y % cumplimiento. El modal gestiona el estado de acceso de la empresa a cada plataforma del mandante.</div>
+      </div>
+    </main>
+  </div>
+</section>
+
+<!-- PERSONAL -->
+<section class="screen" id="s-personal">
+  <div class="shell">
+    <aside class="sidebar" data-active="personal"></aside>
+    <main class="content">
+      <div class="row head"><h1 class="pg">Personal</h1><span class="btn pri">+ Agregar trabajador</span></div>
+      <div class="row filters" style="margin-bottom:14px;">
+        <span class="inp">🔍 Buscar por nombre o RUT…</span>
+        <span class="inp">Todos los estados <span class="car">▼</span></span>
+        <span class="inp">Todos los contratos <span class="car">▼</span></span>
+        <span class="inp">Todos los cargos <span class="car">▼</span></span>
+      </div>
+      <div class="card">
+        <table class="tbl">
+          <tr><th>Nombre</th><th>RUT</th><th>Cargo</th><th>Contrato</th><th>Conductor</th><th>Estado</th><th>%</th></tr>
+          <tr><td><span class="lnk">María Carvajal S.</span></td><td>14.233.911-3</td><td>Prevencionista</td><td>Obras civiles fase 2</td><td>—</td><td><span class="chip ok">Vigente</span></td><td><b>100%</b></td></tr>
+          <tr><td><span class="lnk">Jorge Rojas P.</span></td><td>17.882.104-6</td><td>Maestro soldador</td><td>Mant. correas TIEX</td><td>—</td><td><span class="chip warn">Por vencer</span></td><td><b>91%</b></td></tr>
+          <tr><td><span class="lnk">Pedro Muñoz L.</span></td><td>16.554.320-1</td><td>Conductor Nacional</td><td>Transporte de personal</td><td>🚗</td><td><span class="chip bad">Vencido</span></td><td><b>64%</b></td></tr>
+          <tr><td><span class="lnk">Ana Espinoza R.</span></td><td>19.023.487-2</td><td>Jornal</td><td>Obras civiles fase 2</td><td>—</td><td><span class="chip info">En proceso</span></td><td><b>45%</b></td></tr>
+          <tr><td><span class="lnk">Luis Herrera M.</span></td><td>15.777.209-8</td><td>Supervisor</td><td>Servicio aseo industrial</td><td>—</td><td><span class="chip ok">Vigente</span></td><td><b>100%</b></td></tr>
+        </table>
+      </div>
+      <div class="pager"><span>45 trabajadores</span><span class="btn ghost" style="font-size:11px;">← Anterior</span><span>Página 1 de 1</span><span class="btn ghost" style="font-size:11px;">Siguiente →</span></div>
+
+      <div class="mrow">
+        <div>
+          <div class="mlabel">Modal · Agregar trabajador</div>
+          <div class="modalw">
+            <div class="mh"><b>Agregar trabajador</b><span style="color:var(--w-mut);font-size:18px;">×</span></div>
+            <div class="mb">
+              <div class="fld"><label>Contrato *</label><span class="inp">Selecciona… <span class="car">▼</span></span></div>
+              <div class="fld"><label>Nombre completo *</label><span class="inp">&nbsp;</span></div>
+              <div class="fld"><label>RUT *</label><span class="inp">12.345.678-5</span></div>
+              <div class="fld"><label>Cargo</label><span class="inp">Conductor Nacional <span class="car">▼</span></span>
+                <small style="font-size:10.5px;color:var(--w-mut);">Elige del catálogo o escribe uno nuevo: si no existe se crea y se avisa para clasificarlo.</small></div>
+              <label style="font-size:12px;display:flex;gap:7px;align-items:center;"><span style="width:14px;height:14px;border:1.5px solid var(--w-line);border-radius:3px;display:inline-block;"></span> Es conductor (requiere Licencia Interna de Mina — agrega 9 documentos EMSIPOR)</label>
+              <div class="note" style="margin-top:0;">Se instancian los requisitos de personal del contrato y del cargo; el cargo también puede exigir expediente EMSIPOR por sí solo.</div>
+              <span class="btn pri" style="text-align:center;">Agregar trabajador</span>
+            </div>
+          </div>
+        </div>
+        <div class="note" style="max-width:330px;">Filtros combinables (búsqueda, estado, contrato, cargo) con paginación de 50 filas. El nombre enlaza al expediente del trabajador.</div>
+      </div>
+    </main>
+  </div>
+</section>
+
+<!-- EXPEDIENTE -->
+<section class="screen" id="s-expediente">
+  <div class="shell">
+    <aside class="sidebar" data-active="personal"></aside>
+    <main class="content">
+      <div style="font-size:12px;color:var(--w-mut);margin-bottom:8px;"><span class="lnk">Personal</span> / Pedro Muñoz L.</div>
+      <div class="row" style="margin-bottom:14px;">
+        <h1 class="pg">Pedro Muñoz L.</h1>
+        <span class="chip bad">Vencido</span>
+        <span style="font-size:12px;color:var(--w-mut);">16.554.320-1 · Conductor Nacional 🚗 · Transporte de personal — Candelaria</span>
+      </div>
+      <div class="kpis" style="max-width:560px;">
+        <div class="kpi"><div class="t">Cumplimiento</div><div class="v cop">64%</div></div>
+        <div class="kpi"><div class="t">Docs al día</div><div class="v">9/14</div></div>
+        <div class="kpi"><div class="t">Por vencer 30d</div><div class="v warn">2</div></div>
+        <div class="kpi"><div class="t">Vencidos</div><div class="v bad">1</div></div>
+      </div>
+      <div class="card">
+        <div class="sec-t">Documentos del expediente</div>
+        <div class="docrow">
+          <div class="dt"><b>Cédula de identidad</b><small>📎 cedula_pmunoz.pdf</small></div>
+          <span class="chip ok">Vigente</span><span class="btn ghost" style="font-size:11px;">Ver ejemplo</span><span class="btn ghost" style="font-size:11px;">Marcar pendiente</span><span class="btn pri" style="font-size:11px;">📎 Subir</span>
+        </div>
+        <div class="docrow">
+          <div class="dt"><b>Examen ocupacional altura geográfica</b><small>vence 21-09-2026 (6 días) · 📎 examen_alt.pdf</small></div>
+          <span class="chip warn">Por vencer</span><span class="btn ghost" style="font-size:11px;">Ver ejemplo</span><span class="btn ghost" style="font-size:11px;">Marcar pendiente</span><span class="btn pri" style="font-size:11px;">📎 Subir</span>
+        </div>
+        <div class="docrow">
+          <div class="dt"><b>Licencia Interna de Mina <span class="chip info" style="margin-left:4px;">EMSIPOR</span></b><small>venció 30-08-2026</small></div>
+          <span class="chip bad">Vencido</span><span class="btn ghost" style="font-size:11px;">Ver ejemplo</span><span class="btn ghost" style="font-size:11px;">Marcar al día</span><span class="btn pri" style="font-size:11px;">📎 Subir</span>
+        </div>
+        <div class="docrow">
+          <div class="dt"><b>ODI firmada</b><small style="color:#5A7A96;">🤖 Analizando el documento con IA…</small></div>
+          <span class="chip info">Analizando</span><span class="btn ghost" style="font-size:11px;">Analizando…</span>
+        </div>
+        <div class="docrow">
+          <div class="dt"><b>Consentimiento datos (opcional)</b></div>
+          <span class="chip">Pendiente</span><span class="btn ghost" style="font-size:11px;">Ver ejemplo</span><span class="btn pri" style="font-size:11px;">📎 Subir</span>
+        </div>
+      </div>
+      <div class="note bignote">Expediente del sujeto (mismo patrón para un equipo): cada fila muestra estado calculado, vencimiento con días restantes, archivos adjuntos descargables, «Ver ejemplo» (abre un documento modelo del catálogo), alternar al día/pendiente y subida con IA asíncrona (Subiendo → Analizando → veredicto con hallazgos ⛔ ⚠️ ✅ y autocompletado del vencimiento).</div>
+    </main>
+  </div>
+</section>
+
+<!-- EQUIPOS -->
+<section class="screen" id="s-equipos">
+  <div class="shell">
+    <aside class="sidebar" data-active="equipos"></aside>
+    <main class="content">
+      <div class="row head"><h1 class="pg">Equipos y vehículos</h1><span class="btn pri">+ Agregar equipo</span></div>
+      <div class="row filters" style="margin-bottom:14px;">
+        <span class="inp">🔍 Buscar patente o marca…</span>
+        <span class="inp">Todos los estados <span class="car">▼</span></span>
+        <span class="inp">Todos los contratos <span class="car">▼</span></span>
+        <span class="inp">Todos los tipos <span class="car">▼</span></span>
+      </div>
+      <div class="card">
+        <table class="tbl">
+          <tr><th>Patente</th><th>Tipo</th><th>Marca / modelo</th><th>Año</th><th>Contrato</th><th>Estado</th><th>%</th></tr>
+          <tr><td><span class="lnk">GHXR-82</span></td><td>Camioneta</td><td>Toyota Hilux</td><td>2024</td><td>Mant. correas TIEX</td><td><span class="chip warn">Por vencer</span></td><td><b>90%</b></td></tr>
+          <tr><td><span class="lnk">LKSD-31</span></td><td>Bus</td><td>Mercedes-Benz Marcopolo</td><td>2022</td><td>Transporte de personal</td><td><span class="chip ok">Vigente</span></td><td><b>100%</b></td></tr>
+          <tr><td><span class="lnk">RTPB-77</span></td><td>Retroexcavadora</td><td>Caterpillar 420F</td><td>2021</td><td>Obras civiles fase 2</td><td><span class="chip info">En proceso</span></td><td><b>58%</b></td></tr>
+          <tr><td><span class="lnk">JWKC-05</span></td><td>Camión ¾</td><td>Hyundai HD78</td><td>2023</td><td>Servicio aseo industrial</td><td><span class="chip ok">Vigente</span></td><td><b>100%</b></td></tr>
+        </table>
+      </div>
+      <div class="pager"><span>14 equipos</span><span class="btn ghost" style="font-size:11px;">← Anterior</span><span>Página 1 de 1</span><span class="btn ghost" style="font-size:11px;">Siguiente →</span></div>
+
+      <div class="mrow">
+        <div>
+          <div class="mlabel">Modal · Agregar equipo</div>
+          <div class="modalw">
+            <div class="mh"><b>Agregar equipo</b><span style="color:var(--w-mut);font-size:18px;">×</span></div>
+            <div class="mb">
+              <div class="fld"><label>Contrato *</label><span class="inp">Selecciona… <span class="car">▼</span></span></div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                <div class="fld"><label>Patente *</label><span class="inp">ABCD-12</span></div>
+                <div class="fld"><label>Tipo *</label><span class="inp">Camioneta <span class="car">▼</span></span></div>
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
+                <div class="fld"><label>Marca</label><span class="inp">&nbsp;</span></div>
+                <div class="fld"><label>Modelo</label><span class="inp">&nbsp;</span></div>
+                <div class="fld"><label>Año</label><span class="inp">2024</span></div>
+              </div>
+              <div class="note" style="margin-top:0;">Se instancian los requisitos de equipo del contrato y de la faena (padrón, revisión técnica, antigüedad máxima…).</div>
+              <span class="btn pri" style="text-align:center;">Agregar equipo</span>
+            </div>
+          </div>
+        </div>
+        <div class="note" style="max-width:330px;">La patente enlaza al expediente del equipo (misma pantalla que el expediente de personal). El tipo de equipo sale de un catálogo cerrado del backend.</div>
+      </div>
+    </main>
+  </div>
+</section>
+
+<!-- ALERTAS -->
+<section class="screen" id="s-alertas">
+  <div class="shell">
+    <aside class="sidebar" data-active="alertas"></aside>
+    <main class="content">
+      <div class="row head"><h1 class="pg">Alertas</h1><span class="btn ghost">Marcar todas como leídas</span></div>
+      <div class="kpis" style="max-width:760px;">
+        <div class="kpi"><div class="t">Críticas</div><div class="v bad">2</div></div>
+        <div class="kpi"><div class="t">Advertencias</div><div class="v warn">7</div></div>
+        <div class="kpi"><div class="t">Activas</div><div class="v">12</div></div>
+        <div class="kpi"><div class="t">No leídas</div><div class="v cop">3</div></div>
+        <div class="kpi"><div class="t">Resueltas (30d)</div><div class="v ok">21</div></div>
+      </div>
+      <div class="row" style="margin-bottom:12px;">
+        <span class="inp">Todas las severidades <span class="car">▼</span></span>
+        <span class="inp">Todos los estados <span class="car">▼</span></span>
+      </div>
+      <div class="alertrow unread">
+        <span class="chip bad">Crítica</span><span class="chip bad">Bloqueante</span>
+        <div class="at"><b>Licencia Interna de Mina vencida — P. Muñoz</b>
+          <small>El conductor no puede ingresar a Candelaria hasta renovar la licencia. · 14-09-2026 09:12 · origen: vencimientos</small></div>
+        <span class="btn ghost" style="font-size:11px;">Marcar leída</span><span class="btn ghost" style="font-size:11px;">En progreso</span><span class="btn pri" style="font-size:11px;">Resolver</span>
+      </div>
+      <div class="alertrow unread">
+        <span class="chip bad">Crítica</span><span class="chip info">Nueva</span>
+        <div class="at"><b>Cambio de estándar en SIGA — Centinela</b>
+          <small>El mandante agregó «Certificado de trabajos en altura» al estándar de la faena. · 13-09-2026 17:40 · origen: integraciones · SIGA</small></div>
+        <span class="btn ghost" style="font-size:11px;">Marcar leída</span><span class="btn ghost" style="font-size:11px;">En progreso</span><span class="btn pri" style="font-size:11px;">Resolver</span>
+      </div>
+      <div class="alertrow">
+        <span class="chip warn">Advertencia</span><span class="chip" style="border-color:#6A5ACD;color:#6A5ACD;">En progreso</span>
+        <div class="at"><b>Examen ocupacional vence en 6 días — J. Rojas</b>
+          <small>Agendar renovación en el laboratorio integrado. · 12-09-2026 08:00 · origen: vencimientos</small></div>
+        <span class="btn pri" style="font-size:11px;">Resolver</span>
+      </div>
+      <div class="alertrow">
+        <span class="chip info">Informativa</span><span class="chip ok">Resuelta</span>
+        <div class="at"><b>Documento validado por IA — Padrón GHXR-82</b>
+          <small>Vigencia autocompletada desde el documento. · 11-09-2026 16:22 · resuelta 11-09-2026</small></div>
+        <span class="btn ghost" style="font-size:11px;">Reabrir</span>
+      </div>
+      <div class="pager"><span>12 alertas</span><span class="btn ghost" style="font-size:11px;">← Anterior</span><span>Página 1 de 1</span><span class="btn ghost" style="font-size:11px;">Siguiente →</span></div>
+      <div class="note bignote">Severidades: crítica, alta, media, baja, advertencia, informativa. Estados: nueva, en progreso, bloqueante, resuelta. Las no leídas se destacan con borde cobre y alimentan el badge del menú lateral. Acciones por fila: marcar leída, en progreso, resolver/reabrir.</div>
+    </main>
+  </div>
+</section>
+
+<!-- REPORTES (propuesta) -->
+<section class="screen" id="s-reportes">
+  <div class="shell">
+    <aside class="sidebar" data-active="reportes"></aside>
+    <main class="content">
+      <div class="row head"><h1 class="pg">Reportes <span class="prop">PROPUESTA</span></h1><span class="btn pri">+ Generar reporte</span></div>
+
+      <div class="card" style="margin-bottom:16px;">
+        <div class="sec-t">Generar reporte</div>
+        <div class="inner row" style="gap:10px;align-items:flex-end;">
+          <div class="fld"><label>Tipo de informe</label><span class="inp">Estado de acreditación <span class="car">▼</span></span></div>
+          <div class="fld"><label>Contrato / faena</label><span class="inp">Todos <span class="car">▼</span></span></div>
+          <div class="fld"><label>Desde</label><span class="inp">01-09-2026</span></div>
+          <div class="fld"><label>Hasta</label><span class="inp">15-09-2026</span></div>
+          <div class="fld"><label>Formato</label><span class="inp">PDF <span class="car">▼</span></span></div>
+          <span class="btn pri">Generar</span>
+        </div>
+        <div class="inner" style="padding-top:0;font-size:11px;color:var(--w-mut);">
+          Tipos disponibles: Estado de acreditación · Cumplimiento de requisitos · Personal acreditado · Equipos y vehículos · Vencimientos · Matriz de cumplimiento
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:16px;">
+        <div class="sec-t">Historial de reportes</div>
+        <table class="tbl">
+          <tr><th>Nombre</th><th>Tipo</th><th>Formato</th><th>Generado por</th><th>Fecha</th><th>Estado</th><th></th></tr>
+          <tr><td><b>Estado de acreditación — septiembre</b></td><td>Estado de acreditación</td><td>PDF</td><td>demo@acredittia.cl</td><td>15-09 10:22</td><td><span class="chip info">Generando</span></td><td></td></tr>
+          <tr><td><b>Vencimientos próximos 30 días</b></td><td>Vencimientos</td><td>Excel</td><td>Sistema (Programado)</td><td>15-09 08:00</td><td><span class="chip ok">Listo</span></td><td><span class="btn ghost" style="font-size:11px;">⬇ Descargar</span></td></tr>
+          <tr><td><b>Matriz OC-CEN-114</b></td><td>Matriz de cumplimiento</td><td>Excel</td><td>demo@acredittia.cl</td><td>12-09 16:40</td><td><span class="chip ok">Listo</span></td><td><span class="btn ghost" style="font-size:11px;">⬇ Descargar</span></td></tr>
+          <tr><td><b>Personal acreditado — agosto</b></td><td>Personal acreditado</td><td>PDF</td><td>demo@acredittia.cl</td><td>01-09 09:15</td><td><span class="chip bad">Falló</span></td><td><span class="btn ghost" style="font-size:11px;">Reintentar</span></td></tr>
+        </table>
+        <div class="pager" style="padding:0 14px 12px;"><span>28 reportes</span><span class="btn ghost" style="font-size:11px;">← Anterior</span><span>Página 1 de 2</span><span class="btn ghost" style="font-size:11px;">Siguiente →</span></div>
+      </div>
+
+      <div class="card">
+        <div class="sec-t">Reportes programados</div>
+        <table class="tbl">
+          <tr><th>Nombre</th><th>Tipo / formato</th><th>Frecuencia</th><th>Próxima ejecución</th><th>Activo</th><th></th></tr>
+          <tr><td><b>Vencimientos semanales</b></td><td>Vencimientos · Excel</td><td>Lunes 08:00</td><td>21-09-2026</td><td><span class="chip ok">Sí</span></td><td><span class="btn ghost" style="font-size:11px;">Editar</span> <span style="font-size:11px;color:var(--bad);text-decoration:underline;">Eliminar</span></td></tr>
+          <tr><td><b>Estado mensual para gerencia</b></td><td>Estado de acreditación · PDF</td><td>Día 1 de cada mes, 07:30</td><td>01-10-2026</td><td><span class="chip ok">Sí</span></td><td><span class="btn ghost" style="font-size:11px;">Editar</span> <span style="font-size:11px;color:var(--bad);text-decoration:underline;">Eliminar</span></td></tr>
+          <tr><td><b>Matriz quincenal Centinela</b></td><td>Matriz · Excel</td><td>Días 1 y 15, 09:00</td><td>01-10-2026</td><td><span class="chip">Pausado</span></td><td><span class="btn ghost" style="font-size:11px;">Editar</span> <span style="font-size:11px;color:var(--bad);text-decoration:underline;">Eliminar</span></td></tr>
+        </table>
+      </div>
+
+      <div class="mrow">
+        <div>
+          <div class="mlabel">Modal · Programar reporte</div>
+          <div class="modalw">
+            <div class="mh"><b>Programar reporte</b><span style="color:var(--w-mut);font-size:18px;">×</span></div>
+            <div class="mb">
+              <div class="fld"><label>Nombre *</label><span class="inp">Vencimientos semanales</span></div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                <div class="fld"><label>Tipo *</label><span class="inp">Vencimientos <span class="car">▼</span></span></div>
+                <div class="fld"><label>Formato *</label><span class="inp">Excel <span class="car">▼</span></span></div>
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                <div class="fld"><label>Frecuencia</label><span class="inp">Semanal, lunes <span class="car">▼</span></span></div>
+                <div class="fld"><label>Hora</label><span class="inp">08:00</span></div>
+              </div>
+              <label style="font-size:12px;display:flex;gap:7px;align-items:center;"><span style="width:14px;height:14px;border:1.5px solid var(--copper);background:var(--copper);border-radius:3px;display:inline-block;"></span> Programación activa</label>
+              <span class="btn pri" style="text-align:center;">Guardar programación</span>
+            </div>
+          </div>
+        </div>
+        <div class="note" style="max-width:340px;">Respaldado por la API actual: la generación es <b>asíncrona</b> (el reporte queda «En cola → Generando → Listo/Falló» y luego se descarga), las programaciones corren por cron en el worker y aparecen en el historial como «Sistema (Programado)». Además, cada tabla de la app puede exportarse a <b>Excel/CSV</b> directamente («bajar lo que estoy viendo»); sobre el umbral de filas se convierte en reporte asíncrono.</div>
+      </div>
+    </main>
+  </div>
+</section>
+
+<!-- CALENDARIO (propuesta) -->
+<section class="screen" id="s-calendario">
+  <div class="shell">
+    <aside class="sidebar" data-active="calendario"></aside>
+    <main class="content">
+      <div class="row head">
+        <div class="row" style="gap:14px;">
+          <h1 class="pg">Calendario <span class="prop">PROPUESTA</span></h1>
+          <span class="btn ghost" style="font-size:11px;">◀</span><b style="font-size:14px;">Septiembre 2026</b><span class="btn ghost" style="font-size:11px;">▶</span>
+        </div>
+        <div class="row">
+          <span class="inp">Todas las categorías <span class="car">▼</span></span>
+          <span class="btn pri">+ Anotar evento</span>
+        </div>
+      </div>
+      <div class="leg" style="margin-bottom:10px;">
+        <span><i style="background:var(--warn);"></i>Vencimiento</span>
+        <span><i style="background:var(--bad);"></i>Vencido / crítico</span>
+        <span><i style="background:#5A7A96;"></i>Mantención · administrativo · entrega</span>
+        <span><i style="background:var(--ok);"></i>Capacitación</span>
+        <span style="margin-left:auto;">12 eventos en el mes · 7 vencimientos · 5 anotados</span>
+      </div>
+      <div class="grid2" style="grid-template-columns:2.4fr 1fr;">
+        <div class="cal">
+          <div class="hd">Lun</div><div class="hd">Mar</div><div class="hd">Mié</div><div class="hd">Jue</div><div class="hd">Vie</div><div class="hd">Sáb</div><div class="hd">Dom</div>
+          <div class="cald out"><span class="dn">31</span></div>
+          <div class="cald"><span class="dn">1</span></div>
+          <div class="cald"><span class="dn">2</span></div>
+          <div class="cald"><span class="dn">3</span><span class="ev man">Entrega EPP faena</span></div>
+          <div class="cald"><span class="dn">4</span></div>
+          <div class="cald"><span class="dn">5</span></div>
+          <div class="cald"><span class="dn">6</span></div>
+          <div class="cald"><span class="dn">7</span></div>
+          <div class="cald"><span class="dn">8</span><span class="ev cap">Capacitación izaje</span></div>
+          <div class="cald"><span class="dn">9</span></div>
+          <div class="cald"><span class="dn">10</span></div>
+          <div class="cald"><span class="dn">11</span><span class="ev venc">Padrón GHXR-82</span></div>
+          <div class="cald"><span class="dn">12</span></div>
+          <div class="cald"><span class="dn">13</span></div>
+          <div class="cald"><span class="dn">14</span><span class="ev man">Reunión mandante</span></div>
+          <div class="cald today"><span class="dn">15 · hoy</span></div>
+          <div class="cald"><span class="dn">16</span></div>
+          <div class="cald"><span class="dn">17</span></div>
+          <div class="cald"><span class="dn">18</span><span class="ev cap">Curso altura física</span></div>
+          <div class="cald"><span class="dn">19</span></div>
+          <div class="cald"><span class="dn">20</span></div>
+          <div class="cald" style="box-shadow:inset 0 0 0 2px #5A7A96;"><span class="dn">21</span><span class="ev venc">Examen — J. Rojas</span><span class="ev man">Mantención LKSD-31</span></div>
+          <div class="cald"><span class="dn">22</span></div>
+          <div class="cald"><span class="dn">23</span></div>
+          <div class="cald"><span class="dn">24</span></div>
+          <div class="cald"><span class="dn">25</span><span class="ev vencb">Licencia — P. Muñoz</span></div>
+          <div class="cald"><span class="dn">26</span><span class="ev venc">Rev. técnica GHXR-82</span></div>
+          <div class="cald"><span class="dn">27</span></div>
+          <div class="cald"><span class="dn">28</span></div>
+          <div class="cald"><span class="dn">29</span><span class="ev venc">Póliza RC empresa</span></div>
+          <div class="cald"><span class="dn">30</span></div>
+          <div class="cald out"><span class="dn">1</span></div>
+          <div class="cald out"><span class="dn">2</span></div>
+          <div class="cald out"><span class="dn">3</span></div>
+          <div class="cald out"><span class="dn">4</span></div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:14px;">
+          <div class="card">
+            <div class="sec-t">Lunes 21-09-2026</div>
+            <div class="inner" style="display:flex;flex-direction:column;gap:10px;font-size:12px;">
+              <div>
+                <div class="row" style="gap:6px;"><span class="chip warn">Vencimiento</span><b>Examen ocupacional — J. Rojas</b></div>
+                <small style="color:var(--w-mut);">Proyectado del documento · Mant. correas TIEX — Los Pelambres</small>
+                <div style="margin-top:4px;"><span class="btn ghost" style="font-size:10.5px;">Ver documento</span></div>
+              </div>
+              <div style="border-top:1px solid #E5E0D9;padding-top:8px;">
+                <div class="row" style="gap:6px;"><span class="chip info">Mantención</span><b>Mantención programada LKSD-31</b></div>
+                <small style="color:var(--w-mut);">Anotado por la empresa · «Cambio de neumáticos y revisión de frenos»</small>
+                <div style="margin-top:4px;"><span class="btn ghost" style="font-size:10.5px;">Editar</span> <span style="font-size:10.5px;color:var(--bad);text-decoration:underline;">Eliminar</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="mlabel" style="margin-bottom:0;">Modal · Anotar evento</div>
+          <div class="modalw" style="max-width:none;">
+            <div class="mh"><b>Anotar evento</b><span style="color:var(--w-mut);font-size:18px;">×</span></div>
+            <div class="mb">
+              <div class="fld"><label>Título *</label><span class="inp">Mantención programada LKSD-31</span></div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                <div class="fld"><label>Fecha *</label><span class="inp">21-09-2026</span></div>
+                <div class="fld"><label>Categoría</label><span class="inp">Mantención <span class="car">▼</span></span></div>
+              </div>
+              <div class="fld"><label>Nota</label><span class="inp" style="min-height:40px;">&nbsp;</span></div>
+              <span class="btn pri" style="text-align:center;">Guardar evento</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="note bignote">Respaldado por la API actual: el calendario mezcla <b>vencimientos proyectados desde los documentos</b> (no se crean ni borran a mano — desaparecen cuando el documento se renueva) con <b>eventos anotados por la empresa</b> (categorías: mantención, capacitación, administrativo, entrega, otro). Un contract_admin ve solo los vencimientos de su contrato. Al clicar un día se abre su detalle en el panel lateral.</div>
+    </main>
+  </div>
+</section>
+
+<!-- ADMIN -->
+<section class="screen" id="s-admin">
+  <div class="shell">
+    <aside class="sidebar" data-active="admin" data-admin="1"></aside>
+    <main class="content">
+      <h1 class="pg" style="margin-bottom:16px;">Panel de administración</h1>
+      <div class="kpis" style="max-width:760px;">
+        <div class="kpi"><div class="t">Empresas</div><div class="v">23</div><div class="s">2 rechazadas</div></div>
+        <div class="kpi"><div class="t">Pendientes</div><div class="v warn">3</div></div>
+        <div class="kpi"><div class="t">Aprobadas</div><div class="v ok">18</div></div>
+        <div class="kpi"><div class="t">Sujetos registrados</div><div class="v">412</div><div class="s">348 personas · 64 equipos</div></div>
+      </div>
+      <div class="card" style="margin-bottom:16px;">
+        <div class="sec-t">Solicitudes pendientes</div>
+        <table class="tbl">
+          <tr><th>Empresa</th><th>RUT</th><th>Email</th><th>Solicitada</th><th></th></tr>
+          <tr><td><b>Montajes del Norte SpA</b></td><td>76.881.234-5</td><td>contacto@mdn.cl</td><td>14-09-2026</td>
+            <td><span class="btn pri" style="font-size:11px;">Aprobar</span> <span class="btn ghost" style="font-size:11px;">Rechazar</span></td></tr>
+          <tr><td><b>Áridos y Caminos Ltda.</b></td><td>77.402.118-K</td><td>admin@aycl.cl</td><td>13-09-2026</td>
+            <td><span class="btn pri" style="font-size:11px;">Aprobar</span> <span class="btn ghost" style="font-size:11px;">Rechazar</span></td></tr>
+        </table>
+      </div>
+      <div class="card">
+        <div class="sec-t">Empresas</div>
+        <table class="tbl">
+          <tr><th>Empresa</th><th>Estado</th><th>Contratos</th><th>Sujetos</th><th></th></tr>
+          <tr><td><b>Demo Acredittia</b></td><td><span class="chip ok">Aprobada</span></td><td>4</td><td>59</td>
+            <td><span class="btn ghost" style="font-size:11px;">Ver como</span> <span class="btn ghost" style="font-size:11px;">Reset demo</span></td></tr>
+          <tr><td><b>Soldamont SpA</b></td><td><span class="chip ok">Aprobada</span></td><td>2</td><td>31</td>
+            <td><span class="btn ghost" style="font-size:11px;">Ver como</span></td></tr>
+          <tr><td><b>Transportes Elqui</b></td><td><span class="chip bad">Rechazada</span></td><td>—</td><td>—</td><td></td></tr>
+        </table>
+      </div>
+      <div class="note bignote">Pantalla exclusiva del rol admin (admin@acredittia.cl). Permite aprobar/rechazar solicitudes de registro, reiniciar los datos de la empresa demo e <b>impersonar</b> («Ver como»): el admin navega la app como esa empresa, con banner ámbar «Viendo como…» en el menú lateral.</div>
+    </main>
+  </div>
+</section>
+
+<script>
+  // Sidebar compartido: se inyecta en cada pantalla con el ítem activo
+  const ITEMS = [
+    ["inicio","Inicio","s-inicio"],["contratos","Contratos","s-contratos"],["faenas","Faenas","s-faenas"],
+    ["personal","Personal","s-personal"],["equipos","Equipos","s-equipos"],["alertas","Alertas","s-alertas"],
+    ["reportes","Reportes ◆","s-reportes"],["calendario","Calendario ◆","s-calendario"],
+  ];
+  document.querySelectorAll(".sidebar").forEach(sb => {
+    const act = sb.dataset.active, esAdmin = sb.dataset.admin === "1";
+    let html = `<div class="logo">ACREDITTIA</div><div class="sub">${esAdmin ? "Administración" : "Demo Acredittia SpA"}</div>`;
+    if (esAdmin) html += `<a class="act"><span class="ico"></span> Panel admin</a>`;
+    else ITEMS.forEach(([k,n,s]) => {
+      html += `<a class="${k===act?"act":""}" data-go="${s}"><span class="ico"></span> ${n}${k==="alertas"?'<span class="badge">3</span>':""}</a>`;
+    });
+    html += `<a class="salir">⎋ Cerrar sesión</a>`;
+    sb.innerHTML = html;
+  });
+
+  const btns = document.querySelectorAll("#vnav button");
+  function show(id){
+    document.querySelectorAll(".screen").forEach(s => s.classList.toggle("act", s.id === id));
+    btns.forEach(b => b.classList.toggle("act", b.dataset.s === id));
+    window.scrollTo(0,0);
+  }
+  btns.forEach(b => b.addEventListener("click", () => show(b.dataset.s)));
+  document.querySelectorAll("[data-go]").forEach(a => a.addEventListener("click", () => show(a.dataset.go)));
+  document.querySelectorAll(".sidebar .salir").forEach(a => a.addEventListener("click", () => show("s-login")));
+  // Enlaces internos representativos
+  document.querySelectorAll("#s-contratos .lnk, #s-inicio .tbl .lnk").forEach(a => a.addEventListener("click", () => show("s-contrato-det")));
+  document.querySelectorAll("#s-personal .tbl .lnk, #s-equipos .tbl .lnk").forEach(a => a.addEventListener("click", () => show("s-expediente")));
+</script>
+</body>
+</html>
