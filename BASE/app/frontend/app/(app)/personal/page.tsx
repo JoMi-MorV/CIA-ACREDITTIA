@@ -157,7 +157,7 @@ export default function PersonalPage() {
             <input type="checkbox" checked={f.es_conductor} onChange={(e) => setF({ ...f, es_conductor: e.target.checked })} />
             Es conductor (requiere Licencia Interna de Mina — agrega 9 documentos EMSIPOR)
           </label>
-          <p className="rounded-lg bg-sky-50 px-3 py-2 text-xs text-sky-800">
+          <p className="rounded-r-md border-l-[3px] border-[#AC6E37] bg-[#F5F0E8] px-3 py-2 text-xs text-[#6E3E18]">
             ℹ️ Se instanciarán los requisitos de personal del contrato y del cargo
             {f.es_conductor ? ", más los 9 documentos EMSIPOR" : ""}. El cargo
             también puede exigir el expediente EMSIPOR por sí solo.
