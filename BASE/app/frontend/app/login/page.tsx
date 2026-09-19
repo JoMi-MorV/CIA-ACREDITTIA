@@ -56,9 +56,9 @@ export default function LoginPage() {
 
   if (pendiente) {
     return (
-      <main className="flex min-h-screen items-center justify-center p-4">
-        <div className="w-full max-w-md rounded-2xl bg-white p-8 text-center shadow-lg">
-          <div className="text-4xl">⏳</div>
+      <main className="flex min-h-screen items-center justify-center bg-paper p-4">
+        <div className="w-full max-w-md rounded-lg border border-stone-300 bg-white p-8 text-center shadow-sm">
+          <div className="text-4xl text-accent">◷</div>
           <h1 className="mt-3 text-xl font-bold text-brand">Solicitud en revisión</h1>
           <p className="mt-2 text-sm text-slate-600">
             Tu cuenta está siendo revisada por nuestro equipo. Te notificaremos por email al ser aprobada.
@@ -70,8 +70,16 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-gradient-to-br from-brand to-accent p-4">
-      <div className="w-full max-w-md rounded-2xl bg-white p-8 shadow-xl">
+    <main className="flex min-h-screen items-center justify-center bg-brand p-4 md:p-8">
+      <div className="grid w-full max-w-5xl overflow-hidden rounded-lg bg-white shadow-2xl md:grid-cols-[1.05fr_0.95fr]">
+        <div className="hidden min-h-[620px] flex-col justify-between bg-accent p-10 text-white md:flex">
+          <div>
+            <div className="text-lg font-extrabold tracking-[0.18em]">ACREDITTIA</div>
+            <div className="mt-20 max-w-sm text-4xl font-extrabold leading-tight">La acreditación de tu operación, en orden.</div>
+          </div>
+          <div className="border-t border-white/30 pt-4 text-sm text-white/75">Contratos, personas, equipos y documentos en una sola vista operativa.</div>
+        </div>
+        <div className="p-7 md:p-10">
         <h1 className="text-center text-2xl font-extrabold tracking-tight text-brand">ACREDITTIA</h1>
         <p className="mb-6 text-center text-sm text-slate-500">Acreditación de contratistas sin fricción</p>
         <div className="mb-6 grid grid-cols-2 rounded-lg bg-slate-100 p-1 text-sm font-semibold">
@@ -95,7 +103,7 @@ export default function LoginPage() {
               onClick={() => { setTab("recuperar"); setError(""); setAviso(""); }}>
               ¿Olvidaste tu contraseña?
             </button>
-            <p className="text-center text-xs text-slate-400">Demo: demo@acredittia.cl / Demo2026! · Admin: admin@acredittia.cl / Admin2026!</p>
+            <p className="text-center text-xs text-slate-400">Acceso demo disponible para revisión de la plataforma.</p>
           </form>
         )}
         {tab === "registro" && (
@@ -126,6 +134,7 @@ export default function LoginPage() {
             </button>
           </form>
         )}
+        </div>
       </div>
     </main>
   );

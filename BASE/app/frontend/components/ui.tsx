@@ -59,10 +59,10 @@ export function Chip({ estado, texto }: { estado: string; texto?: string }) {
 
 export function Kpi({ titulo, valor, sub, color }: { titulo: string; valor: ReactNode; sub?: string; color?: string }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="text-xs font-medium uppercase tracking-wide text-slate-500">{titulo}</div>
-      <div className={`mt-1 text-2xl font-bold ${color ?? "text-brand"}`}>{valor}</div>
-      {sub && <div className="text-xs text-slate-500">{sub}</div>}
+    <div className="rounded-lg border border-stone-300 bg-white p-3.5">
+      <div className="text-[11px] font-bold uppercase tracking-[0.08em] text-stone-500">{titulo}</div>
+      <div className={`mt-1 text-2xl font-extrabold ${color ?? "text-brand"}`}>{valor}</div>
+      {sub && <div className="text-xs text-stone-500">{sub}</div>}
     </div>
   );
 }
@@ -95,10 +95,10 @@ export function Spinner({ texto = "Cargando..." }: { texto?: string }) {
 
 export function Donut({ pct, size = 110 }: { pct: number; size?: number }) {
   const r = 42, c = 2 * Math.PI * r;
-  const color = pct >= 70 ? "#059669" : pct >= 40 ? "#d97706" : "#dc2626";
+  const color = pct >= 70 ? "#AC6E37" : pct >= 40 ? "#B98A2F" : "#B04A3A";
   return (
     <svg width={size} height={size} viewBox="0 0 100 100">
-      <circle cx="50" cy="50" r={r} fill="none" stroke="#e2e8f0" strokeWidth="10" />
+      <circle cx="50" cy="50" r={r} fill="none" stroke="#E5E0D9" strokeWidth="10" />
       <circle cx="50" cy="50" r={r} fill="none" stroke={color} strokeWidth="10"
         strokeDasharray={`${(pct / 100) * c} ${c}`} strokeLinecap="round"
         transform="rotate(-90 50 50)" />

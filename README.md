@@ -106,3 +106,50 @@ docker compose up -d --build worker beat
 La corrección fue verificada: Beat envía `ops-heartbeat` cada minuto y el
 worker procesa `acredittia.ops_tick` correctamente. Después de iniciar, recarga
 la vista de Sistemas para que la plataforma consulte los nuevos heartbeats.
+
+### Cambios 19-09-2026
+
+Se revisaron `README_CLIENTE.md` y `IDEA/Acredittia_Wireframe_Demo.html` para
+alinear la interfaz de la empresa usuaria con el flujo visual definido para
+Acredittia.
+
+Se actualizo exclusivamente la capa visual del frontend:
+
+- Se incorporo una identidad visual basada en tonos carbon, cobre y crema.
+- Se rediseño el sidebar de la vista empresa con estados activos, iconografia
+    simple, indicador de alertas y comportamiento responsive para pantallas
+    pequeñas.
+- Se ajusto el layout protegido para mejorar el espaciado, la lectura y la
+    adaptacion movil.
+- Se rediseño la pantalla de login con una composicion dividida, mejor
+    jerarquia visual y estados de registro, recuperacion y cuenta en revision.
+- Se actualizaron botones, tablas, chips, tarjetas KPI, paneles y estados
+    documentales compartidos.
+- Se ajusto el dashboard para reflejar la jerarquia del wireframe: resumen
+    operativo, cumplimiento por contrato, acreditaciones, vencimientos y
+    actividad reciente.
+
+No se modificaron el backend, los endpoints, los tipos TypeScript ni la
+logica de carga de datos. El frontend fue validado con `npm run build`,
+completando correctamente la compilacion, el chequeo de tipos, el lint y la
+generacion de las 17 rutas existentes.
+
+Ademas, se creo y agrego el modulo visual de Calendario siguiendo el wireframe
+y reutilizando la estructura existente del frontend y la API disponible:
+
+- Se creo la ruta `/calendario` y se agrego su acceso al sidebar de la empresa.
+- Se implemento una vista mensual con navegacion entre meses y seleccion de
+    dias.
+- Se agrego un filtro por categoria y una leyenda visual para vencimientos,
+    vencidos, mantenciones y capacitaciones.
+- Se integraron los vencimientos proyectados desde los documentos existentes,
+    sin duplicarlos como eventos manuales.
+- Se habilito la creacion, edicion y eliminacion de eventos anotados por la
+    empresa para mantencion, capacitacion, administrativo, entrega y otros.
+- Se agrego el panel lateral con el detalle del dia seleccionado y el acceso al
+    expediente de personal o equipos cuando corresponde.
+- Se implemento el modal `Anotar evento`, respetando que los vencimientos
+    proyectados no se editan ni eliminan desde el calendario.
+
+La nueva pantalla fue validada con `npm run build`, completando correctamente
+la compilacion, el chequeo de tipos, el lint y la generacion de las 18 rutas.

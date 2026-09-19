@@ -5,12 +5,13 @@ import { useEffect, useState } from "react";
 import * as Api from "@/lib/cliente";
 
 const ITEMS = [
-  { href: "/dashboard", icono: "🏠", nombre: "Inicio" },
-  { href: "/contratos", icono: "📄", nombre: "Contratos" },
-  { href: "/faenas", icono: "⛰️", nombre: "Faenas" },
-  { href: "/personal", icono: "👷", nombre: "Personal" },
-  { href: "/equipos", icono: "🚛", nombre: "Equipos" },
-  { href: "/alertas", icono: "🔔", nombre: "Alertas" },
+  { href: "/dashboard", icono: "⌂", nombre: "Inicio" },
+  { href: "/contratos", icono: "▤", nombre: "Contratos" },
+  { href: "/faenas", icono: "◇", nombre: "Faenas" },
+  { href: "/personal", icono: "◎", nombre: "Personal" },
+  { href: "/equipos", icono: "▣", nombre: "Equipos" },
+  { href: "/alertas", icono: "!", nombre: "Alertas" },
+  { href: "/calendario", icono: "□", nombre: "Calendario" },
 ];
 
 export default function Sidebar() {
@@ -41,35 +42,35 @@ export default function Sidebar() {
     : user?.contrato?.nombre ?? user?.company?.nombre ?? "";
 
   return (
-    <aside className="flex h-screen w-56 flex-col border-r border-slate-200 bg-brand text-white max-md:hidden">
-      <div className="px-5 py-5">
-        <div className="text-xl font-extrabold tracking-tight">ACREDITTIA</div>
-        <div className="text-xs text-white/60">{subtitulo}</div>
+    <aside className="fixed inset-x-0 top-0 z-40 flex h-16 items-center border-b border-white/10 bg-brand text-white md:sticky md:h-screen md:w-60 md:shrink-0 md:flex-col md:items-stretch md:border-b-0 md:border-r md:px-3 md:py-5">
+      <div className="flex items-center gap-3 px-4 md:block md:px-2 md:pb-5">
+        <div className="text-[17px] font-extrabold tracking-[0.16em]">ACREDITTIA</div>
+        <div className="hidden text-[11px] text-white/55 md:block">{subtitulo}</div>
       </div>
       {impersonando && (
-        <div className="mx-3 mb-2 rounded-lg bg-amber-500/90 px-3 py-2 text-xs font-semibold text-white">
+        <div className="mx-3 hidden rounded-md bg-amber-500/90 px-3 py-2 text-xs font-semibold text-white md:block">
           Viendo como {impersonando}
           <button className="ml-2 underline" onClick={() => { sessionStorage.clear(); router.push("/admin"); }}>salir</button>
         </div>
       )}
-      <nav className="flex-1 space-y-1 px-3">
+      <nav className="ml-auto flex gap-1 px-2 md:ml-0 md:flex-1 md:flex-col md:gap-1 md:px-0">
         {esAdmin && (
-          <Link href="/admin" className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm ${path === "/admin" ? "bg-white/15 font-semibold" : "hover:bg-white/10"}`}>
-            <span>🛡️</span> Panel admin
+          <Link href="/admin" className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm ${path === "/admin" ? "bg-accent font-semibold" : "hover:bg-white/10"}`}>
+            <span className="grid h-5 w-5 place-items-center border border-current/60 text-xs">+</span><span className="hidden md:inline">Panel admin</span>
           </Link>
         )}
         {(!esAdmin || impersonando) && ITEMS.map((i) => (
           <Link key={i.href} href={i.href}
-            className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm ${path.startsWith(i.href) ? "bg-white/15 font-semibold" : "hover:bg-white/10"}`}>
-            <span>{i.icono}</span> {i.nombre}
+            className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm ${path.startsWith(i.href) ? "bg-accent font-semibold" : "hover:bg-white/10"}`}>
+            <span className="grid h-5 w-5 place-items-center border border-current/60 text-xs">{i.icono}</span><span className="hidden md:inline">{i.nombre}</span>
             {i.href === "/alertas" && noLeidas > 0 && (
-              <span className="ml-auto rounded-full bg-red-500 px-2 py-0.5 text-xs font-bold">{noLeidas}</span>
+              <span className="ml-auto hidden rounded-full bg-red-500 px-2 py-0.5 text-xs font-bold md:inline">{noLeidas}</span>
             )}
           </Link>
         ))}
       </nav>
-      <button onClick={salir} className="m-3 rounded-lg px-3 py-2 text-left text-sm text-white/70 hover:bg-white/10">
-        ⎋ Cerrar sesión
+      <button onClick={salir} className="hidden rounded-md px-3 py-2 text-left text-sm text-white/60 hover:bg-white/10 md:block">
+        ↪ Cerrar sesión
       </button>
     </aside>
   );
