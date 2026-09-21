@@ -153,3 +153,29 @@ y reutilizando la estructura existente del frontend y la API disponible:
 
 La nueva pantalla fue validada con `npm run build`, completando correctamente
 la compilacion, el chequeo de tipos, el lint y la generacion de las 18 rutas.
+
+### Cambios 21-09-2026
+
+Se reviso el apartado de Alertas del wireframe y se aplico a la pantalla
+`/alertas` de la plataforma, reutilizando el cliente y los endpoints existentes.
+
+- Se agrego el filtro por origen: vencimientos, inteligencia artificial,
+    integraciones y sistema.
+- Las alertas no leidas ahora se destacan con borde cobre, como en el
+    wireframe.
+- Se muestran de forma legible la severidad, el estado, el origen, la fecha y
+    la plataforma asociada cuando corresponde.
+- Se agruparon las acciones de cada alerta: marcar como leida, pasar a
+    progreso, resolver y reabrir.
+- Se agrego informacion contextual del sujeto, documento y contrato
+    relacionado.
+- Se habilito el acceso al contrato relacionado cuando la alerta dispone de
+    ese vinculo.
+- Se conservaron los KPI de criticas, advertencias, alertas activas, no leidas
+    y resueltas en los ultimos 30 dias.
+- Se mantuvieron la paginacion, el aislamiento por empresa y contrato, y la
+    generacion automatica de alertas por vencimientos, IA e integraciones.
+
+No se modifico el backend ni la logica de generacion de alertas. El frontend
+fue validado con `npm run build`, completando correctamente la compilacion, el
+chequeo de tipos, el lint y la generacion de las 18 rutas existentes.
