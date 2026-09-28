@@ -1207,6 +1207,11 @@ def download_url(reporte_id: uuid.UUID, db: Session = Depends(get_db),
     ext = (r.blob_path.rsplit(".", 1)[-1] or "bin").lower()
     filename = nombre_archivo(r.nombre, r.formato, ext)
     dl = get_storage().download_url(r.blob_path, filename)
+    actividad.log(db, cid, "visualizacion", "reportes",
+                  f"Descarga del reporte '{r.nombre}' ({r.formato})",
+                  user_id=user.id, entidad_tipo="reporte", entidad_id=r.id,
+                  metadata={"exportacion": True, "formato": r.formato})
+    db.commit()
     return {"download_url": dl.download_url,
             "expires_at": dl.expires_at.isoformat(), "filename": filename}
 

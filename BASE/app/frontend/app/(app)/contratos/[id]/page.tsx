@@ -90,7 +90,9 @@ export default function ContratoDetalle() {
 
   const descargar = async (docId: string, archivoId: string) => {
     setError("");
-    try { await Api.descargarArchivo(docId, archivoId); }
+    const motivo = window.prompt("Motivo de acceso al documento (mínimo 12 caracteres):");
+    if (!motivo) return;
+    try { await Api.descargarArchivo(docId, archivoId, motivo); }
     catch (e) { setError(Api.mensajeError(e)); }
   };
 

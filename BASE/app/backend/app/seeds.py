@@ -357,7 +357,7 @@ def run(db: Session) -> None:
     db.commit()
 
     # ========================================================================
-    # § OPS SEEDS — Consola Interna de Administración (/admin/ops) Población de datos para la consola interna de administración de operaciones, telemetría y métricas del sistema.
+    # § OPS SEEDS — Consola Interna de Administración (/admin) Población de datos para la consola interna de administración de operaciones, telemetría y métricas del sistema.
     # =================================================================ar
     # 1. Componentes monitoreados del sistema
     componentes_data = [

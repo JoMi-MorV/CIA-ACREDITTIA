@@ -780,14 +780,19 @@ export type Tendencia = {
 export type Empresa = {
   id: string;
   nombre: string;
-  rut: string;
-  email: string;
   status: EstadoEmpresa;
   es_demo: boolean;
   rejection_reason: string | null;
   approved_at: string | null;
   created_at: string;
   contratos: number;
+  trabajadores: number;
+  usuarios: number;
+  usuarios_activos: number;
+  plan: string | null;
+  actividad: number;
+  actividad_pct: number;
+  ultima_actividad_at: string | null;
   cumplimiento_pct: number;
   docs_ok: number;
   docs_total: number;
@@ -826,6 +831,81 @@ export type AdminStats = {
   /** Media ponderada por documentos. Es otro número, a propósito. */
   cumplimiento_global_pct: number;
   empresas_medidas: number;
+  usuarios_total: number;
+  usuarios_activos: number;
+  clientes_activos: number;
+  documentos: {
+    total: number;
+    ok: number;
+    pendientes: number;
+    por_vencer: number;
+    vencidos: number;
+  };
+  actividad_global: {
+    total: number;
+    ultimos_30_dias: number;
+    por_modulo: Record<string, number>;
+    por_tipo: Record<string, number>;
+    evolucion_mensual: { mes: string; eventos: number }[];
+    ultimas: { id: number; empresa: string; tipo: string; modulo: string;
+      descripcion: string; created_at: string }[];
+    clientes_baja_actividad: { company_id: string; nombre: string;
+      usuarios: number; usuarios_activos: number; actividad_pct: number }[];
+  };
+  sesiones: {
+    vigentes: number;
+    usuarios_con_actividad_30d: number;
+    tiempo_uso_promedio_minutos_30d: number;
+    tiempo_uso_es_estimado: boolean;
+    duracion_promedio_minutos_30d: number;
+    sesiones_medidas_30d: number;
+    duracion_es_estimada: boolean;
+    usuarios_activos_diarios: number;
+    usuarios_activos_semanales: number;
+    evolucion_dau: { dia: string; usuarios: number }[];
+    evolucion_wau: { semana: string; usuarios: number }[];
+  };
+  documentos_procesados: {
+    total: number;
+    completados: number;
+    en_proceso: number;
+    pendientes: number;
+    fallidos: number;
+  };
+  mrr: {
+    actual: number | null;
+    evolucion_mensual: { mes: string; mrr: number; clientes_activos: number }[];
+  };
+  salud_clientes: {
+    empresas_baja_acreditacion: { company_id: string; empresa: string;
+      documentos: number; documentos_ok: number; acreditacion_pct: number }[];
+    contratos_con_pendientes: { contrato_id: string; contrato: string;
+      company_id: string; empresa: string; documentos_pendientes: number }[];
+    vencidos_por_empresa: { company_id: string; empresa: string;
+      documentos_vencidos: number }[];
+    clientes_morosos: { company_id: string; empresa: string; plan: string }[];
+    bandeja_alertas: { id: string; empresa: string; company_id: string;
+      severidad: string; estado: string; origen: string; titulo: string;
+      descripcion: string | null; created_at: string }[];
+  };
+};
+
+export type ResultadoBusquedaGlobal = {
+  tipo: "empresa" | "contrato" | "trabajador" | "usuario";
+  id: string;
+  titulo: string;
+  subtitulo: string;
+  empresa?: string;
+  company_id: string;
+  permiso: string;
+  detalle: string;
+};
+
+export type BusquedaGlobal = {
+  query: string;
+  total: number;
+  permisos: Record<ResultadoBusquedaGlobal["tipo"], string>;
+  items: ResultadoBusquedaGlobal[];
 };
 
 export type PlantillaAdmin = PlantillaRequisito & {

@@ -24,19 +24,21 @@ from datetime import date, datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
-from sqlalchemy import delete, func, or_, select
+from sqlalchemy import and_, delete, func, or_, select
 from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..deps import (Page, aplicar_orden, err, paginacion, require_admin, sobre)
 from ..models import (
-    Alerta, Company, CompanyFaenaPlataforma, Contrato, ContratoPlantillaOverride,
-    ContratoPlataforma, ContratoRequisito, CumplimientoSnapshot, DocEjemplo,
-    Documento, DocumentoArchivo, EventoCalendario, Faena, FaenaPlataforma,
-    IaHallazgo, IaReview, LicenciaInterna, PlataformaCredencial,
-    RequisitoTemplate, Sujeto, User,
+    Actividad, Alerta, Company, CompanyFaenaPlataforma, Contrato,
+    ContratoPlantillaOverride, ContratoPlataforma, ContratoRequisito,
+    CumplimientoSnapshot, DocEjemplo, Documento, DocumentoArchivo,
+    EventoCalendario, Faena, FaenaPlataforma, IaHallazgo, IaReview,
+    LicenciaInterna, Plan, PlataformaCredencial, RefreshToken,
+    RequisitoTemplate, Sujeto, Suscripcion, User,
 )
+from ..models_ops import MetricasMensuales
 from ..services import actividad
 from ..services.checklist import (calc_estado_doc, calc_estado_sujeto,
                                   crear_expediente_conductor, instanciar_docs,
@@ -131,6 +133,25 @@ class TemplatePatch(BaseModel):
     activo: bool | None = None
 
 
+class AdminUserPatch(BaseModel):
+    role: str | None = None
+    company_id: uuid.UUID | None = None
+    contrato_id: uuid.UUID | None = None
+    activo: bool | None = None
+
+
+class AdminUserRevoke(BaseModel):
+    motivo: str | None = None
+
+
+SEARCH_PERMISSIONS = {
+    "empresa": "admin.companies.read",
+    "contrato": "admin.contracts.read",
+    "trabajador": "admin.subjects.read",
+    "usuario": "admin.users.read",
+}
+
+
 # ============================================================================
 # Helpers
 # ============================================================================
@@ -165,6 +186,18 @@ def _get_template(db: Session, tid: uuid.UUID) -> RequisitoTemplate:
 
 def _cuenta(db: Session, modelo, *filtros) -> int:
     return db.scalar(select(func.count()).select_from(modelo).where(*filtros)) or 0
+
+
+def _meses_atras(n: int) -> list[date]:
+    """Devuelve los primeros días de los últimos `n` meses, en orden ascendente."""
+    actual = date.today().replace(day=1)
+    salida = []
+    for offset in range(n - 1, -1, -1):
+        year, month = actual.year, actual.month - offset
+        while month <= 0:
+            year, month = year - 1, month + 12
+        salida.append(date(year, month, 1))
+    return salida
 
 
 def _docs_por_estado(db: Session, company_id: uuid.UUID) -> dict:
@@ -204,14 +237,39 @@ def _company_out(db: Session, c: Company, contratos: int | None = None) -> dict:
     from .company import _cumplimiento_empresa
 
     m = _cumplimiento_empresa(db, c.id, None)
+    usuarios = _cuenta(db, User, User.company_id == c.id, User.role != "admin")
+    corte_actividad = datetime.now(timezone.utc) - timedelta(days=30)
+    actividad_30d = _cuenta(db, Actividad, Actividad.company_id == c.id,
+                            Actividad.created_at >= corte_actividad)
+    usuarios_con_actividad = db.scalar(
+        select(func.count(func.distinct(Actividad.user_id))).where(
+            Actividad.company_id == c.id,
+            Actividad.user_id.is_not(None),
+            Actividad.created_at >= corte_actividad)) or 0
+    ultimo_evento = db.scalar(select(func.max(Actividad.created_at)).where(
+        Actividad.company_id == c.id))
+    plan = db.scalar(select(Plan.nombre).join(
+        Suscripcion, Suscripcion.plan_id == Plan.id).where(
+            Suscripcion.company_id == c.id))
+    sujetos = _sujetos_por_tipo(db, c.id)
     return {
-        "id": str(c.id), "nombre": c.nombre, "rut": c.rut, "email": c.email,
+        # RUT y email no forman parte del contrato operativo del listado ni
+        # del detalle global; se mantienen fuera de esta respuesta.
+        "id": str(c.id), "nombre": c.nombre,
         "status": c.status, "es_demo": c.es_demo,
         "rejection_reason": c.rejection_reason,
         "approved_at": _iso(c.approved_at),
         "created_at": _iso(c.created_at),
         "contratos": (contratos if contratos is not None
                       else _cuenta(db, Contrato, Contrato.company_id == c.id)),
+        "trabajadores": sujetos["trabajador"]["total"],
+        "usuarios": usuarios,
+        "plan": plan,
+        "actividad": actividad_30d,
+        "usuarios_activos": usuarios_con_actividad,
+        "actividad_pct": round(100 * usuarios_con_actividad / usuarios)
+        if usuarios else 0,
+        "ultima_actividad_at": _iso(ultimo_evento),
         "cumplimiento_pct": m["cumplimiento_pct"],
         "docs_ok": m["docs_ok"], "docs_total": m["docs_total"],
     }
@@ -270,6 +328,282 @@ def _valida_template(db: Session, ambito: str | None, tipo: str | None,
 # ============================================================================
 # §5.1 — Empresas
 # ============================================================================
+@router.get("/search")
+def global_search(q: str = Query(..., min_length=2, max_length=100),
+                  limite: int = Query(8, ge=1, le=25),
+                  db: Session = Depends(get_db)):
+    """Busca entidades globales con un alcance de permisos explícito.
+
+    El router ya exige `require_admin`; la matriz por tipo deja documentado el
+    alcance que podrá separarse en roles más finos sin volver a exponer datos
+    personales en los resultados actuales.
+    """
+    like = f"%{q.strip()}%"
+    resultados = []
+
+    empresas = db.scalars(select(Company).where(or_(
+        Company.nombre.ilike(like), Company.rut.ilike(like),
+        Company.email.ilike(like))).limit(limite)).all()
+    for company in empresas:
+        resultados.append({
+            "tipo": "empresa", "id": str(company.id),
+            "titulo": company.nombre, "subtitulo": company.status,
+            "company_id": str(company.id),
+            "permiso": SEARCH_PERMISSIONS["empresa"],
+            "detalle": f"/admin/companies/{company.id}",
+        })
+
+    contratos = db.execute(select(Contrato, Company.nombre)
+                           .join(Company, Company.id == Contrato.company_id)
+                           .where(or_(Contrato.nombre.ilike(like),
+                                      Contrato.codigo.ilike(like)))
+                           .limit(limite)).all()
+    for contrato, company_name in contratos:
+        resultados.append({
+            "tipo": "contrato", "id": str(contrato.id),
+            "titulo": contrato.nombre, "subtitulo": contrato.estado,
+            "empresa": company_name, "company_id": str(contrato.company_id),
+            "permiso": SEARCH_PERMISSIONS["contrato"],
+            "detalle": f"/admin/companies/{contrato.company_id}",
+        })
+
+    trabajadores = db.execute(select(Sujeto, Company.nombre)
+                              .join(Company, Company.id == Sujeto.company_id)
+                              .where(or_(Sujeto.nombre.ilike(like),
+                                         Sujeto.cargo.ilike(like)))
+                              .limit(limite)).all()
+    for sujeto, company_name in trabajadores:
+        resultados.append({
+            "tipo": "trabajador", "id": str(sujeto.id),
+            "titulo": sujeto.nombre, "subtitulo": sujeto.cargo or sujeto.tipo,
+            "empresa": company_name, "company_id": str(sujeto.company_id),
+            "permiso": SEARCH_PERMISSIONS["trabajador"],
+            "detalle": f"/admin/companies/{sujeto.company_id}",
+        })
+
+    usuarios = db.execute(select(User, Company.nombre)
+                          .join(Company, Company.id == User.company_id)
+                          .where(or_(User.nombre.ilike(like),
+                                     User.email.ilike(like)))
+                          .limit(limite)).all()
+    for user, company_name in usuarios:
+        resultados.append({
+            "tipo": "usuario", "id": str(user.id),
+            "titulo": user.nombre or "Usuario sin nombre",
+            "subtitulo": user.role, "empresa": company_name,
+            "company_id": str(user.company_id),
+            "permiso": SEARCH_PERMISSIONS["usuario"],
+            "detalle": f"/admin/companies/{user.company_id}",
+        })
+
+    return {
+        "query": q.strip(), "permisos": SEARCH_PERMISSIONS,
+        "total": len(resultados), "items": resultados,
+    }
+
+
+@router.get("/audit")
+def global_audit(modulo: str | None = Query(None),
+                 tipo: str | None = Query(None),
+                 user_id: uuid.UUID | None = Query(None),
+                 desde: date | None = Query(None),
+                 hasta: date | None = Query(None),
+                 p: Page = Depends(paginacion),
+                 db: Session = Depends(get_db)):
+    """Auditoría global de toda la plataforma, solo para administradores."""
+    q = (select(Actividad, User.nombre.label("actor_nombre"),
+                Company.nombre.label("empresa"))
+         .outerjoin(User, User.id == Actividad.user_id)
+         .join(Company, Company.id == Actividad.company_id))
+    if modulo:
+        q = q.where(Actividad.modulo == modulo)
+    if tipo:
+        q = q.where(Actividad.tipo == tipo)
+    if user_id:
+        q = q.where(Actividad.user_id == user_id)
+    if desde:
+        q = q.where(Actividad.created_at >= datetime.combine(
+            desde, datetime.min.time(), tzinfo=timezone.utc))
+    if hasta:
+        q = q.where(Actividad.created_at < datetime.combine(
+            hasta + timedelta(days=1), datetime.min.time(), tzinfo=timezone.utc))
+    if p.search:
+        like = f"%{p.search}%"
+        q = q.where(or_(Actividad.descripcion.ilike(like),
+                        Actividad.modulo.ilike(like),
+                        Company.nombre.ilike(like)))
+    total = db.scalar(select(func.count()).select_from(q.subquery())) or 0
+    filas = db.execute(q.order_by(Actividad.id.desc())
+                       .offset(p.offset).limit(p.page_size)).all()
+    return sobre([{
+        "id": int(a.id), "empresa": empresa,
+        "actor": actor_nombre or (f"Usuario {str(a.user_id)[:8]}" if a.user_id else "Sistema"),
+        "tipo": a.tipo, "modulo": a.modulo,
+        "descripcion": a.descripcion, "entidad_tipo": a.entidad_tipo,
+        "entidad_id": str(a.entidad_id) if a.entidad_id else None,
+        "motivo": (a.meta or {}).get("motivo_acceso"),
+        "created_at": a.created_at.isoformat(),
+    } for a, actor_nombre, empresa in filas], total, p)
+
+
+def _admin_user_out(db: Session, user: User) -> dict:
+    contrato = db.get(Contrato, user.contrato_id) if user.contrato_id else None
+    company = db.get(Company, user.company_id) if user.company_id else None
+    return {
+        # La consola opera por id y oculta el email por defecto para reducir
+        # la exposición de PII en listados globales.
+        "id": str(user.id), "nombre": user.nombre, "email": "Oculto",
+        "role": user.role, "activo": user.activo, "status": user.status,
+        "company_id": str(user.company_id) if user.company_id else None,
+        "company": company.nombre if company else None,
+        "contrato_id": str(user.contrato_id) if user.contrato_id else None,
+        "contrato": contrato.nombre if contrato else None,
+        "last_login_at": _iso(user.last_login_at),
+        "created_at": _iso(user.created_at),
+    }
+
+
+@router.get("/users")
+def admin_users(role: str | None = Query(None),
+                company_id: uuid.UUID | None = Query(None),
+                activo: bool | None = Query(None),
+                p: Page = Depends(paginacion),
+                db: Session = Depends(get_db)):
+    """Listado global de usuarios para administradores de plataforma."""
+    q = select(User)
+    if role:
+        q = q.where(User.role == role)
+    if company_id:
+        q = q.where(User.company_id == company_id)
+    if activo is not None:
+        q = q.where(User.activo.is_(activo))
+    if p.search:
+        like = f"%{p.search}%"
+        q = q.where(or_(User.nombre.ilike(like), User.email.ilike(like)))
+    total = db.scalar(select(func.count()).select_from(q.subquery())) or 0
+    filas = db.scalars(q.order_by(User.last_login_at.desc().nulls_last(),
+                                  User.created_at.desc())
+                       .offset(p.offset).limit(p.page_size)).all()
+    return sobre([_admin_user_out(db, user) for user in filas], total, p)
+
+
+@router.get("/users/audit")
+def admin_users_audit(p: Page = Depends(paginacion),
+                      db: Session = Depends(get_db)):
+    """Auditoría de cambios de rol, alcance y activación de usuarios."""
+    q = (select(Actividad, User.nombre.label("actor_nombre"),
+                User.email.label("actor_email"))
+         .outerjoin(User, User.id == Actividad.user_id)
+         .where(Actividad.modulo == "usuarios",
+                Actividad.entidad_tipo == "usuario")
+         .order_by(Actividad.created_at.desc()))
+    total = db.scalar(select(func.count()).select_from(q.subquery())) or 0
+    filas = db.execute(q.offset(p.offset).limit(p.page_size)).all()
+    return sobre([{
+        "id": int(a.id), "usuario_id": str(a.entidad_id) if a.entidad_id else None,
+        "accion": a.tipo, "descripcion": a.descripcion,
+        "actor": actor_nombre or actor_email or "Sistema",
+        "created_at": a.created_at.isoformat(),
+    } for a, actor_nombre, actor_email in filas], total, p)
+
+
+@router.get("/users/catalog")
+def admin_users_catalog(db: Session = Depends(get_db)):
+    """Catálogo mínimo para asignar empresa y contrato desde la consola."""
+    companies = db.scalars(select(Company)
+                           .where(Company.status == "approved")
+                           .order_by(Company.nombre)).all()
+    contratos = db.execute(select(Contrato.id, Contrato.company_id,
+                                 Contrato.nombre)
+                           .join(Company, Company.id == Contrato.company_id)
+                           .where(Company.status == "approved")
+                           .order_by(Contrato.nombre)).all()
+    return {
+        "companies": [{"id": str(c.id), "nombre": c.nombre} for c in companies],
+        "contratos": [{"id": str(c.id), "company_id": str(c.company_id),
+                       "nombre": c.nombre} for c in contratos],
+    }
+
+
+@router.patch("/users/{user_id}")
+def editar_admin_user(user_id: uuid.UUID, body: AdminUserPatch,
+                      db: Session = Depends(get_db),
+                      admin: User = Depends(require_admin)):
+    user = db.get(User, user_id)
+    if user is None:
+        raise err(404, "NO_ENCONTRADO", "Usuario inexistente")
+    data = body.model_dump(exclude_unset=True)
+    if not data:
+        raise err(400, "SIN_CAMBIOS", "No se indicó ningún cambio")
+
+    role = data.get("role", user.role)
+    company_id = data.get("company_id", user.company_id)
+    contrato_id = data.get("contrato_id", user.contrato_id)
+    if role == "admin":
+        company_id = None
+        contrato_id = None
+    elif role == "company":
+        if not company_id:
+            raise err(400, "EMPRESA_REQUERIDA", "El rol company necesita una empresa")
+        contrato_id = None
+    elif role == "contract_admin":
+        if not company_id or not contrato_id:
+            raise err(400, "ALCANCE_REQUERIDO",
+                      "contract_admin necesita empresa y contrato")
+    else:
+        raise err(400, "ROL_INVALIDO",
+                  "role debe ser admin, company o contract_admin")
+
+    if company_id and not db.get(Company, company_id):
+        raise err(404, "EMPRESA_INEXISTENTE", "La empresa no existe")
+    if contrato_id:
+        contrato = db.get(Contrato, contrato_id)
+        if not contrato or contrato.company_id != company_id:
+            raise err(400, "CONTRATO_INVALIDO",
+                      "El contrato no pertenece a la empresa indicada")
+    cambios = []
+    for campo, valor in (("role", role), ("company_id", company_id),
+                         ("contrato_id", contrato_id)):
+        anterior = getattr(user, campo)
+        if anterior != valor:
+            setattr(user, campo, valor)
+            cambios.append(campo)
+    if "activo" in data and user.activo != data["activo"]:
+        if user.id == admin.id and not data["activo"]:
+            raise err(400, "AUTO_REVOCACION", "No puede desactivar su propia cuenta")
+        user.activo = data["activo"]
+        cambios.append("activo")
+    if not cambios:
+        return _admin_user_out(db, user)
+
+    if user.company_id:
+        actividad.log(db, user.company_id, "actualizacion", "usuarios",
+                      f"Permisos de usuario modificados: {', '.join(cambios)}",
+                      user_id=admin.id, entidad_tipo="usuario", entidad_id=user.id)
+    db.commit()
+    db.refresh(user)
+    return _admin_user_out(db, user)
+
+
+@router.post("/users/{user_id}/revoke")
+def revocar_admin_user(user_id: uuid.UUID, body: AdminUserRevoke,
+                       db: Session = Depends(get_db),
+                       admin: User = Depends(require_admin)):
+    """Revoca el acceso completo sin borrar la identidad ni su auditoría."""
+    user = db.get(User, user_id)
+    if user is None:
+        raise err(404, "NO_ENCONTRADO", "Usuario inexistente")
+    if user.id == admin.id:
+        raise err(400, "AUTO_REVOCACION", "No puede revocar su propia cuenta")
+    user.activo = False
+    if user.company_id:
+        actividad.log(db, user.company_id, "actualizacion", "usuarios",
+                      f"Acceso revocado{': ' + body.motivo.strip() if body.motivo else ''}",
+                      user_id=admin.id, entidad_tipo="usuario", entidad_id=user.id)
+    db.commit()
+    return {"ok": True, "id": str(user.id), "activo": False}
+
+
 @router.get("/companies")
 def list_companies(status: str | None = Query(None),
                    es_demo: bool | None = Query(None),
@@ -607,6 +941,213 @@ def stats(db: Session = Depends(get_db)):
     docs_ok = sum(int(f.ok) for f in filas)
 
     sujetos = _sujetos_por_tipo(db)
+
+    # El dashboard distingue falta de vencimiento: mezclar ambos estados
+    # oculta dos acciones operativas distintas para el administrador.
+    estados_documentos = dict(db.execute(
+        select(Documento.estado_calc, func.count())
+        .where(Documento.obligatorio.is_(True), Documento.es_emsipor.is_(False))
+        .group_by(Documento.estado_calc)).all())
+    documentos = {
+        "total": sum(int(v) for v in estados_documentos.values()),
+        "ok": int(estados_documentos.get("ok", 0)),
+        "pendientes": int(estados_documentos.get("falta", 0)),
+        "por_vencer": int(estados_documentos.get("porvenc", 0)),
+        "vencidos": int(estados_documentos.get("venc", 0)),
+    }
+
+    usuarios_total = _cuenta(db, User, User.role != "admin")
+    usuarios_activos = _cuenta(db, User, User.role != "admin",
+                               User.activo.is_(True))
+    clientes_activos = db.scalar(
+        select(func.count(func.distinct(Suscripcion.company_id)))
+        .join(Company, Company.id == Suscripcion.company_id)
+        .where(Company.status == "approved",
+               Suscripcion.estado.in_(("activa", "trial")))) or 0
+
+    # Actividad global: además del total, se entrega desglose y serie mensual
+    # para que el dashboard no dependa de una tabla de actividad paginada.
+    actividad_por_modulo = dict(db.execute(
+        select(Actividad.modulo, func.count())
+        .group_by(Actividad.modulo).order_by(func.count().desc())).all())
+    actividad_por_tipo = dict(db.execute(
+        select(Actividad.tipo, func.count())
+        .group_by(Actividad.tipo).order_by(func.count().desc())).all())
+    inicio_actividad = datetime.now(timezone.utc) - timedelta(days=30)
+    actividad_30d = _cuenta(db, Actividad, Actividad.created_at >= inicio_actividad)
+    actividad_mensual_filas = db.execute(
+        select(func.date_trunc("month", Actividad.created_at).label("mes"),
+               func.count().label("total"))
+        .where(Actividad.created_at >= datetime.combine(
+            _meses_atras(12)[0], datetime.min.time(), tzinfo=timezone.utc))
+        .group_by("mes").order_by("mes")).all()
+    actividad_mensual = {f.mes.strftime("%Y-%m"): int(f.total)
+                         for f in actividad_mensual_filas}
+    actividad_evolucion = [
+        {"mes": mes.strftime("%Y-%m"), "eventos": actividad_mensual.get(
+            mes.strftime("%Y-%m"), 0)} for mes in _meses_atras(12)]
+    actividad_reciente = db.execute(
+        select(Actividad, Company.nombre.label("company_nombre"))
+        .outerjoin(Company, Company.id == Actividad.company_id)
+        .order_by(Actividad.created_at.desc()).limit(12)).all()
+    actividad_ultimas = [{
+        "id": int(a.id), "empresa": nombre or "Plataforma", "tipo": a.tipo,
+        "modulo": a.modulo, "descripcion": a.descripcion,
+        "created_at": a.created_at.isoformat(),
+    } for a, nombre in actividad_reciente]
+
+    actividad_empresas = db.execute(
+        select(Company.id, Company.nombre,
+               func.count(func.distinct(User.id)).label("usuarios"),
+               func.count(func.distinct(Actividad.user_id)).label("activos"))
+        .outerjoin(User, and_(User.company_id == Company.id,
+                              User.role != "admin", User.activo.is_(True)))
+        .outerjoin(Actividad, and_(Actividad.company_id == Company.id,
+                                   Actividad.created_at >= inicio_actividad))
+        .where(Company.status == "approved")
+        .group_by(Company.id, Company.nombre)).all()
+    clientes_baja_actividad = [{
+        "company_id": str(f.id), "nombre": f.nombre,
+        "usuarios": int(f.usuarios), "usuarios_activos": int(f.activos),
+        "actividad_pct": round(100 * int(f.activos) / int(f.usuarios))
+        if f.usuarios else 0,
+    } for f in actividad_empresas
+        if int(f.usuarios) and int(f.activos) * 2 < int(f.usuarios)]
+    clientes_baja_actividad.sort(key=lambda f: (f["actividad_pct"], f["nombre"]))
+
+    # No existe una columna de duración de sesión. Se informa el dato real de
+    # sesiones vigentes y una estimación de uso basada en eventos por usuario.
+    ahora = datetime.now(timezone.utc)
+    sesiones_vigentes = _cuenta(db, RefreshToken,
+                                RefreshToken.revoked_at.is_(None),
+                                RefreshToken.expires_at > ahora)
+    usuarios_con_actividad = db.scalar(
+        select(func.count(func.distinct(Actividad.user_id))).where(
+            Actividad.user_id.is_not(None),
+            Actividad.created_at >= inicio_actividad)) or 0
+    rangos_uso = select(
+        Actividad.user_id,
+        func.extract("epoch", func.max(Actividad.created_at)
+                             - func.min(Actividad.created_at))
+        .label("segundos"),
+    ).where(Actividad.user_id.is_not(None),
+            Actividad.created_at >= inicio_actividad).group_by(Actividad.user_id).subquery()
+    uso = db.scalar(select(func.avg(rangos_uso.c.segundos / 60)))
+    inicio_sesiones = ahora - timedelta(days=30)
+    duracion_sesiones = db.execute(select(
+        func.avg(func.extract(
+            "epoch", func.coalesce(RefreshToken.revoked_at, ahora)
+            - RefreshToken.created_at) / 60).label("promedio_minutos"),
+        func.count().label("medidas"),
+    ).where(RefreshToken.created_at >= inicio_sesiones)).one()
+
+    # DAU y WAU se calculan sobre usuarios con eventos reales, no sobre
+    # cuentas habilitadas: así la métrica representa uso y no solo capacidad.
+    inicio_dau = datetime.combine(date.today(), datetime.min.time(), tzinfo=timezone.utc)
+    usuarios_activos_diarios = db.scalar(select(
+        func.count(func.distinct(Actividad.user_id))).where(
+            Actividad.user_id.is_not(None), Actividad.created_at >= inicio_dau)) or 0
+    usuarios_activos_semanales = db.scalar(select(
+        func.count(func.distinct(Actividad.user_id))).where(
+            Actividad.user_id.is_not(None),
+            Actividad.created_at >= ahora - timedelta(days=7))) or 0
+    dau_filas = db.execute(select(
+        func.date(Actividad.created_at).label("dia"),
+        func.count(func.distinct(Actividad.user_id)).label("usuarios"),
+    ).where(Actividad.user_id.is_not(None),
+            Actividad.created_at >= ahora - timedelta(days=30))
+        .group_by("dia").order_by("dia")).all()
+    wau_filas = db.execute(select(
+        func.date_trunc("week", Actividad.created_at).label("semana"),
+        func.count(func.distinct(Actividad.user_id)).label("usuarios"),
+    ).where(Actividad.user_id.is_not(None),
+            Actividad.created_at >= ahora - timedelta(weeks=12))
+        .group_by("semana").order_by("semana")).all()
+
+    procesados = db.execute(select(
+        func.count().label("total"),
+        func.count().filter(IaReview.status == "done").label("completados"),
+        func.count().filter(IaReview.status == "processing").label("en_proceso"),
+        func.count().filter(IaReview.status == "queued").label("pendientes"),
+        func.count().filter(IaReview.status == "failed").label("fallidos"),
+    )).one()
+
+    # La serie comercial usa snapshots existentes; no se inventa MRR cuando no
+    # hay cierre mensual y se conserva el valor como null.
+    mrr_filas = db.scalars(select(MetricasMensuales)
+                           .where(MetricasMensuales.mes >= _meses_atras(12)[0])
+                           .order_by(MetricasMensuales.mes)).all()
+    mrr_evolucion = [{"mes": f.mes.strftime("%Y-%m"), "mrr": float(f.mrr_clp),
+                      "clientes_activos": f.clientes_activos}
+                     for f in mrr_filas]
+
+    empresas_baja_acreditacion = db.execute(
+        select(Company.id, Company.nombre,
+               func.count().label("documentos"),
+               func.count().filter(Documento.estado_calc == "ok").label("ok"))
+        .join(Documento, Documento.company_id == Company.id)
+        .where(Company.status == "approved", Documento.obligatorio.is_(True),
+               Documento.es_emsipor.is_(False))
+        .group_by(Company.id, Company.nombre)).all()
+    baja_acreditacion = [{
+        "company_id": str(f.id), "empresa": f.nombre,
+        "documentos": int(f.documentos), "documentos_ok": int(f.ok),
+        "acreditacion_pct": round(100 * int(f.ok) / int(f.documentos)),
+    } for f in empresas_baja_acreditacion
+        if int(f.documentos) and int(f.ok) * 100 < int(f.documentos) * 70]
+    baja_acreditacion.sort(key=lambda f: (f["acreditacion_pct"], f["empresa"]))
+
+    contratos_pendientes = db.execute(
+        select(Contrato.id, Contrato.nombre, Contrato.company_id,
+               Company.nombre.label("empresa"),
+               func.count().filter(Documento.estado_calc.in_(("falta", "venc")))
+               .label("pendientes"))
+        .join(Company, Company.id == Contrato.company_id)
+        .outerjoin(Documento, Documento.contrato_id == Contrato.id)
+        .where(Company.status == "approved")
+        .group_by(Contrato.id, Contrato.nombre, Contrato.company_id,
+                  Company.nombre)
+        .having(func.count().filter(Documento.estado_calc.in_(("falta", "venc"))) >= 3)
+        .order_by(func.count().filter(Documento.estado_calc.in_(("falta", "venc"))).desc())
+        .limit(25)).all()
+    contratos_con_pendientes = [{
+        "contrato_id": str(f.id), "contrato": f.nombre,
+        "company_id": str(f.company_id), "empresa": f.empresa,
+        "documentos_pendientes": int(f.pendientes),
+    } for f in contratos_pendientes]
+
+    vencidos_filas = db.execute(
+        select(Company.id, Company.nombre, func.count().label("vencidos"))
+        .join(Documento, Documento.company_id == Company.id)
+        .where(Company.status == "approved", Documento.estado_calc == "venc")
+        .group_by(Company.id, Company.nombre)
+        .order_by(func.count().desc())).all()
+    vencidos_por_empresa = [{
+        "company_id": str(f.id), "empresa": f.nombre,
+        "documentos_vencidos": int(f.vencidos),
+    } for f in vencidos_filas]
+
+    morosos_filas = db.execute(
+        select(Company.id, Company.nombre, Plan.nombre.label("plan"))
+        .join(Suscripcion, Suscripcion.company_id == Company.id)
+        .join(Plan, Plan.id == Suscripcion.plan_id)
+        .where(Company.status == "approved", Suscripcion.estado == "morosa")
+        .order_by(Company.nombre)).all()
+    clientes_morosos = [{"company_id": str(f.id), "empresa": f.nombre,
+                         "plan": f.plan} for f in morosos_filas]
+
+    alertas_filas = db.execute(
+        select(Alerta, Company.nombre.label("empresa"))
+        .join(Company, Company.id == Alerta.company_id)
+        .where(Alerta.resuelta_at.is_(None))
+        .order_by(Alerta.created_at.desc()).limit(50)).all()
+    bandeja_alertas = [{
+        "id": str(a.id), "empresa": empresa, "company_id": str(a.company_id),
+        "severidad": a.severidad, "estado": a.estado, "origen": a.origen,
+        "titulo": a.titulo, "descripcion": a.descripcion,
+        "created_at": a.created_at.isoformat(),
+    } for a, empresa in alertas_filas]
+
     return {
         "empresas_total": total, "pendientes": pend, "aprobadas": aprob,
         "rechazadas": rech,
@@ -619,11 +1160,59 @@ def stats(db: Session = Depends(get_db)):
         "equipos": sujetos["equipo"],
         # Se conserva por compatibilidad con la versión anterior del endpoint.
         "sujetos_total": sujetos["trabajador"]["total"] + sujetos["equipo"]["total"],
+        "usuarios_total": usuarios_total,
+        "usuarios_activos": usuarios_activos,
+        "clientes_activos": int(clientes_activos),
         "documentos_total": docs_total, "documentos_ok": docs_ok,
+        "documentos": documentos,
         "cumplimiento_promedio": round(sum(pcts) / len(pcts)) if pcts else 0,
         "cumplimiento_global_pct": (round(100 * docs_ok / docs_total)
                                     if docs_total else 0),
         "empresas_medidas": len(pcts),
+        "actividad_global": {
+            "total": _cuenta(db, Actividad),
+            "ultimos_30_dias": actividad_30d,
+            "por_modulo": actividad_por_modulo,
+            "por_tipo": actividad_por_tipo,
+            "evolucion_mensual": actividad_evolucion,
+            "ultimas": actividad_ultimas,
+            "clientes_baja_actividad": clientes_baja_actividad,
+        },
+        "sesiones": {
+            "vigentes": sesiones_vigentes,
+            "usuarios_con_actividad_30d": usuarios_con_actividad,
+            "tiempo_uso_promedio_minutos_30d": round(float(uso), 1) if uso else 0,
+            "tiempo_uso_es_estimado": True,
+            "duracion_promedio_minutos_30d": round(
+                float(duracion_sesiones.promedio_minutos), 1)
+            if duracion_sesiones.promedio_minutos else 0,
+            "sesiones_medidas_30d": int(duracion_sesiones.medidas),
+            "duracion_es_estimada": True,
+            "usuarios_activos_diarios": int(usuarios_activos_diarios),
+            "usuarios_activos_semanales": int(usuarios_activos_semanales),
+            "evolucion_dau": [{"dia": f.dia.isoformat(), "usuarios": int(f.usuarios)}
+                              for f in dau_filas],
+            "evolucion_wau": [{"semana": f.semana.date().isoformat(), "usuarios": int(f.usuarios)}
+                              for f in wau_filas],
+        },
+        "documentos_procesados": {
+            "total": int(procesados.total),
+            "completados": int(procesados.completados),
+            "en_proceso": int(procesados.en_proceso),
+            "pendientes": int(procesados.pendientes),
+            "fallidos": int(procesados.fallidos),
+        },
+        "mrr": {
+            "actual": mrr_evolucion[-1]["mrr"] if mrr_evolucion else None,
+            "evolucion_mensual": mrr_evolucion,
+        },
+        "salud_clientes": {
+            "empresas_baja_acreditacion": baja_acreditacion,
+            "contratos_con_pendientes": contratos_con_pendientes,
+            "vencidos_por_empresa": vencidos_por_empresa,
+            "clientes_morosos": clientes_morosos,
+            "bandeja_alertas": bandeja_alertas,
+        },
     }
 
 

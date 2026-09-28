@@ -431,9 +431,11 @@ function esperar(ms: number): Promise<void> {
 // ============================================================================
 // §6.2 — Descarga por URL firmada (el endpoint /descarga ya no existe)
 // ============================================================================
-export function urlDescarga(docId: string, archivoId: string): Promise<DownloadUrl> {
+export function urlDescarga(docId: string, archivoId: string,
+                            motivo: string): Promise<DownloadUrl> {
   return api<DownloadUrl>(
-    `/documentos/${docId}/archivos/${archivoId}/download-url`);
+    `/documentos/${docId}/archivos/${archivoId}/download-url`,
+    { query: { motivo } });
 }
 
 /**
@@ -455,7 +457,13 @@ export function abrirDescarga(url: string, filename?: string) {
 }
 
 /** Pide la URL firmada del archivo y la abre. */
-export async function descargarArchivo(docId: string, archivoId: string) {
-  const dl = await urlDescarga(docId, archivoId);
+export async function descargarArchivo(docId: string, archivoId: string,
+                                       motivo: string) {
+  const detalle = motivo.trim();
+  if (detalle.length < 12) {
+    throw new ApiError("MOTIVO_REQUERIDO",
+      "El motivo de descarga debe tener al menos 12 caracteres", 400);
+  }
+  const dl = await urlDescarga(docId, archivoId, detalle);
   abrirDescarga(dl.download_url, dl.filename);
 }

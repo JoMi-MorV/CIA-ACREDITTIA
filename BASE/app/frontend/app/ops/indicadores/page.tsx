@@ -5,6 +5,7 @@ import { GroupedBars, LineChart } from "@/components/ops/charts";
 import { Card, CardHead, Estado, Kpi, Legend, Segmented, useOps } from "@/components/ops/ui";
 import { opsApi } from "@/lib/ops/api";
 import { useI18n } from "@/lib/ops/i18n";
+import type { AdminStats } from "@/lib/tipos";
 
 export default function IndicadoresPage() {
   const { t, fmtN, fmtMes } = useI18n();
@@ -15,6 +16,8 @@ export default function IndicadoresPage() {
   const flujo = useOps(() => opsApi("/indicadores/clientes-flujo"), []);
   const churn = useOps(() => opsApi("/indicadores/churn"), []);
   const planes = useOps(() => opsApi("/indicadores/por-plan"), []);
+  const saas = useOps<AdminStats>(() => opsApi("/stats"), []);
+  const usoUsuarios = useOps(() => opsApi("/usuarios/resumen"), []);
 
   const d = resumen.data;
   const mm = (v: number) => `$${fmtN(v / 1e6, 1)}`;
@@ -47,6 +50,27 @@ export default function IndicadoresPage() {
             : t("kpi.sin_cac")}
           tono="flat" />
       </div>
+
+      <Card>
+        <CardHead titulo="Uso y adopción" sub="Clientes, crecimiento, sesiones y procesamiento documental" />
+        <Estado cargando={saas.cargando} error={saas.error} reintentar={saas.recargar}>
+          {saas.data && <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+            <SaaSValue label="Clientes activos" value={saas.data.clientes_activos} />
+            <SaaSValue label="Usuarios habilitados" value={saas.data.usuarios_activos} />
+            <SaaSValue label="Sesiones vigentes" value={saas.data.sesiones.vigentes} />
+            <SaaSValue label="DAU" value={saas.data.sesiones.usuarios_activos_diarios} />
+            <SaaSValue label="WAU" value={saas.data.sesiones.usuarios_activos_semanales} />
+            <SaaSValue label="Duración promedio" value={`${saas.data.sesiones.duracion_promedio_minutos_30d} min`} />
+            <SaaSValue label="Crecimiento usuarios / mes" value={usoUsuarios.data?.usuarios?.variacion_mes?.abs ?? "-"} />
+            <SaaSValue label="Altas / bajas este mes" value={usoUsuarios.data?.clientes ? `${usoUsuarios.data.clientes.altas_mes} / ${usoUsuarios.data.clientes.bajas_mes}` : "-"} />
+            <SaaSValue label="Documentos procesados" value={saas.data.documentos_procesados.total} />
+            <SaaSValue label="Completados" value={saas.data.documentos_procesados.completados} />
+            <SaaSValue label="En proceso" value={saas.data.documentos_procesados.en_proceso} />
+            <SaaSValue label="Fallidos" value={saas.data.documentos_procesados.fallidos} />
+          </div>}
+        </Estado>
+        <p className="ops-sub mt-3">La duración de sesión y el tiempo de uso son estimados según la telemetría actualmente disponible.</p>
+      </Card>
 
       {/* ------- Evolución MRR ------- */}
       <Card>
@@ -167,4 +191,11 @@ export default function IndicadoresPage() {
       </Card>
     </div>
   );
+}
+
+function SaaSValue({ label, value }: { label: string; value: number | string }) {
+  return <div className="rounded-md border p-3" style={{ borderColor: "var(--ops-line-soft)" }}>
+    <div className="ops-lbl">{label}</div>
+    <div className="mt-1 text-xl font-bold" style={{ fontVariantNumeric: "tabular-nums" }}>{value}</div>
+  </div>;
 }

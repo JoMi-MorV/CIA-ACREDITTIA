@@ -149,7 +149,9 @@ export default function SubjectDetail({ tipo, id }: { tipo: "personal" | "equipo
 
   const descargar = async (doc: Documento, a: Archivo) => {
     setError("");
-    try { await Api.descargarArchivo(doc.id, a.id); }
+    const motivo = window.prompt("Motivo de acceso al documento (mínimo 12 caracteres):");
+    if (!motivo) return;
+    try { await Api.descargarArchivo(doc.id, a.id, motivo); }
     catch (e) { setError(Api.mensajeError(e)); }
   };
 

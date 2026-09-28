@@ -439,6 +439,7 @@ def confirmar_archivo(doc_id: uuid.UUID, body: ConfirmarArchivoIn,
 
 @router.get("/{doc_id}/archivos/{archivo_id}/download-url")
 def download_url(doc_id: uuid.UUID, archivo_id: uuid.UUID,
+                 motivo: str = Query(..., min_length=12, max_length=240),
                  db: Session = Depends(get_db),
                  cid: uuid.UUID = Depends(get_company_id),
                  user: User = Depends(get_current_user)):
@@ -450,7 +451,16 @@ def download_url(doc_id: uuid.UUID, archivo_id: uuid.UUID,
     """
     d = _get_doc(db, cid, doc_id, user)
     a = _get_archivo(db, cid, d, archivo_id)
+    motivo = motivo.strip()
+    if len(motivo) < 12:
+        raise err(400, "MOTIVO_REQUERIDO",
+                  "Indique un motivo de al menos 12 caracteres para acceder al documento")
     dl = get_storage().download_url(a.blob_path, a.filename)
+    actividad.log(db, cid, "visualizacion", "documentos",
+                  f"Descarga de archivo '{a.filename}' del documento '{d.titulo}'",
+                  user_id=user.id, entidad_tipo="documento", entidad_id=d.id,
+                  metadata={"motivo_acceso": motivo, "archivo_id": str(a.id)})
+    db.commit()
     return {
         "download_url": dl.download_url,
         "expires_at": dl.expires_at.isoformat(),

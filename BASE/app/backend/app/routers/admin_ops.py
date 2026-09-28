@@ -1,4 +1,4 @@
-"""Consola Interna de Administración (/admin/ops) — solo rol admin.
+"""Consola Interna de Administración (/admin) — solo rol admin.
 
 Implementa los 20 endpoints de la Especificación de API — Consola Interna v1.0:
 §5 usuarios y clientes, §6 sistemas/procesos/incidentes, §7 indicadores.
@@ -36,7 +36,7 @@ from ..models_ops import (MetricasMensuales, MetricasMensualesPlan,
 from ..services import ops
 from ..services.jobs import enqueue
 
-router = APIRouter(prefix="/admin/ops", tags=["admin-ops"],
+router = APIRouter(prefix="/admin", tags=["admin"],
                    dependencies=[Depends(require_admin)])
 
 INDUSTRIAS = ("mineria", "construccion", "energia", "industrial", "otras")
@@ -104,7 +104,8 @@ def _metricas_de(db: Session, mes: date) -> tuple[MetricasMensuales | None, bool
     return _snapshot(db, mes), False
 
 
-def _auditar_confidencial(db: Session, user: User) -> None:
+def _auditar_confidencial(db: Session, user: User,
+                          motivo: str | None = None) -> None:
     """Deja constancia del acceso a cifras financieras (una vez por día y
     usuario, para no inundar el feed)."""
     from ..models import Actividad
@@ -114,7 +115,9 @@ def _auditar_confidencial(db: Session, user: User) -> None:
         Actividad.modulo == "ops", Actividad.user_id == user.id,
         Actividad.tipo == "visualizacion", Actividad.created_at >= hoy))
     if not ya:
-        ops.auditar(db, "visualizacion", "Consulta de indicadores confidenciales",
+        razon = (motivo or "Consulta estándar del panel de indicadores").strip()
+        ops.auditar(db, "visualizacion",
+                    f"Consulta de indicadores confidenciales · Motivo: {razon}",
                     user_id=user.id)
         db.commit()
 
@@ -452,6 +455,11 @@ def sistemas_estado(resp: Response, db: Session = Depends(get_db)):
         .where(OpsDisponibilidadDiaria.fecha
                >= date.today() - timedelta(days=90))
         .group_by(OpsDisponibilidadDiaria.componente)).all())
+    clientes_operativos = [{"company_id": str(company_id), "empresa": nombre}
+                           for company_id, nombre in db.execute(
+        select(Company.id, Company.nombre)
+        .where(Company.status == "approved")
+        .order_by(Company.nombre)).all()]
 
     salida, peor = [], "operativo"
     for comp in componentes:
@@ -465,6 +473,10 @@ def sistemas_estado(resp: Response, db: Session = Depends(get_db)):
             "desde": desde.isoformat() if desde else None,
             "metricas": metricas,
             "incidente_abierto_id": str(inc.id) if inc else None,
+            "impacto": {
+                "alcance": "global" if estado != "operativo" else "ninguno",
+                "empresas_afectadas": clientes_operativos if estado != "operativo" else [],
+            },
         })
         if ops.PESO_ESTADO[estado] > ops.PESO_ESTADO[peor]:
             peor = estado
@@ -835,13 +847,14 @@ def editar_incidente(incidente_id: uuid.UUID, body: IncidentePatch,
 # ============================================================================
 @router.get("/indicadores/resumen")
 def indicadores_resumen(resp: Response, mes: str | None = Query(None),
+                        motivo: str | None = Query(None, max_length=240),
                         db: Session = Depends(get_db),
                         user: User = Depends(get_current_user)):
     m = _mes_param(mes)
     fila, parcial = _metricas_de(db, m)
     if fila is None:
         raise err(404, "NO_ENCONTRADO", f"No hay snapshot del mes {mes}")
-    _auditar_confidencial(db, user)
+    _auditar_confidencial(db, user, motivo)
 
     prev = _snapshot(db, (m - timedelta(days=1)).replace(day=1))
     mrr = float(fila.mrr_clp)

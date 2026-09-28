@@ -1,4 +1,4 @@
-"""Modelos ORM de la consola interna (/admin/ops).
+"""Modelos ORM de la consola interna (/admin).
 
 Mapea las tablas de 07_consola_interna.sql sobre el MISMO `Base` de
 `app.models`, de modo que comparten metadata y sesiones. Importar este módulo

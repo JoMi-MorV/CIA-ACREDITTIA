@@ -1,9 +1,9 @@
 /**
- * Cliente HTTP de /admin/ops.
+ * Cliente HTTP de la consola administrativa unificada.
  *
  * Mismo contrato de errores que lib/api.ts del portal ({error:{code,message}}
- * -> OpsApiError), pero con la sesión de la consola (access en memoria +
- * refresh transparente en 401) y con modo demo: NEXT_PUBLIC_OPS_MOCK=1 enruta
+ * -> OpsApiError), usando la sesión compartida del portal con refresh
+ * transparente en 401 y modo demo: NEXT_PUBLIC_OPS_MOCK=1 enruta
  * cada llamada a lib/ops/mock.ts sin tocar la red, así los componentes no
  * saben si hay backend.
  */
@@ -52,7 +52,7 @@ export async function opsApi<T = any>(
 
   let res: Response;
   try {
-    res = await fetch(`${BASE}/api/v1/admin/ops${path}${qs(opts.query)}`, {
+    res = await fetch(`${BASE}/api/v1/admin${path}${qs(opts.query)}`, {
       method, headers,
       body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
     });
@@ -63,7 +63,7 @@ export async function opsApi<T = any>(
 
   if (res.status === 401) {
     if (reintento && (await refrescar())) return opsApi<T>(path, opts, false);
-    if (typeof window !== "undefined") window.location.href = "/ops/login";
+    if (typeof window !== "undefined") window.location.href = "/login";
     throw new OpsApiError("SESION_EXPIRADA", "La sesión expiró.", 401);
   }
 

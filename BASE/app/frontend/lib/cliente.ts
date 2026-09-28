@@ -21,6 +21,7 @@
 import { api, patch, type Query } from "./api";
 import type {
   AcreditacionesEstado, ActividadFila, AdminStats, Alerta, AlertaPatch,
+  BusquedaGlobal,
   Ambito, ArchivoConfirmado, CategoriaEvento, ChecklistSujeto, Conjunto,
   Contrato, ContratoCreado, ContratoIn, ContratoPatch, Credencial,
   CumplimientoContrato, Documento, DocumentoFila, DownloadUrl, Ejemplo, Empresa,
@@ -81,6 +82,9 @@ export const auth = {
 // §2 — admin (back-office de la plataforma)
 // ============================================================================
 export const admin = {
+  buscar: (q: string, limite = 8) =>
+    api<BusquedaGlobal>("/admin/search", { query: { q, limite } }),
+
   empresas: (params?: ParamsPagina & { status?: string; es_demo?: boolean }) =>
     api<Pagina<Empresa>>("/admin/companies", { query: q(params) }),
 
@@ -512,8 +516,9 @@ export const documentos = {
     api<ArchivoConfirmado>(`/documentos/${id}/archivos`,
       { body: { blob_path, filename } }),
 
-  urlDescarga: (id: string, archivoId: string) =>
-    api<DownloadUrl>(`/documentos/${id}/archivos/${archivoId}/download-url`),
+  urlDescarga: (id: string, archivoId: string, motivo: string) =>
+    api<DownloadUrl>(`/documentos/${id}/archivos/${archivoId}/download-url`,
+      { query: { motivo } }),
 
   eliminarArchivo: (id: string, archivoId: string) =>
     api<{ ok: boolean; documento: Documento }>(

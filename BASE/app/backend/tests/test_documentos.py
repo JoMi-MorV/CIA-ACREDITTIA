@@ -242,18 +242,25 @@ def test_revision_de_otra_empresa_no_es_consultable(app_cliente, empresa_a,
 # ============================================================================
 # 3. Descarga por URL firmada
 # ============================================================================
-def test_download_url_firmada_funciona(app_cliente, empresa_a, documento):
+def test_download_url_firmada_funciona(app_cliente, empresa_a, admin, documento):
     salida = subir_archivo(app_cliente, empresa_a, documento["id"],
                            filename="certificado.pdf", contenido=CONTENIDO)
     fid = salida["archivo"]["id"]
 
     r = app_cliente.get(
         f"{API}/documentos/{documento['id']}/archivos/{fid}/download-url",
+        params={"motivo": "Validación de acreditación del trabajador"},
         headers=empresa_a["headers"])
     assert r.status_code == 200, r.text
     dl = r.json()
     assert dl["filename"] == "certificado.pdf"
     assert dl["size_bytes"] == len(CONTENIDO)
+
+    audit = app_cliente.get(f"{API}/admin/audit", headers=admin["headers"],
+                            params={"search": "Descarga de archivo", "page_size": 10})
+    assert audit.status_code == 200, audit.text
+    assert any(item.get("motivo") == "Validación de acreditación del trabajador"
+               for item in audit.json()["items"])
 
     # La URL firmada no lleva token: la firma ES la autorización.
     ruta = _ruta_local(dl["download_url"])
@@ -269,6 +276,7 @@ def test_firma_manipulada_da_403(app_cliente, empresa_a, documento):
     fid = salida["archivo"]["id"]
     dl = app_cliente.get(
         f"{API}/documentos/{documento['id']}/archivos/{fid}/download-url",
+        params={"motivo": "Revisión de documento de personal"},
         headers=empresa_a["headers"]).json()
 
     ruta = _ruta_local(dl["download_url"])
@@ -285,6 +293,7 @@ def test_la_firma_no_sirve_para_otro_blob(app_cliente, empresa_a, empresa_b,
     fid = salida["archivo"]["id"]
     dl = app_cliente.get(
         f"{API}/documentos/{documento['id']}/archivos/{fid}/download-url",
+        params={"motivo": "Revisión de documento de personal"},
         headers=empresa_a["headers"]).json()
 
     doc_b = _doc_de_contrato(app_cliente, empresa_b, contrato_b)
@@ -322,8 +331,23 @@ def test_borrar_el_archivo_devuelve_el_documento_a_falta(app_cliente, empresa_a,
     # Y el blob se purgó: la URL firmada anterior ya no encuentra nada.
     r = app_cliente.get(
         f"{API}/documentos/{documento['id']}/archivos/{fid}/download-url",
+        params={"motivo": "Revisión de documento de personal"},
         headers=empresa_a["headers"])
     assert r.status_code == 404
+
+
+def test_descarga_documental_exige_motivo(app_cliente, empresa_a, documento):
+    salida = subir_archivo(app_cliente, empresa_a, documento["id"])
+    fid = salida["archivo"]["id"]
+    ruta = f"{API}/documentos/{documento['id']}/archivos/{fid}/download-url"
+
+    r = app_cliente.get(ruta, headers=empresa_a["headers"])
+    assert r.status_code == 422
+
+    r = app_cliente.get(ruta, headers=empresa_a["headers"],
+                        params={"motivo": "corto"})
+    assert r.status_code == 400
+    assert r.json()["error"]["code"] == "MOTIVO_REQUERIDO"
 
 
 def test_el_endpoint_de_descarga_antiguo_ya_no_existe(app_cliente, empresa_a,
