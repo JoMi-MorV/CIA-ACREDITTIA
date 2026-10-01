@@ -47,6 +47,8 @@ def get_current_user(token: str | None = Depends(oauth2)) -> User:
                       options=[joinedload(User.company)])
         if not user or user.status != "approved" or not user.activo:
             raise err(401, "TOKEN_INVALIDO", "Usuario no válido o desactivado")
+        if payload.get("av", 0) != user.auth_version:
+            raise err(401, "TOKEN_INVALIDO", "Sesión revocada; inicia sesión nuevamente")
         db.expunge(user)
 
     # Contexto por defecto: la propia empresa del usuario. El admin lo ajusta

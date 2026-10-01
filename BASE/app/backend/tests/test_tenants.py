@@ -292,7 +292,8 @@ def test_documento_de_a_no_se_descarga_desde_b(app_cliente, empresa_a, empresa_b
     fid = confirmacion["archivo"]["id"]
 
     r = app_cliente.get(f"{API}/documentos/{doc}/archivos/{fid}/download-url",
-                        headers=empresa_b["headers"])
+                        headers=empresa_b["headers"],
+                        params={"motivo": "Verificación de aislamiento entre empresas"})
     assert r.status_code == 404
 
     r = app_cliente.delete(f"{API}/documentos/{doc}/archivos/{fid}",

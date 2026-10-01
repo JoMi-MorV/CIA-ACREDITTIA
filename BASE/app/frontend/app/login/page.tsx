@@ -23,8 +23,10 @@ export default function LoginPage() {
     setError(""); setAviso(""); setCargando(true);
     try {
       const r = await Api.auth.login(f.email, f.password);
+      sessionStorage.removeItem("impersonar");
+      sessionStorage.removeItem("impersonar_nombre");
       Api.setSession(r.access_token, r.refresh_token, r.user);
-      router.push(r.user.role === "admin" ? "/admin" : "/dashboard");
+      router.push(r.user.role === "admin" ? "/admin/dashboard" : "/dashboard");
     } catch (err) {
       // El backend distingue la solicitud en revisión de la cuenta desactivada
       // (403 CUENTA_DESACTIVADA): en el segundo caso el mensaje ya lo explica.

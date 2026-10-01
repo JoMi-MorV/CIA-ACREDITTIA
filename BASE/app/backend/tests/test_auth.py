@@ -176,7 +176,7 @@ def test_logout_revoca_el_refresh(app_cliente, empresa_a):
 def _publico(cuerpo: dict) -> dict:
     """Parte de la respuesta que un cliente puede observar en producción.
 
-    Las claves `_dev_*` solo existen con `JWT_SECRET` de desarrollo; el contrato
+    Las claves `_dev_*` solo existen con la opción explícita de pruebas; el contrato
     de opacidad se cumple sobre el resto.
     """
     return {k: v for k, v in cuerpo.items() if not k.startswith("_")}

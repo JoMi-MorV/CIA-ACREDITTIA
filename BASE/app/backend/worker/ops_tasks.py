@@ -3,7 +3,7 @@
 Importar este módulo (lo hacen `main.py` y `worker/celery_app.py`):
 
 1. registra en `TAREAS` la entrada 'ops_ejecutar_run' que usa el endpoint
-   POST /admin/ops/procesos/{clave}/ejecutar, con lo que funciona igual con
+   POST /api/v1/admin/procesos/{clave}/ejecutar, con lo que funciona igual con
    Celery y con QUEUE_BACKEND=inproc;
 2. puebla `OPS_RUNNERS` con la función de cada clave de ops_jobs, de modo que
    una ejecución manual y una por cron corren exactamente el mismo código.

@@ -22,10 +22,12 @@ def verify_password(plain: str, hashed: str) -> bool:
         return False
 
 
-def create_access_token(user_id: uuid.UUID, role: str, company_id: uuid.UUID | None) -> str:
+def create_access_token(user_id: uuid.UUID, role: str, company_id: uuid.UUID | None,
+                        auth_version: int = 0) -> str:
     now = datetime.now(timezone.utc)
     payload = {
         "sub": str(user_id),
+        "av": auth_version,
         "role": role,
         "company_id": str(company_id) if company_id else None,
         "iat": now,

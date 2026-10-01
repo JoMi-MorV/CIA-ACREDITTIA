@@ -18,7 +18,8 @@ from fastapi.responses import JSONResponse
 
 from .config import settings
 from .database import (SessionLocal, apply_schema, assert_schema_version,
-                       reset_ctx, schema_version, set_ctx, wait_for_db)
+                       reset_ctx, schema_version, set_ctx, wait_for_db,
+                       install_runtime_role_guard)
 from .routers import (actividad, admin, alertas, auth, blobs, calendario, cargos,
                       company, contrato_requisitos, contratos, dashboard,
                       documentos, faenas, ia, integraciones, licencia_interna,
@@ -27,6 +28,7 @@ from .routers import (actividad, admin, alertas, auth, blobs, calendario, cargos
 # Importar los módulos de tareas registra las entradas de TAREAS que usa la cola.
 from .services import integraciones as _svc_integraciones  # noqa: F401
 from .services import tasks as _svc_tasks  # noqa: F401
+from worker import ops_tasks as _ops_tasks  # noqa: F401
 from .services.vencimientos import recalcular_documentos
 
 log = logging.getLogger("acredittia")
@@ -41,6 +43,7 @@ def _job_vencimientos() -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    install_runtime_role_guard()
     wait_for_db()
 
     if settings.db_apply_schema_on_start:
@@ -53,7 +56,8 @@ async def lifespan(app: FastAPI):
     with SessionLocal() as db:
         set_ctx(is_admin=True)          # las semillas tocan catálogos globales
         try:
-            seeds.run(db)
+            if settings.seed_demo_enabled and settings.app_env != "production":
+                seeds.run(db)
             recalcular_documentos(db)
         finally:
             reset_ctx()
@@ -113,7 +117,8 @@ app.include_router(auth.router, prefix=API)
 app.include_router(admin.router, prefix=API)
 app.include_router(cargos.router_admin, prefix=API)
 app.include_router(suscripcion.router_admin, prefix=API)
-app.include_router(admin_ops.router, prefix=API)
+app.include_router(admin_ops.router, prefix=f"{API}/admin")
+app.include_router(admin_ops.router, prefix=f"{API}/admin/ops")
 
 # --- Empresa y catálogos --------------------------------------------------
 app.include_router(company.router, prefix=API)

@@ -28,6 +28,9 @@ if os.environ.get("WORKER_DATABASE_URL"):
     os.environ["DATABASE_URL"] = os.environ["WORKER_DATABASE_URL"]
 
 from app.config import settings  # noqa: E402
+from app.database import install_runtime_role_guard  # noqa: E402
+
+install_runtime_role_guard()
 # Importar los módulos de tareas puebla el registro TAREAS.
 from app.services import integraciones as _svc_integraciones  # noqa: E402,F401
 from app.services import tasks as _svc_tasks  # noqa: E402,F401

@@ -14,6 +14,8 @@ from datetime import datetime, timezone
 
 import pytest
 
+from app.database import worker_session
+from app.models import Company
 from tests.conftest import API
 
 ENVOLTURA = {"items", "page", "page_size", "total", "total_pages"}
@@ -83,6 +85,23 @@ def test_todo_el_router_exige_admin(app_cliente, empresa_a):
 def test_sin_token(app_cliente):
     r = app_cliente.get(f"{API}/admin/ops/usuarios/resumen")
     assert r.status_code == 401
+
+
+def test_stats_incluye_empresa_aprobada_sin_usuarios(app_cliente, admin):
+    with worker_session(is_admin=True) as db:
+        company = Company(nombre="Empresa sin usuarios", rut="71.234.567-8",
+                          email="sin-usuarios@empresa.cl", status="approved")
+        db.add(company)
+        db.commit()
+        company_id = str(company.id)
+
+    respuesta = app_cliente.get(f"{API}/admin/stats", headers=admin["headers"])
+    assert respuesta.status_code == 200, respuesta.text
+    item = next(x for x in respuesta.json()["actividad_global"]["clientes_baja_actividad"]
+                if x["company_id"] == company_id)
+    assert item["usuarios"] == 0
+    assert item["usuarios_activos"] == 0
+    assert item["actividad_pct"] == 0
 
 
 # ============================================================================
@@ -194,6 +213,9 @@ def test_estado_ciego_luego_operativo(app_cliente, admin):
     d = r.json()
     assert {c["clave"] for c in d["componentes"]} == COMPONENTES
     assert d["estado_global"] == "caido"           # ciego = caído
+    assert all(c["impacto"]["alcance"] == "indeterminado"
+               and c["impacto"]["empresas_afectadas"] == []
+               for c in d["componentes"])
 
     _run_ok(app_cliente, admin, "ops_heartbeat")
     r = app_cliente.get(f"{API}/admin/ops/sistemas/estado",
@@ -202,6 +224,8 @@ def test_estado_ciego_luego_operativo(app_cliente, admin):
     assert d["estado_global"] == "operativo", d
     api = next(c for c in d["componentes"] if c["clave"] == "db")
     assert api["metricas"]["conexiones"] >= 1
+    assert api["impacto"]["alcance"] == "ninguno"
+    assert api["impacto"]["empresas_afectadas"] == []
 
 
 def test_disponibilidad_404_y_parcial(app_cliente, admin):
@@ -405,3 +429,19 @@ def test_acciones_auditadas_sin_tenant(app_cliente, admin, motor_admin):
     assert any("Prueba de auditoría" in f.descripcion for f in filas)
     app_cliente.patch(f"{API}/admin/ops/procesos/purga_temporales",
                       headers=admin["headers"], json={"activo": True})
+
+
+def test_catalogo_auditado_y_visible_en_auditoria_global(app_cliente, admin):
+    creada = app_cliente.post(f"{API}/admin/faenas", headers=admin["headers"],
+                              json={"nombre": "Faena auditada", "mandante": "Mandante"})
+    assert creada.status_code == 201, creada.text
+
+    auditoria = app_cliente.get(
+        f"{API}/admin/audit", headers=admin["headers"],
+        params={"modulo": "admin_catalogo", "page_size": 10})
+    assert auditoria.status_code == 200, auditoria.text
+    evento = next(item for item in auditoria.json()["items"]
+                  if item["entidad_id"] == creada.json()["id"])
+    assert evento["empresa"] == "Plataforma"
+    assert evento["actor"] == "Admin Plataforma"
+    assert evento["tipo"] == "creacion"

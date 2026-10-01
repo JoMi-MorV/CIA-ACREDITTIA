@@ -36,10 +36,60 @@ engine = create_engine(
 )
 SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
 
+
+class UnsafeDatabaseRole(RuntimeError):
+    """La identidad de ejecución puede eludir el aislamiento del motor."""
+
+
+def validate_runtime_role(dbapi_connection) -> None:
+    """Comprueba privilegios efectivos y membresías sin publicar credenciales.
+
+    Se usa en conexiones nuevas de ejecución, no en el motor de migraciones.
+    Rechaza también propietarios de tablas, que pueden evitar o modificar RLS.
+    """
+    try:
+        with dbapi_connection.cursor() as cursor:
+            cursor.execute("""
+                SELECT EXISTS (
+                    SELECT 1 FROM pg_roles r
+                    WHERE (r.rolsuper OR r.rolbypassrls OR r.rolcreaterole
+                           OR r.rolcreatedb)
+                      AND (pg_has_role(session_user, r.oid, 'MEMBER')
+                           OR pg_has_role(current_user, r.oid, 'MEMBER'))
+                ) OR EXISTS (
+                    SELECT 1 FROM pg_class c
+                    JOIN pg_namespace n ON n.oid = c.relnamespace
+                    WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p')
+                      AND (pg_has_role(session_user, c.relowner, 'MEMBER')
+                           OR pg_has_role(current_user, c.relowner, 'MEMBER'))
+                )
+            """)
+            inseguro = cursor.fetchone()[0]
+    finally:
+        dbapi_connection.rollback()
+    if inseguro:
+        raise UnsafeDatabaseRole(
+            "Rol PostgreSQL inseguro para ejecución: use un rol sin privilegios "
+            "administrativos, BYPASSRLS ni propiedad de tablas")
+
+
+def _validate_production_role(dbapi_connection, connection_record):
+    if settings.app_env == "production":
+        validate_runtime_role(dbapi_connection)
+
+
+def install_runtime_role_guard() -> None:
+    """API/worker activan la guarda; el comando de migración conserva su rol."""
+    if not event.contains(engine, "connect", _validate_production_role):
+        event.listen(engine, "connect", _validate_production_role)
+        # No reutilizar conexiones abiertas antes de instalar la guarda.
+        engine.dispose()
+
 # Scripts del modelo de datos en orden y versión de esquema que representan.
 SCHEMA_SCRIPTS = ["01_esquema.sql", "02_indices.sql", "03_triggers.sql",
-                  "04_rls.sql", "06_migracion_v11.sql", "07_consola_interna.sql", "08_funciones_consola.sql"]
-SCHEMA_VERSION = 7
+                  "04_rls.sql", "06_migracion_v11.sql", "07_consola_interna.sql", "08_funciones_consola.sql",
+                  "09_indices_consola.sql", "10_version_sesion.sql"]
+SCHEMA_VERSION = 9
 MIGRATION_LOCK_ID = 918273        # clave del pg_advisory_lock de migración
 
 
@@ -174,6 +224,8 @@ def wait_for_db(retries: int = 30) -> None:
             with engine.connect() as c:
                 c.execute(text("SELECT 1"))
             return
+        except UnsafeDatabaseRole:
+            raise
         except Exception:
             time.sleep(1)
     raise RuntimeError("Base de datos no disponible")
@@ -187,10 +239,14 @@ def _tabla_existe(conn, nombre: str) -> bool:
 
 
 def schema_version() -> int:
-    """0 = vacía · 3 = baseline sin RLS · 4 = con RLS · 6 = v1.1 aplicada · 7 = consola interna aplicada."""
+    """Versiones históricas por estructura; desde 8, registro explícito de migración."""
     with engine.connect() as c:
         if not _tabla_existe(c, "companies"):
             return 0
+        if _tabla_existe(c, "app_schema_migrations"):
+            version = c.execute(text("SELECT max(version) FROM app_schema_migrations")).scalar()
+            if version is not None:
+                return int(version)
         # NUEVO: Verificamos si ya existe la tabla de ops para retornar la versión 7
         if _tabla_existe(c, "ops_jobs"):
             return 7
@@ -272,12 +328,16 @@ def apply_schema(schema_dir: str | None = None) -> int:
             if actual == 0:
                 pendientes = SCHEMA_SCRIPTS
             elif actual == 3:
-                pendientes = ["04_rls.sql", "06_migracion_v11.sql", "07_consola_interna.sql", "08_funciones_consola.sql"]
+                pendientes = SCHEMA_SCRIPTS[3:]
             elif actual == 6:
-                pendientes = ["07_consola_interna.sql", "08_funciones_consola.sql"]
+                pendientes = SCHEMA_SCRIPTS[5:]
+            elif actual == 7:
+                pendientes = ["09_indices_consola.sql", "10_version_sesion.sql"]
+            elif actual == 8:
+                pendientes = ["10_version_sesion.sql"]
             else:
                 # Por si viene de otra versión intermedia, aplicamos los scripts desde el 06 en adelante
-                pendientes = ["06_migracion_v11.sql", "07_consola_interna.sql", "08_funciones_consola.sql"]
+                pendientes = SCHEMA_SCRIPTS[4:]
 
             for nombre in pendientes:
                 ruta = os.path.join(sdir, nombre)

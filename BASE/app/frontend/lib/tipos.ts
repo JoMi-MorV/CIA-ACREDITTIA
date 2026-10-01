@@ -903,7 +903,10 @@ export type ResultadoBusquedaGlobal = {
 
 export type BusquedaGlobal = {
   query: string;
+  /** Cantidad devuelta, no total de coincidencias. */
   total: number;
+  limite_por_categoria: number;
+  hay_mas: boolean;
   permisos: Record<ResultadoBusquedaGlobal["tipo"], string>;
   items: ResultadoBusquedaGlobal[];
 };

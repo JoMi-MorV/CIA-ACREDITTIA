@@ -1,4 +1,4 @@
-// File: /home/ubuntu/Documents/PLATAFORMAS/CIA-ACREDITTIA/BASE/app/frontend/app/ops/page.tsx
+// File: C:\Users\amaru\Desktop\acredittia\ultima\CIA-ACREDITTIA-main\BASE\app\frontend\app\ops\page.tsx
 import * as entry from '../../../../app/ops/page.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 

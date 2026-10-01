@@ -4,6 +4,7 @@ import Link from "next/link";
 import * as Api from "@/lib/cliente";
 import type { Contrato, Faena, Pagina } from "@/lib/tipos";
 import { Campo, Chip, Modal, Paginador, Spinner, Vacio } from "@/components/ui";
+import ResponsablesContratos from "@/components/ResponsablesContratos";
 
 export default function ContratosPage() {
   const [data, setData] = useState<Pagina<Contrato> | null>(null);
@@ -97,6 +98,8 @@ export default function ContratosPage() {
             etiqueta="contratos" onPagina={setPage} />
         </>
       )}
+
+      <ResponsablesContratos />
 
       <Modal abierto={modal} titulo="Nuevo contrato" onCerrar={() => setModal(false)}>
         <form onSubmit={crear} className="space-y-4">

@@ -4,7 +4,7 @@ from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from .models import (
-    Company, DocEjemplo, Faena, FaenaPlataforma, RequisitoTemplate, User,
+    Company, Contrato, DocEjemplo, Faena, FaenaPlataforma, RequisitoTemplate, User,
     Factura, Integracion, SyncLog,
     Plan, Suscripcion,  # Datos comerciales usados por los indicadores Ops
 )
@@ -18,6 +18,7 @@ from .models_ops import (  # Bloque completo para la consola interna de operacio
     MetricasMensualesPlan,
 )
 from .security import hash_password
+from .config import settings
 
 FAENAS = [
     ("Los Pelambres", "Antofagasta Minerals", "AMSA", "Coquimbo", "#1f6f54", -31.72, -70.49),
@@ -141,8 +142,48 @@ EJEMPLOS = [
      [["Instalador", "Taller certificado"]], None),
 ]
 
+NOMBRES_PERSONAL = [
+    "Ricardo", "Alejandra", "Pablo", "Carolina", "Eduardo", "Macarena",
+    "Gonzalo", "Verónica", "Claudio", "Lorena", "Mauricio", "Natalia",
+    "Óscar", "Beatriz", "Renato", "Mónica", "Héctor", "Silvia",
+    "Patricio", "Elena",
+]
+APELLIDOS_PERSONAL = [
+    "Abarca", "Alfaro", "Araya", "Barrera", "Becerra", "Bórquez",
+    "Cabrera", "Calderón", "Cisternas", "Cornejo", "Donoso", "Durán",
+    "Farias", "Figueroa", "Gajardo", "Guerra", "Leiva", "Mardones",
+    "Navarro", "Olivares",
+]
+CARGOS_PERSONAL = [
+    ("Conductor Nacional", True),
+    ("Operador de Equipo Pesado", False),
+    ("Mecánico Mantenedor", False),
+    ("Prevencionista de Riesgos", False),
+    ("Supervisora de Terreno", False),
+    ("Conductor Nacional", True),
+    ("Operador de Equipo Pesado", False),
+    ("Conductor Nacional", True),
+]
+OPERACIONES_CONTRATO = [
+    "Transporte de Personal", "Mantención de Planta", "Obras Civiles",
+    "Servicios de Perforación", "Apoyo Operacional", "Mantención Eléctrica",
+]
+
+
+def _personal_operacional(indice_empresa: int) -> list[tuple[str, str, bool]]:
+    personas = []
+    for indice, (cargo, conductor) in enumerate(CARGOS_PERSONAL):
+        secuencia = indice_empresa * len(CARGOS_PERSONAL) + indice
+        nombre = NOMBRES_PERSONAL[secuencia % len(NOMBRES_PERSONAL)]
+        apellido = APELLIDOS_PERSONAL[
+            (secuencia // len(NOMBRES_PERSONAL)) % len(APELLIDOS_PERSONAL)]
+        personas.append((f"{nombre} {apellido} Sanhueza", cargo, conductor))
+    return personas
+
 
 def run(db: Session) -> None:
+    if not settings.seed_demo_enabled or settings.app_env == "production":
+        raise RuntimeError("Las semillas demo requieren activación explícita fuera de producción")
     if not db.scalar(select(Faena.id).limit(1)):
         for nombre, mandante, grupo, region, color, lat, lng in FAENAS:
             f = Faena(nombre=nombre, mandante=mandante, grupo=grupo,
@@ -180,10 +221,14 @@ def run(db: Session) -> None:
         agregar("emsipor", REQ_EMSIPOR)
         db.flush()
 
-    if not db.scalar(select(User).where(User.email == "admin@acredittia.cl")):
+    admin_seed = db.scalar(select(User).where(User.email == "admin@acredittia.cl"))
+    if admin_seed is None:
         db.add(User(email="admin@acredittia.cl",
+                    nombre="Administración de Acredittia",
                     password_hash=hash_password("Admin2026!"),
                     role="admin", company_id=None, status="approved"))
+    else:
+        admin_seed.nombre = "Administración de Acredittia"
 
     # Empresas demo: variedad de industrias, tamaños y estados comerciales para
     # que clientes, planes y filtros de Ops se parezcan a producción.
@@ -215,9 +260,54 @@ def run(db: Session) -> None:
             db.flush()
         empresa.industria = industria
         empresas[nombre] = empresa
-        if not db.scalar(select(User).where(User.email == usuario_email)):
-            db.add(User(email=usuario_email, password_hash=hash_password(password),
-                        role="company", company_id=empresa.id, status="approved"))
+        usuario = db.scalar(select(User).where(User.email == usuario_email))
+        nombre_usuario = f"Administración {nombre}"
+        if usuario is None:
+            db.add(User(email=usuario_email, nombre=nombre_usuario,
+                        password_hash=hash_password(password), role="company",
+                        company_id=empresa.id, status="approved"))
+        else:
+            usuario.nombre = nombre_usuario
+    db.commit()
+
+    from .routers.admin import (DEMO_EQUIPOS, asegurar_eventos_operacionales,
+                                _sembrar_operacion_empresa)
+
+    faenas_nombres = [fila[0] for fila in FAENAS]
+    for indice_empresa, (nombre, _, _, _, _, _, es_demo) in enumerate(
+            empresas_seed, start=1):
+        empresa = empresas[nombre]
+        usuario = db.scalar(select(User).where(
+            User.company_id == empresa.id, User.role == "company"))
+        if usuario is None:
+            continue
+
+        tiene_contratos = db.scalar(select(Contrato.id).where(
+            Contrato.company_id == empresa.id).limit(1)) is not None
+        if not tiene_contratos:
+            if es_demo:
+                _sembrar_operacion_empresa(db, empresa, usuario.id)
+            else:
+                contratos_empresa = [
+                    (f"{OPERACIONES_CONTRATO[(indice_empresa + i) % len(OPERACIONES_CONTRATO)]} "
+                     f"- {empresa.nombre}",
+                     f"CTR-{indice_empresa:02d}-{i + 1:03d}",
+                     faenas_nombres[(indice_empresa + i) % len(faenas_nombres)])
+                    for i in range(2)
+                ]
+                equipos_empresa = [
+                    DEMO_EQUIPOS[(indice_empresa * 4 + i) % len(DEMO_EQUIPOS)]
+                    for i in range(4)
+                ]
+                _sembrar_operacion_empresa(
+                    db, empresa, usuario.id,
+                    contratos_data=contratos_empresa,
+                    personal_data=_personal_operacional(indice_empresa - 1),
+                    equipos_data=equipos_empresa,
+                    patente_offset=10_000 + (indice_empresa - 1) * 4,
+                )
+        else:
+            asegurar_eventos_operacionales(db, empresa)
     db.commit()
 
     # ========================================================================

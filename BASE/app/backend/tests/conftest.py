@@ -68,7 +68,8 @@ RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))     # app/bac
 MODELO = os.path.normpath(os.path.join(RAIZ, "..", "..", "modelo_datos"))
 
 SCRIPTS = ["01_esquema.sql", "02_indices.sql", "03_triggers.sql",
-           "04_rls.sql", "06_migracion_v11.sql", "07_consola_interna.sql", "08_funciones_consola.sql"]
+           "04_rls.sql", "06_migracion_v11.sql", "07_consola_interna.sql", "08_funciones_consola.sql",
+           "09_indices_consola.sql", "10_version_sesion.sql"]
 
 _TMP = os.path.join(tempfile.gettempdir(), "acredittia_pruebas")
 PGDATA = os.path.join(_TMP, "pgdata")
@@ -79,7 +80,7 @@ STORAGE_DIR = os.path.join(_TMP, "uploads")
 PSQL = os.path.join(os.path.dirname(pgserver.__file__), "pginstall", "bin", "psql")
 
 # Catálogos globales sembrados al arrancar: NO se vacían entre pruebas.
-CATALOGOS = {"faenas", "faena_plataformas", "doc_ejemplos", "requisito_templates",
+CATALOGOS = {"app_schema_migrations", "faenas", "faena_plataformas", "doc_ejemplos", "requisito_templates",
              "requisitos_terreno", "proveedores_catalogo", "planes",
              "ops_componentes", "ops_jobs"}
 
@@ -155,6 +156,9 @@ os.environ.update({
     "STORAGE_BACKEND": "local",
     "STORAGE_DIR": STORAGE_DIR,
     "JWT_SECRET": "dev-test",
+    "APP_ENV": "test",
+    "SEED_DEMO_ENABLED": "true",
+    "AUTH_DEV_RESET_TOKEN_ENABLED": "true",
     "DB_APPLY_SCHEMA_ON_START": "false",
     "DB_RLS_ENABLED": "true",
     "IA_BACKEND": "simulada",
@@ -259,8 +263,17 @@ def _app_arrancada(esquema):
         yield cliente
 
 
+@pytest.fixture(scope="session")
+def catalogo_procesos(_app_arrancada, motor_admin):
+    """Conserva los procesos iniciales antes de limpiar los usuarios de prueba."""
+    from app.models_ops import OpsJob
+    with motor_admin.connect() as conn:
+        return [dict(fila) for fila in conn.execute(
+            sa.select(OpsJob.__table__)).mappings()]
+
+
 @pytest.fixture
-def app_cliente(_app_arrancada, motor_admin):
+def app_cliente(_app_arrancada, motor_admin, catalogo_procesos):
     """Cliente de pruebas con la base de negocio vacía.
 
     Los catálogos globales (faenas, plantillas, ejemplos) sobreviven porque los
@@ -274,6 +287,13 @@ def app_cliente(_app_arrancada, motor_admin):
         conn.execute(sa.text(
             "TRUNCATE " + ", ".join(f'"{t}"' for t in tablas)
             + " RESTART IDENTITY CASCADE"))
+        # La FK pausado_por -> users hace que CASCADE también vacíe el
+        # catálogo de procesos, aunque esté excluido en CATALOGOS.
+        # Restaurar la copia inicial evita procesos ausentes y pausas
+        # heredadas de la prueba anterior, sin sembrar empresas demo.
+        if catalogo_procesos:
+            from app.models_ops import OpsJob
+            conn.execute(sa.insert(OpsJob.__table__), catalogo_procesos)
     shutil.rmtree(STORAGE_DIR, ignore_errors=True)
     os.makedirs(STORAGE_DIR, exist_ok=True)
     from app.database import reset_ctx

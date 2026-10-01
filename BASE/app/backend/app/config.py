@@ -1,3 +1,6 @@
+from typing import Literal
+
+from pydantic import model_validator
 from pydantic_settings import BaseSettings
 
 
@@ -9,12 +12,27 @@ class Settings(BaseSettings):
     despliegue en Azure use identidad administrada sin secretos en config.
     """
 
+    app_env: Literal["development", "test", "production"] = "development"
+    seed_demo_enabled: bool = False
+    auth_dev_reset_token_enabled: bool = False
+
+    @model_validator(mode="after")
+    def validar_produccion(self):
+        if self.app_env == "production":
+            if self.jwt_secret.strip().lower().startswith("dev-") or len(self.jwt_secret.strip().encode()) < 32:
+                raise ValueError("JWT_SECRET de producción debe ser propio y tener al menos 32 bytes")
+            if self.seed_demo_enabled or self.auth_dev_reset_token_enabled:
+                raise ValueError("Producción no permite semillas demo ni tokens de recuperación en respuestas")
+            if not self.db_rls_enabled or self.db_apply_schema_on_start:
+                raise ValueError("Producción exige RLS habilitado y migraciones separadas del arranque")
+        return self
+
     # --- Base de datos -----------------------------------------------------
     # En producción se conecta con el rol acredittia_app (NOBYPASSRLS) para que
     # las políticas de RLS del modelo de datos se apliquen de verdad.
     database_url: str = "postgresql+psycopg://postgres:postgres@localhost:5432/acredittia"
     schema_dir: str = "/schema"
-    schema_version_esperada: int = 7        # scripts 01..06 + 07 aplicados 
+    schema_version_esperada: int = 9        # versión de sesión por usuario (10)
     db_apply_schema_on_start: bool = False  # en Azure lo hace el job de migración
     db_rls_enabled: bool = True             # fija app.company_id/is_admin/user_id por request
 
@@ -72,6 +90,7 @@ class Settings(BaseSettings):
 
     class Config:
         env_file = ".env"
+        hide_input_in_errors = True
 
 
 settings = Settings()

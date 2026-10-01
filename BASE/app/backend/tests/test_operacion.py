@@ -300,9 +300,11 @@ def test_tendencia_sin_snapshots_omite_actual_y_anterior(app_cliente, empresa_a,
 def test_tendencia_con_un_solo_periodo_omite_anterior(app_cliente, empresa_a,
                                                      contrato_a):
     hoy = date.today()
+    inicio_trimestre = date(hoy.year, ((hoy.month - 1) // 3) * 3 + 1, 1)
+    fin_trimestre_anterior = inicio_trimestre - timedelta(days=1)
     _snapshots(empresa_a["company_id"], None,
-               (hoy - timedelta(days=2), 60, 60, 100),
-               (hoy, 70, 70, 100))
+               (fin_trimestre_anterior - timedelta(days=2), 60, 60, 100),
+               (fin_trimestre_anterior, 70, 70, 100))
 
     r = app_cliente.get(f"{API}/dashboard/tendencia?periodo=trimestre",
                         headers=empresa_a["headers"])
@@ -320,11 +322,15 @@ def test_tendencia_con_dos_periodos_calcula_el_delta(app_cliente, empresa_a,
                                                      contrato_a):
     hoy = date.today()
     mes_pasado = (hoy.replace(day=1) - timedelta(days=1))
-    _snapshots(empresa_a["company_id"], None,
-               (mes_pasado - timedelta(days=5), 50, 50, 100),
-               (mes_pasado, 76, 76, 100),
-               (hoy.replace(day=1), 80, 80, 100),
-               (hoy, 82, 82, 100))
+    puntos = [
+        (mes_pasado - timedelta(days=5), 50, 50, 100),
+        (mes_pasado, 76, 76, 100),
+    ]
+    primer_dia_mes = hoy.replace(day=1)
+    if primer_dia_mes < hoy:
+        puntos.append((primer_dia_mes, 80, 80, 100))
+    puntos.append((hoy, 82, 82, 100))
+    _snapshots(empresa_a["company_id"], None, *puntos)
 
     r = app_cliente.get(f"{API}/dashboard/tendencia?periodo=mes",
                         headers=empresa_a["headers"])

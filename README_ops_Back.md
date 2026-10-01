@@ -2,7 +2,7 @@
 
 Implementación de la **Especificación de API — Consola Interna v1.0**
 (`Acredittia_Especificacion_API_Consola_Interna.docx`): 20 endpoints bajo
-`/api/v1/admin/ops`, 7 tablas nuevas, procedimientos almacenados PL/pgSQL,
+`/api/v1/admin`, 7 tablas nuevas, procedimientos almacenados PL/pgSQL,
 índices y 4 jobs de fondo. Módulo **drop-in** para `app/backend`.
 
 ## Mapa de archivos
@@ -17,7 +17,7 @@ Implementación de la **Especificación de API — Consola Interna v1.0**
 | `app/services/ops_probes.py` | `app/backend/app/services/` | Las 6 sondas (db, api, workers, storage, ia, integraciones); p95 externo tras adaptador con stub |
 | `app/routers/admin_ops.py` | `app/backend/app/routers/` | Los 20 endpoints (§5, §6, §7) |
 | `worker/ops_tasks.py` | `app/backend/worker/` | Runners de los jobs, entrada `ops_ejecutar_run` para la cola y `registrar_ops(celery)` con el beat |
-| `tests/test_ops.py` | `app/backend/tests/` | Suite pytest con el patrón del repo (pgserver + esquema real) |
+| `tests/test_admin.py` | `app/backend/tests/` | Suite pytest con el patrón del repo (pgserver + esquema real) |
 
 ## Instalación (6 ediciones pequeñas en archivos existentes)
 
@@ -27,6 +27,7 @@ Implementación de la **Especificación de API — Consola Interna v1.0**
 
    ```python
    from .routers import admin_ops                       # junto a los demás imports
+   from worker import ops_tasks as _ops_tasks           # registra tareas también en inproc
    app.include_router(admin_ops.router, prefix=API)     # sección "Autenticación y administración"
    ```
 
@@ -34,18 +35,16 @@ Implementación de la **Especificación de API — Consola Interna v1.0**
 
    ```python
    SCHEMA_SCRIPTS = [..., "06_migracion_v11.sql",
-                     "07_consola_interna.sql", "08_funciones_consola.sql"]
-   SCHEMA_VERSION = 7
+                     "07_consola_interna.sql", "08_funciones_consola.sql",
+                     "09_indices_consola.sql"]
+   SCHEMA_VERSION = 8
    ```
 
-   y en `schema_version()`, antes del `return 6`:
+   El código actual detecta versiones históricas por estructura y, desde la 8,
+   consulta `app_schema_migrations`. `apply_schema()` aplica el script 09 a
+   una base en versión 7; no basta con cambiar el número esperado.
 
-   ```python
-   if _tabla_existe(c, "ops_jobs"):
-       return 7
-   ```
-
-4. **`.env` / config** — `SCHEMA_VERSION_ESPERADA=7` y, cuando existan,
+4. **`.env` / config** — `SCHEMA_VERSION_ESPERADA=8` y, cuando existan,
    los settings financieros: `OPS_VALOR_UF`, `OPS_CAC_CLP`,
    `OPS_MARGEN_BRUTO_PCT`, `OPS_OBJETIVO_CHURN_PCT` (defaults en
    `config_ops.py`; con `OPS_CAC_CLP=0` el endpoint devuelve `ltv_cac: null`
@@ -60,16 +59,17 @@ Implementación de la **Especificación de API — Consola Interna v1.0**
 
    Con `QUEUE_BACKEND=inproc` no hace falta nada: la ejecución manual desde la
    consola ya funciona (la entrada `ops_ejecutar_run` se registra en `TAREAS`
-   al importar `worker.ops_tasks`, cosa que hace el paso 2 vía el router →
-   servicios; si se quiere el heartbeat periódico en desarrollo, añadir un job
+   al importar explícitamente `worker.ops_tasks` en `main.py` en el paso 2;
+   si se quiere el heartbeat periódico en desarrollo, añadir un job
    de APScheduler en `main.py` que llame `ops.disparar_por_cron("ops_heartbeat")`).
 
 6. **`tests/conftest.py`** — para la suite:
 
    ```python
    SCRIPTS = [..., "06_migracion_v11.sql",
-              "07_consola_interna.sql", "08_funciones_consola.sql"]
-   CATALOGOS = {..., "ops_componentes", "ops_jobs"}   # seeds que sobreviven el TRUNCATE
+              "07_consola_interna.sql", "08_funciones_consola.sql",
+              "09_indices_consola.sql"]
+   CATALOGOS = {..., "ops_componentes", "ops_jobs", "app_schema_migrations"}
    ```
 
 7. **`requirements.txt`** (opcional, recomendado): `croniter>=2.0` — calcula
@@ -105,7 +105,7 @@ Implementación de la **Especificación de API — Consola Interna v1.0**
 
 ```bash
 cd app/backend
-pytest tests/test_ops.py -q
+pytest tests/test_admin.py -q
 ```
 
 ## Endpoints implementados (traza contra la especificación)

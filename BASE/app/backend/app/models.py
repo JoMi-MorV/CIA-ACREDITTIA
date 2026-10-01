@@ -94,6 +94,7 @@ class User(Base):
     activo: Mapped[bool] = mapped_column(Boolean, default=True)
     status: Mapped[str] = mapped_column(pg_enum('account_status'), default="pending")
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    auth_version: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
     company: Mapped[Company | None] = relationship()
@@ -371,7 +372,8 @@ class Alerta(Base):
 class Actividad(Base):
     __tablename__ = "actividad"
     id: Mapped[int] = mapped_column(BigInteger, Identity(always=True), primary_key=True)
-    company_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("companies.id"))
+    company_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("companies.id"), nullable=True)
     user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     tipo: Mapped[str] = mapped_column(pg_enum('actividad_tipo'))
     modulo: Mapped[str] = mapped_column(Text)

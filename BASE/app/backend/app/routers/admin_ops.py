@@ -1,4 +1,4 @@
-"""Consola Interna de Administración (/admin) — solo rol admin.
+"""Consola Interna de Administración (/admin; alias compatible /admin/ops).
 
 Implementa los 20 endpoints de la Especificación de API — Consola Interna v1.0:
 §5 usuarios y clientes, §6 sistemas/procesos/incidentes, §7 indicadores.
@@ -36,7 +36,7 @@ from ..models_ops import (MetricasMensuales, MetricasMensualesPlan,
 from ..services import ops
 from ..services.jobs import enqueue
 
-router = APIRouter(prefix="/admin", tags=["admin"],
+router = APIRouter(tags=["admin"],
                    dependencies=[Depends(require_admin)])
 
 INDUSTRIAS = ("mineria", "construccion", "energia", "industrial", "otras")
@@ -375,7 +375,7 @@ def cliente_detalle(company_id: uuid.UUID, resp: Response,
     mrr = None
     if susc and susc.estado == "activa":
         mrr = db.execute(text(
-            "SELECT ops_precio_a_mrr_clp(:p, :m, :per, :uf)"),
+            "SELECT ops_precio_a_mrr_clp(:p, :m, :per, CAST(:uf AS NUMERIC))"),
             {"p": susc.plan.precio, "m": susc.plan.moneda,
              "per": susc.plan.periodo, "uf": ops_settings.ops_valor_uf}).scalar()
 
@@ -455,12 +455,6 @@ def sistemas_estado(resp: Response, db: Session = Depends(get_db)):
         .where(OpsDisponibilidadDiaria.fecha
                >= date.today() - timedelta(days=90))
         .group_by(OpsDisponibilidadDiaria.componente)).all())
-    clientes_operativos = [{"company_id": str(company_id), "empresa": nombre}
-                           for company_id, nombre in db.execute(
-        select(Company.id, Company.nombre)
-        .where(Company.status == "approved")
-        .order_by(Company.nombre)).all()]
-
     salida, peor = [], "operativo"
     for comp in componentes:
         estado, metricas, desde = ops.estado_componente(comp.clave)
@@ -474,8 +468,8 @@ def sistemas_estado(resp: Response, db: Session = Depends(get_db)):
             "metricas": metricas,
             "incidente_abierto_id": str(inc.id) if inc else None,
             "impacto": {
-                "alcance": "global" if estado != "operativo" else "ninguno",
-                "empresas_afectadas": clientes_operativos if estado != "operativo" else [],
+                "alcance": "indeterminado" if estado != "operativo" else "ninguno",
+                "empresas_afectadas": [],
             },
         })
         if ops.PESO_ESTADO[estado] > ops.PESO_ESTADO[peor]:

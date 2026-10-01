@@ -20,7 +20,9 @@ export default function Sidebar() {
   const [noLeidas, setNoLeidas] = useState(0);
   const user = typeof window !== "undefined" ? Api.currentUser() : null;
   const esAdmin = user?.role === "admin";
+  const empresaImpersonada = typeof window !== "undefined" ? sessionStorage.getItem("impersonar") : null;
   const impersonando = typeof window !== "undefined" ? sessionStorage.getItem("impersonar_nombre") : null;
+  const viendoEmpresa = Boolean(empresaImpersonada || impersonando);
 
   useEffect(() => {
     if (esAdmin && !impersonando) return;
@@ -47,19 +49,23 @@ export default function Sidebar() {
         <div className="text-[17px] font-extrabold tracking-[0.16em]">ACREDITTIA</div>
         <div className="hidden text-[11px] text-white/55 md:block">{subtitulo}</div>
       </div>
-      {impersonando && (
-        <div className="mx-3 hidden rounded-md bg-amber-500/90 px-3 py-2 text-xs font-semibold text-white md:block">
-          Viendo como {impersonando}
-          <button className="ml-2 underline" onClick={() => { sessionStorage.clear(); router.push("/admin"); }}>salir</button>
+      {esAdmin && viendoEmpresa && (
+        <div className="absolute left-2 top-16 z-50 flex items-center gap-2 rounded-md bg-amber-600 px-3 py-2 text-xs font-semibold text-white shadow md:static md:mx-3 md:mb-2 md:shadow-none">
+          Viendo como {impersonando ?? "empresa"}
+          <button className="ml-2 underline" onClick={() => {
+            sessionStorage.removeItem("impersonar");
+            sessionStorage.removeItem("impersonar_nombre");
+            router.push("/admin/metricas");
+          }}>Volver a métricas SaaS</button>
         </div>
       )}
       <nav className="ml-auto flex gap-1 px-2 md:ml-0 md:flex-1 md:flex-col md:gap-1 md:px-0">
         {esAdmin && (
-          <Link href="/admin" className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm ${path === "/admin" ? "bg-accent font-semibold" : "hover:bg-white/10"}`}>
-            <span className="grid h-5 w-5 place-items-center border border-current/60 text-xs">+</span><span className="hidden md:inline">Panel admin</span>
+          <Link href="/admin/dashboard" className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm ${path.startsWith("/admin") ? "bg-accent font-semibold" : "hover:bg-white/10"}`}>
+            <span className="grid h-5 w-5 place-items-center border border-current/60 text-xs">+</span><span className="hidden md:inline">{viendoEmpresa ? "Volver a Ops" : "Panel admin"}</span>
           </Link>
         )}
-        {(!esAdmin || impersonando) && ITEMS.map((i) => (
+        {(!esAdmin || viendoEmpresa) && ITEMS.map((i) => (
           <Link key={i.href} href={i.href}
             className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm ${path.startsWith(i.href) ? "bg-accent font-semibold" : "hover:bg-white/10"}`}>
             <span className="grid h-5 w-5 place-items-center border border-current/60 text-xs">{i.icono}</span><span className="hidden md:inline">{i.nombre}</span>

@@ -1,6 +1,13 @@
 # Consola Interna de Administración — código backend
 
-Tenemos la carpeta BASE donde esta el código de la plataforma base que nos paso la empresa.
+## Requisitos y planificación
+
+- [SRS del proyecto](documentacion/SRS.md): alcance, actores, requisitos implementados y pendientes, evidencia y criterios de aceptación.
+- [Plan de trabajo](documentacion/PLAN_DE_TRABAJO.md): entregas propuestas, prioridades, dependencias y condiciones de cierre.
+- [Validación actual](documentacion/VALIDACION_ACTUAL.md): resultados y limitaciones de las comprobaciones ejecutadas.
+
+El SRS es un documento de trabajo; las decisiones de producto aun abiertas estan identificadas explicitamente.
+
 Y esta la carpeta codigo_adminitracion con lo que quieren que sea desarrollado. 
 
 ## Implementación de la Especificación de API — Consola Interna v1.0
@@ -13,8 +20,35 @@ Y esta la carpeta codigo_adminitracion con lo que quieren que sea desarrollado.
 Requisitos: Docker Desktop.
 Bash
 
-cd app
+cd BASE/app
 docker compose up --build
+
+### Actualización de esquema 9
+
+La primera entrega de requisitos incorpora `09_indices_consola.sql`: cinco índices
+de claves foráneas y un registro explícito de migraciones. `10_version_sesion.sql`
+añade `users.auth_version` para invalidar accesos anteriores tras revocar/reactivar.
+Desde `BASE/app`,
+actualizar las imágenes y aplicar la migración antes de recrear los servicios:
+
+```bash
+docker compose build api worker beat migrate
+docker compose run --rm migrate
+docker compose up -d api worker beat
+```
+
+Si se configuró `SCHEMA_VERSION_ESPERADA` externamente, usar `9`. La migración
+conserva los datos de negocio; crea índices con bloqueo de escritura durante su
+construcción, por lo que en una base grande debe programarse una ventana adecuada.
+La validación automatizada se realiza en PostgreSQL temporal; no aplica cambios
+a la base habitual.
+
+En Usuarios, las cuentas revocadas tienen la acción **Reactivar** con confirmación.
+Conserva identidad, rol y alcance. Revocar o cambiar el estado activo desde ADMIN
+invalida los JWT anteriores y los refresh tokens; el usuario debe iniciar sesión
+nuevamente. Reactivar no aprueba una solicitud pendiente/rechazada. Instalar esquema
+9 antes de arrancar esta versión de API/worker. Las cuentas que ya estaban revocadas
+también invalidan sus sesiones antiguas al reactivarse.
 
 
 
@@ -31,6 +65,35 @@ Se dejo el Mock=0 (.env.local) y esta funcionando con la poblacion de datos actu
 
 ### Cambios 04-09-2026
 Poblacion de datos a traves de seeds.py para sistema y procesos.
+
+Las semillas requieren `SEED_DEMO_ENABLED=true` y se prohíben con
+`APP_ENV=production`. Su valor por defecto es `false`; el Compose base las activa
+explícitamente para demostración local. Sin semillas, los catálogos y el primer
+administrador deben aprovisionarse mediante un procedimiento separado; este cambio
+no crea automáticamente un administrador productivo ni elimina cuentas demo existentes.
+
+Para el modo producción, definir `APP_ENV=production`, un `JWT_SECRET` propio y
+aleatorio de al menos 32 bytes, `DB_RLS_ENABLED=true`,
+`DB_APPLY_SCHEMA_ON_START=false`, `SEED_DEMO_ENABLED=false` y
+`AUTH_DEV_RESET_TOKEN_ENABLED=false`. La aplicación rechaza combinaciones inseguras
+al cargar la configuración. Esto no comprueba todavía los privilegios reales del
+rol PostgreSQL; el Compose base sigue siendo de desarrollo y no es una plantilla
+productiva. El overlay ngrok hereda ese entorno demo: un túnel no lo convierte en
+despliegue productivo seguro.
+
+API y Celery instalan además una guarda para conexiones PostgreSQL nuevas en
+`APP_ENV=production`: rechaza superusuario, BYPASSRLS, CREATEDB, CREATEROLE y
+propiedad de tablas del esquema public, incluidas membresías de roles. El comando
+`python -m migrate.run` permanece separado y puede usar la identidad de migración.
+Este control no cambia ni aprovisiona roles y no verifica por sí solo todas las
+políticas RLS. El Compose de desarrollo conserva sus credenciales actuales;
+activar production con ellas provoca rechazo de la conexión.
+
+La recuperación ya no devuelve tokens por usar un secreto `dev-*`. Solo los
+entornos no productivos que activen `AUTH_DEV_RESET_TOKEN_ENABLED=true` pueden
+recibir `_dev_token`; por defecto y en Compose está desactivado. El envío real de
+correo sigue pendiente, por lo que aún no hay un flujo productivo completo de
+recuperación. Las pruebas aisladas habilitan estas opciones explícitamente.
 Se poblaron 16 empresas demo con industrias, usuarios y antigüedades diferentes para
 que los filtros y el resumen de clientes se parezcan a un entorno de producción.
 Se agregaron planes Básico, Pro y Enterprise con suscripciones activas, en trial,
@@ -576,3 +639,70 @@ La vista anterior `/admin/plataforma` redirige a `/admin/empresas`, y
 con enlaces previos. Las rutas Ops antiguas de Plataforma, Usuarios e
 Indicadores también redirigen a sus destinos Admin. `/admin` y la entrada Ops
 abren ahora el Dashboard global.
+
+## Resumen de implementacion y avance (01-10-2026)
+
+El SRS vigente es `documentacion/SRS.md`, version 0.16. Define el alcance,
+criterios de aceptacion, estado tecnico, evidencia y pendientes del producto.
+Los porcentajes del cronograma se mantienen separados de los estados tecnicos
+del SRS; una prueba aprobada no equivale por si sola a aceptacion del cliente
+ni a preparacion para produccion.
+
+### Funcionalidad implementada
+
+- Plataforma web Next.js y API FastAPI con PostgreSQL, sesiones JWT/refresh,
+    roles de administrador, empresa y administrador de contrato, y aislamiento
+    multiempresa mediante filtros de API y politicas RLS.
+- Operacion de contratistas: empresas, faenas, contratos, trabajadores,
+    vehiculos/equipos, requisitos, checklists documentales, vencimientos, alertas,
+    calendario, reportes y exportaciones.
+- Flujos de archivos y revision IA con adaptadores locales/simulados, junto con
+    conectores de integracion, suscripciones, planes y facturacion de demostracion.
+- Consola ADMIN bajo `/admin` para empresas, busqueda, metricas SaaS, salud,
+    usuarios, sistemas/procesos e incidentes, mas auditoria global.
+- Migracion versionada hasta esquema 9, invalidacion de sesiones al cambiar el
+    estado de acceso y validacion de roles PostgreSQL en conexiones de produccion.
+
+### Avances recientes
+
+- El seed de demostracion es idempotente y pobla las 16 empresas con datos de
+    operacion: contratos, personal, equipos, documentos, alertas y eventos. La
+    dotacion de `DEMO SpA` es mayor; las otras empresas tienen poblaciones menores
+    para poder comparar vistas. Los nombres de usuarios/personas y las patentes
+    se comprueban sin duplicados.
+- Se corrigieron las 23 fallas detectadas en la suite completa: se preservan
+    rutas Ops antiguas junto a las actuales, se incluyen empresas sin usuarios
+    en el agregado de baja actividad, se registra la creacion de faenas globales
+    en auditoria y se hicieron deterministas las pruebas de tendencias en los
+    limites de mes y trimestre. El impacto de sistemas se informa como
+    indeterminado si no existe evidencia para vincularlo a empresas concretas.
+- Validacion backend del 01-10-2026: **363 pruebas aprobadas, 0 fallidas** en
+    PostgreSQL temporal. Persisten advertencias de deprecacion y del entorno de
+    pruebas; el detalle esta en `documentacion/VALIDACION_ACTUAL.md`.
+- Validacion frontend: `npm run build` completo con lint, tipos y generacion
+    de 22 rutas.
+- Se integro en la pagina **Contratos** el panel **Responsables de contrato**,
+    visible para cuentas `company`. Permite asignar a una cuenta existente de la
+    misma empresa como `contract_admin` de un contrato y quitar o mover esa
+    asignacion; advierte que `contract_admin` pierde el acceso general de
+    empresa. Se elimino la ruta y el enlace de navegacion independientes.
+- El build frontend posterior a la integracion paso correctamente y genero
+    22 rutas; la ruta `/encargados` ya no existe. Esta evidencia solo cubre
+    compilacion, no prueba las mutaciones en navegador ni contra la API.
+
+### Pendientes y limites
+
+- El Compose local es de demostracion: usa `APP_ENV=development`, base local y
+    un rol PostgreSQL administrador. No debe exponerse como despliegue productivo.
+- La preparacion productiva requiere roles separados para API, worker y
+    migraciones, secretos propios, storage/Key Vault reales y validacion de RLS
+    con esas identidades.
+- La invitacion completa de cuentas de empresa sigue pendiente: el endpoint
+    backend existente crea usuario/token, pero falta enviar el correo y
+    completar el canje del token para establecer la clave. El panel actual solo
+    asigna cuentas ya existentes. Recuperacion por correo, pasarela de pago y
+    algunas integraciones externas siguen sin completar; en local la IA es
+    simulada.
+- Siguen pendientes recorridos completos en navegador, ejecucion Celery
+    distribuida, respaldo/restauracion y cierre de permisos/auditoria integrales.
+    Los estados y criterios detallados se mantienen en el SRS.

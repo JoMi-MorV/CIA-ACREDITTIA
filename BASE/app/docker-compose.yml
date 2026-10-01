@@ -60,6 +60,9 @@ services:
       SCHEMA_DIR: /schema
       DB_RLS_ENABLED: "true"
       JWT_SECRET: dev-secret-cambiar-en-produccion
+      APP_ENV: development
+      SEED_DEMO_ENABLED: "true"       # Compose local de demostración
+      AUTH_DEV_RESET_TOKEN_ENABLED: "false"
       CORS_ORIGINS: http://localhost:3000
       PUBLIC_BASE_URL: http://localhost:8000
       STORAGE_BACKEND: local          # azure en producción

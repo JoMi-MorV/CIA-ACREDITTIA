@@ -195,7 +195,7 @@ def login(body: LoginIn):
     sesión sin tenant no ve ninguna fila de `users`.
     """
     with auth_session() as db:
-        user = db.scalar(select(User).where(User.email == body.email))
+        user = db.scalar(select(User).where(User.email == body.email).with_for_update())
         if not user or not verify_password(body.password, user.password_hash):
             raise err(401, "CREDENCIALES_INVALIDAS", "Email o contraseña incorrectos")
         if user.status == "pending":
@@ -211,7 +211,7 @@ def login(body: LoginIn):
         user.last_login_at = datetime.now(timezone.utc)
         db.commit()
         return {
-            "access_token": create_access_token(user.id, user.role, user.company_id),
+            "access_token": create_access_token(user.id, user.role, user.company_id, user.auth_version),
             "refresh_token": raw,
             "token_type": "bearer",
             "user": _user_out(user, _contrato_out(db, user)),
@@ -227,7 +227,11 @@ def refresh(body: RefreshIn):
         now = datetime.now(timezone.utc)
         if not rt or rt.revoked_at or rt.expires_at < now:
             raise err(401, "REFRESH_INVALIDO", "Refresh token inválido o expirado")
-        user = db.get(User, rt.user_id)
+        user = db.scalar(select(User).where(User.id == rt.user_id).with_for_update())
+        # Una revocación pudo confirmar mientras esperábamos el bloqueo del usuario.
+        db.refresh(rt)
+        if rt.revoked_at:
+            raise err(401, "REFRESH_INVALIDO", "Refresh token revocado")
         if not user or user.status != "approved" or not user.activo:
             raise err(401, "REFRESH_INVALIDO", "Usuario no válido o desactivado")
         rt.revoked_at = now  # rotación
@@ -235,7 +239,7 @@ def refresh(body: RefreshIn):
         db.add(RefreshToken(user_id=user.id, token_hash=h2, expires_at=exp))
         db.commit()
         return {
-            "access_token": create_access_token(user.id, user.role, user.company_id),
+            "access_token": create_access_token(user.id, user.role, user.company_id, user.auth_version),
             "refresh_token": raw,
             "token_type": "bearer",
         }
@@ -285,12 +289,11 @@ def password_forgot(body: ForgotIn):
             # hay transporte configurado: sin el bloque de desarrollo de abajo el
             # token quedaría inalcanzable.
             logger.info("token de reset emitido para user=%s", user.id)
-            if settings.jwt_secret.startswith("dev-"):
-                # Solo con el secreto de desarrollo por defecto. En producción
-                # JWT_SECRET es otro y esta clave no aparece nunca: devolver el
-                # token en la respuesta HTTP haría inútil el envío por email.
+            if settings.auth_dev_reset_token_enabled and settings.app_env != "production":
+                # Activación explícita y prohibida en producción, incluso si se
+                # modifica la configuración después de su validación inicial.
                 salida["_dev_token"] = raw
-                salida["_dev_nota"] = ("Solo en desarrollo (JWT_SECRET dev-*): "
+                salida["_dev_nota"] = ("Solo en desarrollo (AUTH_DEV_RESET_TOKEN_ENABLED): "
                                        "no hay SMTP configurado para enviar el enlace")
     return salida
 

@@ -346,6 +346,12 @@ def test_descarga_documental_exige_motivo(app_cliente, empresa_a, documento):
 
     r = app_cliente.get(ruta, headers=empresa_a["headers"],
                         params={"motivo": "corto"})
+    assert r.status_code == 422
+    assert any(e["loc"] == ["query", "motivo"] for e in r.json()["detail"])
+
+    # La longitud de entrada pasa Query, pero el contenido normalizado no.
+    r = app_cliente.get(ruta, headers=empresa_a["headers"],
+                        params={"motivo": " " * 12})
     assert r.status_code == 400
     assert r.json()["error"]["code"] == "MOTIVO_REQUERIDO"
 

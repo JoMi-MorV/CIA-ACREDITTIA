@@ -1,4 +1,4 @@
-// File: /home/ubuntu/Documents/PLATAFORMAS/CIA-ACREDITTIA/BASE/app/frontend/app/(app)/faenas/page.tsx
+// File: C:\Users\amaru\Desktop\acredittia\ultima\CIA-ACREDITTIA-main\BASE\app\frontend\app\(app)\faenas\page.tsx
 import * as entry from '../../../../../app/(app)/faenas/page.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 

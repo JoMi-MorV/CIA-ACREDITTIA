@@ -24,7 +24,7 @@ from datetime import date, datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
-from sqlalchemy import and_, delete, func, or_, select
+from sqlalchemy import and_, delete, func, or_, select, update
 from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.orm import Session
 
@@ -43,6 +43,7 @@ from ..services import actividad
 from ..services.checklist import (calc_estado_doc, calc_estado_sujeto,
                                   crear_expediente_conductor, instanciar_docs,
                                   vencimiento_por_plantilla)
+from ..security import hash_password
 from ..services.storage import get_storage
 
 logger = logging.getLogger("acredittia.admin")
@@ -338,13 +339,18 @@ def global_search(q: str = Query(..., min_length=2, max_length=100),
     alcance que podrá separarse en roles más finos sin volver a exponer datos
     personales en los resultados actuales.
     """
-    like = f"%{q.strip()}%"
+    q = q.strip()
+    if len(q) < 2:
+        raise err(422, "BUSQUEDA_INVALIDA",
+                  "Escribe al menos 2 caracteres sin contar espacios exteriores")
+    like = f"%{q}%"
     resultados = []
 
     empresas = db.scalars(select(Company).where(or_(
         Company.nombre.ilike(like), Company.rut.ilike(like),
-        Company.email.ilike(like))).limit(limite)).all()
-    for company in empresas:
+        Company.email.ilike(like))).order_by(Company.nombre, Company.id)
+        .limit(limite + 1)).all()
+    for company in empresas[:limite]:
         resultados.append({
             "tipo": "empresa", "id": str(company.id),
             "titulo": company.nombre, "subtitulo": company.status,
@@ -357,8 +363,9 @@ def global_search(q: str = Query(..., min_length=2, max_length=100),
                            .join(Company, Company.id == Contrato.company_id)
                            .where(or_(Contrato.nombre.ilike(like),
                                       Contrato.codigo.ilike(like)))
-                           .limit(limite)).all()
-    for contrato, company_name in contratos:
+                           .order_by(Contrato.nombre, Contrato.id)
+                           .limit(limite + 1)).all()
+    for contrato, company_name in contratos[:limite]:
         resultados.append({
             "tipo": "contrato", "id": str(contrato.id),
             "titulo": contrato.nombre, "subtitulo": contrato.estado,
@@ -369,10 +376,12 @@ def global_search(q: str = Query(..., min_length=2, max_length=100),
 
     trabajadores = db.execute(select(Sujeto, Company.nombre)
                               .join(Company, Company.id == Sujeto.company_id)
-                              .where(or_(Sujeto.nombre.ilike(like),
+                              .where(Sujeto.tipo == "trabajador",
+                                     or_(Sujeto.nombre.ilike(like),
                                          Sujeto.cargo.ilike(like)))
-                              .limit(limite)).all()
-    for sujeto, company_name in trabajadores:
+                              .order_by(Sujeto.nombre, Sujeto.id)
+                              .limit(limite + 1)).all()
+    for sujeto, company_name in trabajadores[:limite]:
         resultados.append({
             "tipo": "trabajador", "id": str(sujeto.id),
             "titulo": sujeto.nombre, "subtitulo": sujeto.cargo or sujeto.tipo,
@@ -385,8 +394,9 @@ def global_search(q: str = Query(..., min_length=2, max_length=100),
                           .join(Company, Company.id == User.company_id)
                           .where(or_(User.nombre.ilike(like),
                                      User.email.ilike(like)))
-                          .limit(limite)).all()
-    for user, company_name in usuarios:
+                          .order_by(User.nombre, User.id)
+                          .limit(limite + 1)).all()
+    for user, company_name in usuarios[:limite]:
         resultados.append({
             "tipo": "usuario", "id": str(user.id),
             "titulo": user.nombre or "Usuario sin nombre",
@@ -397,8 +407,12 @@ def global_search(q: str = Query(..., min_length=2, max_length=100),
         })
 
     return {
-        "query": q.strip(), "permisos": SEARCH_PERMISSIONS,
+        "query": q, "permisos": SEARCH_PERMISSIONS,
+        # Compatibilidad: total cuenta los elementos devueltos, no todas las coincidencias.
         "total": len(resultados), "items": resultados,
+        "limite_por_categoria": limite,
+        "hay_mas": any(len(filas) > limite for filas in
+                       (empresas, contratos, trabajadores, usuarios)),
     }
 
 
@@ -414,7 +428,7 @@ def global_audit(modulo: str | None = Query(None),
     q = (select(Actividad, User.nombre.label("actor_nombre"),
                 Company.nombre.label("empresa"))
          .outerjoin(User, User.id == Actividad.user_id)
-         .join(Company, Company.id == Actividad.company_id))
+            .outerjoin(Company, Company.id == Actividad.company_id))
     if modulo:
         q = q.where(Actividad.modulo == modulo)
     if tipo:
@@ -436,7 +450,7 @@ def global_audit(modulo: str | None = Query(None),
     filas = db.execute(q.order_by(Actividad.id.desc())
                        .offset(p.offset).limit(p.page_size)).all()
     return sobre([{
-        "id": int(a.id), "empresa": empresa,
+        "id": int(a.id), "empresa": empresa or "Plataforma",
         "actor": actor_nombre or (f"Usuario {str(a.user_id)[:8]}" if a.user_id else "Sistema"),
         "tipo": a.tipo, "modulo": a.modulo,
         "descripcion": a.descripcion, "entidad_tipo": a.entidad_tipo,
@@ -450,9 +464,9 @@ def _admin_user_out(db: Session, user: User) -> dict:
     contrato = db.get(Contrato, user.contrato_id) if user.contrato_id else None
     company = db.get(Company, user.company_id) if user.company_id else None
     return {
-        # La consola opera por id y oculta el email por defecto para reducir
-        # la exposición de PII en listados globales.
-        "id": str(user.id), "nombre": user.nombre, "email": "Oculto",
+        # La gestión de cuentas, restringida a ADMIN, necesita una identidad
+        # reconocible para asignar permisos al destinatario correcto.
+        "id": str(user.id), "nombre": user.nombre, "email": user.email,
         "role": user.role, "activo": user.activo, "status": user.status,
         "company_id": str(user.company_id) if user.company_id else None,
         "company": company.nombre if company else None,
@@ -529,7 +543,7 @@ def admin_users_catalog(db: Session = Depends(get_db)):
 def editar_admin_user(user_id: uuid.UUID, body: AdminUserPatch,
                       db: Session = Depends(get_db),
                       admin: User = Depends(require_admin)):
-    user = db.get(User, user_id)
+    user = db.scalar(select(User).where(User.id == user_id).with_for_update())
     if user is None:
         raise err(404, "NO_ENCONTRADO", "Usuario inexistente")
     data = body.model_dump(exclude_unset=True)
@@ -572,6 +586,7 @@ def editar_admin_user(user_id: uuid.UUID, body: AdminUserPatch,
         if user.id == admin.id and not data["activo"]:
             raise err(400, "AUTO_REVOCACION", "No puede desactivar su propia cuenta")
         user.activo = data["activo"]
+        _invalidar_sesiones(db, user)
         cambios.append("activo")
     if not cambios:
         return _admin_user_out(db, user)
@@ -590,18 +605,28 @@ def revocar_admin_user(user_id: uuid.UUID, body: AdminUserRevoke,
                        db: Session = Depends(get_db),
                        admin: User = Depends(require_admin)):
     """Revoca el acceso completo sin borrar la identidad ni su auditoría."""
-    user = db.get(User, user_id)
+    user = db.scalar(select(User).where(User.id == user_id).with_for_update())
     if user is None:
         raise err(404, "NO_ENCONTRADO", "Usuario inexistente")
     if user.id == admin.id:
         raise err(400, "AUTO_REVOCACION", "No puede revocar su propia cuenta")
     user.activo = False
+    _invalidar_sesiones(db, user)
     if user.company_id:
         actividad.log(db, user.company_id, "actualizacion", "usuarios",
                       f"Acceso revocado{': ' + body.motivo.strip() if body.motivo else ''}",
                       user_id=admin.id, entidad_tipo="usuario", entidad_id=user.id)
     db.commit()
     return {"ok": True, "id": str(user.id), "activo": False}
+
+
+def _invalidar_sesiones(db: Session, user: User) -> None:
+    # Incremento SQL para que las revocaciones concurrentes no pierdan versiones.
+    db.execute(update(User).where(User.id == user.id).values(
+        auth_version=User.auth_version + 1))
+    db.execute(update(RefreshToken).where(
+        RefreshToken.user_id == user.id, RefreshToken.revoked_at.is_(None)
+    ).values(revoked_at=datetime.now(timezone.utc)))
 
 
 @router.get("/companies")
@@ -705,10 +730,11 @@ def crear_faena(body: FaenaIn, db: Session = Depends(get_db),
     except IntegrityError:
         db.rollback()
         raise err(409, "FAENA_DUPLICADA", "Ya existe una faena con ese nombre")
-    # La faena es catálogo global y no tiene company_id: la auditoría se registra
-    # bajo la empresa del admin si la tiene, y si no (admin de plataforma) queda
-    # solo en el log de aplicación, porque `actividad.company_id` es NOT NULL.
-    logger.info("faena creada %s (%s) por admin=%s", f.id, f.nombre, admin.id)
+    db.add(Actividad(
+        company_id=None, user_id=admin.id, tipo="creacion",
+        modulo="admin_catalogo", descripcion=f"Faena creada: {f.nombre}",
+        entidad_tipo="faena", entidad_id=f.id,
+    ))
     db.commit()
     return _faena_out(f, plataformas=0)
 
@@ -1012,7 +1038,7 @@ def stats(db: Session = Depends(get_db)):
         "actividad_pct": round(100 * int(f.activos) / int(f.usuarios))
         if f.usuarios else 0,
     } for f in actividad_empresas
-        if int(f.usuarios) and int(f.activos) * 2 < int(f.usuarios)]
+        if not int(f.usuarios) or int(f.activos) * 2 < int(f.usuarios)]
     clientes_baja_actividad.sort(key=lambda f: (f["actividad_pct"], f["nombre"]))
 
     # No existe una columna de duración de sesión. Se informa el dato real de
@@ -1225,6 +1251,12 @@ def stats(db: Session = Depends(get_db)):
 DEMO_CONTRATOS = [
     ("Transporte de Personal Mina", "CTR-DEMO-001", "Los Pelambres"),
     ("Servicios de Mantención Planta", "CTR-DEMO-002", "Minera Centinela"),
+    ("Movimiento de Tierra Fase Norte", "CTR-DEMO-003", "Zaldívar"),
+    ("Perforación y Tronadura", "CTR-DEMO-004", "Antucoya"),
+    ("Mantención de Caminos Industriales", "CTR-DEMO-005", "Candelaria"),
+    ("Operación de Equipos de Apoyo", "CTR-DEMO-006", "Caserones"),
+    ("Servicios Eléctricos de Faena", "CTR-DEMO-007", "Andina"),
+    ("Transporte de Insumos y Residuos", "CTR-DEMO-008", "El Teniente"),
 ]
 DEMO_PERSONAL = [
     ("Juan Pérez Soto", "Conductor Nacional", True),
@@ -1233,12 +1265,54 @@ DEMO_PERSONAL = [
     ("Patricia Silva Contreras", "Prevencionista de Riesgos", False),
     ("Luis Fuentes Cárdenas", "Operador de Equipo Pesado", False),
     ("Rodrigo Tapia Núñez", "Mecánico Mantenedor", False),
+    ("Camila Rojas Valenzuela", "Prevencionista de Riesgos", False),
+    ("Andrés Sepúlveda Mella", "Conductor Nacional", True),
+    ("Daniela Herrera Pino", "Supervisora de Terreno", False),
+    ("Felipe Carrasco Leiva", "Operador de Equipo Pesado", False),
+    ("Valentina Orellana Díaz", "Conductor Nacional", True),
+    ("Sebastián Lagos Núñez", "Mecánico Mantenedor", False),
+    ("Francisca Vidal Cifuentes", "Prevencionista de Riesgos", False),
+    ("Tomás Arancibia Soto", "Conductor Nacional", True),
+    ("Constanza Paredes Riquelme", "Supervisora de Terreno", False),
+    ("Ignacio Morales Figueroa", "Operador de Equipo Pesado", False),
+    ("Javiera Contreras Salas", "Conductor Nacional", True),
+    ("Matías Bustos Alarcón", "Mecánico Mantenedor", False),
+    ("Antonia Reyes Cáceres", "Prevencionista de Riesgos", False),
+    ("Nicolás Fuenzalida Vera", "Conductor Nacional", True),
+    ("Paula Espinoza Toledo", "Supervisora de Terreno", False),
+    ("Cristóbal Sanhueza Pinto", "Operador de Equipo Pesado", False),
+    ("Fernanda Molina Godoy", "Conductor Nacional", True),
+    ("Benjamín Cáceres Jara", "Mecánico Mantenedor", False),
+    ("Josefa Valdés Bravo", "Prevencionista de Riesgos", False),
+    ("Vicente Alvarado Tapia", "Conductor Nacional", True),
+    ("Trinidad Cárdenas Fuentes", "Supervisora de Terreno", False),
+    ("Maximiliano Núñez Palma", "Operador de Equipo Pesado", False),
+    ("Emilia Gallardo Reyes", "Conductor Nacional", True),
+    ("Joaquín Miranda Silva", "Mecánico Mantenedor", False),
+    ("Catalina Campos Ortega", "Prevencionista de Riesgos", False),
+    ("Agustín Bravo Escobar", "Conductor Nacional", True),
+    ("Florencia Peña Aguilera", "Supervisora de Terreno", False),
+    ("Esteban Riquelme Soto", "Operador de Equipo Pesado", False),
 ]
 DEMO_EQUIPOS = [
     ("Tracto-Camión", "Mercedes-Benz", "Actros 2646", 2021),
     ("Camioneta", "Toyota", "Hilux 4x4", 2022),
     ("Camión Aljibe", "Volvo", "FM 440", 2019),
     ("Retroexcavadora", "Caterpillar", "420F", 2020),
+    ("Camioneta", "Mitsubishi", "L200 Dakar", 2021),
+    ("Bus", "Mercedes-Benz", "OF 1721", 2018),
+    ("Camión Pluma", "Scania", "P 280", 2020),
+    ("Excavadora", "Komatsu", "PC 210", 2022),
+    ("Cargador Frontal", "Caterpillar", "950H", 2017),
+    ("Minibús", "Mercedes-Benz", "Sprinter 415", 2023),
+    ("Camioneta", "Ford", "Ranger 3.2", 2022),
+    ("Motoniveladora", "John Deere", "670G", 2019),
+    ("Camión Tolva", "Volvo", "FMX 500", 2021),
+    ("Camioneta", "Toyota", "Hilux 4x4", 2023),
+    ("Rodillo Compactador", "Bomag", "BW 211", 2018),
+    ("Camión Lubricador", "International", "DuraStar", 2019),
+    ("Excavadora", "Komatsu", "PC 210", 2020),
+    ("Camioneta", "Nissan", "Navara 4x4", 2021),
 ]
 
 # 1 de cada 3 documentos se deja en `falta` para que la demo tenga pendientes:
@@ -1262,8 +1336,40 @@ def _rut_demo(n: int) -> str:
 
 def _patente_demo(i: int) -> str:
     letras = "BCDFGHJKLPRSTVWXYZ"
-    base = "".join(letras[(i * 5 + k) % len(letras)] for k in range(4))
-    return f"{base}{10 + i:02d}"
+    if i < 90:
+        base = "".join(letras[(i * 5 + k) % len(letras)] for k in range(4))
+        return f"{base}{10 + i:02d}"
+    bloque = i // 100
+    digitos = []
+    for _ in range(4):
+        digitos.append(letras[bloque % len(letras)])
+        bloque //= len(letras)
+    return f"{''.join(reversed(digitos))}{i % 100:02d}"
+
+
+def asegurar_eventos_operacionales(db: Session, company: Company) -> int:
+    hoy = date.today()
+    eventos = [
+        ("Mantención preventiva de flota", "mantencion", 5,
+         "Revisión programada de vehículos y equipos asignados."),
+        ("Capacitación de seguridad operacional", "capacitacion", 12,
+         "Jornada de actualización de procedimientos de seguridad."),
+        ("Entrega de documentación mensual", "administrativo", 20,
+         "Consolidación de antecedentes de contratos y personal."),
+    ]
+    creados = 0
+    for titulo, categoria, dias, descripcion in eventos:
+        existe = db.scalar(select(EventoCalendario.id).where(
+            EventoCalendario.company_id == company.id,
+            EventoCalendario.titulo == titulo,
+        ))
+        if existe is None:
+            db.add(EventoCalendario(
+                company_id=company.id, titulo=titulo, categoria=categoria,
+                fecha=hoy + timedelta(days=dias), descripcion=descripcion,
+            ))
+            creados += 1
+    return creados
 
 
 def _borrar_datos_empresa(db: Session, cid: uuid.UUID) -> dict:
@@ -1335,18 +1441,26 @@ def _borrar_datos_empresa(db: Session, cid: uuid.UUID) -> dict:
     return conteos
 
 
-def _sembrar_demo(db: Session, company: Company, user_id: uuid.UUID) -> dict:
-    """Vuelve a crear la dotación de la empresa demo.
+def _sembrar_operacion_empresa(
+        db: Session, company: Company, user_id: uuid.UUID, *,
+        contratos_data: list[tuple[str, str, str]] | None = None,
+        personal_data: list[tuple[str, str, bool]] | None = None,
+        equipos_data: list[tuple[str, str, str, int]] | None = None,
+        patente_offset: int = 0) -> dict:
+    """Crea la dotación operacional de una empresa usando checklists reales.
 
     Las faenas se buscan por nombre en el catálogo que siembra `app/seeds.py`, y
     los checklists se instancian con `checklist.instanciar_docs` y
     `crear_expediente_conductor`: la demo se construye exactamente con las mismas
     reglas que un alta real, no con inserciones a mano. Deja parte de los
-    documentos en `falta` para que la demo tenga pendientes que mostrar.
+    documentos en `falta` para que existan pendientes que revisar.
     """
     from ..services.checklist import resolver_cargo
 
-    nombres_faena = [c[2] for c in DEMO_CONTRATOS]
+    contratos_data = contratos_data or DEMO_CONTRATOS
+    personal_data = personal_data or DEMO_PERSONAL
+    equipos_data = equipos_data or DEMO_EQUIPOS
+    nombres_faena = [c[2] for c in contratos_data]
     faenas = {f.nombre: f for f in db.scalars(select(Faena).where(
         Faena.nombre.in_(nombres_faena)))}
     if not faenas:
@@ -1357,10 +1471,11 @@ def _sembrar_demo(db: Session, company: Company, user_id: uuid.UUID) -> dict:
 
     hoy = date.today()
     creados = {"contratos": 0, "personal": 0, "equipos": 0, "documentos": 0,
+               "usuarios_contract_admin": 0,
                "expedientes_emsipor": 0, "cargos": 0}
     contratos: list[Contrato] = []
 
-    for nombre, codigo, faena_nombre in DEMO_CONTRATOS:
+    for nombre, codigo, faena_nombre in contratos_data:
         faena = faenas.get(faena_nombre) or next(iter(faenas.values()))
         c = Contrato(company_id=company.id, faena_id=faena.id, nombre=nombre,
                      codigo=codigo, fecha_inicio=hoy - timedelta(days=120),
@@ -1373,8 +1488,18 @@ def _sembrar_demo(db: Session, company: Company, user_id: uuid.UUID) -> dict:
             contrato_plantilla_id=c.id)
         contratos.append(c)
         creados["contratos"] += 1
+        email = f"jefatura.{c.codigo.lower()}@acredittia.cl"
+        usuario = db.scalar(select(User).where(User.email == email))
+        if usuario is None:
+            db.add(User(
+                email=email, nombre=f"Jefatura {c.codigo}",
+                password_hash=hash_password("Demo2026!"),
+                role="contract_admin", company_id=company.id,
+                contrato_id=c.id, status="approved", activo=True,
+            ))
+            creados["usuarios_contract_admin"] += 1
 
-    for i, (nombre, cargo_texto, conductor) in enumerate(DEMO_PERSONAL):
+    for i, (nombre, cargo_texto, conductor) in enumerate(personal_data):
         c = contratos[i % len(contratos)]
         cargo, nuevo = resolver_cargo(db, company.id, cargo_id=None,
                                       cargo_texto=cargo_texto)
@@ -1396,10 +1521,15 @@ def _sembrar_demo(db: Session, company: Company, user_id: uuid.UUID) -> dict:
             creados["expedientes_emsipor"] += 1
         creados["personal"] += 1
 
-    for i, (tipo_equipo, marca, modelo, anio) in enumerate(DEMO_EQUIPOS):
+    for i, (tipo_equipo, marca, modelo, anio) in enumerate(equipos_data):
         c = contratos[i % len(contratos)]
+        patente_indice = patente_offset + i
+        patente = _patente_demo(patente_indice)
+        while db.scalar(select(Sujeto.id).where(Sujeto.patente == patente)):
+            patente_indice += 1
+            patente = _patente_demo(patente_indice)
         s = Sujeto(company_id=company.id, contrato_id=c.id, tipo="equipo",
-                   nombre=f"{marca} {modelo}", patente=_patente_demo(i),
+                   nombre=f"{marca} {modelo}", patente=patente,
                    tipo_equipo=tipo_equipo, marca=marca, modelo=modelo, anio=anio)
         db.add(s)
         db.flush()
@@ -1439,6 +1569,8 @@ def _sembrar_demo(db: Session, company: Company, user_id: uuid.UUID) -> dict:
         sujeto.estado = calc_estado_sujeto(por_sujeto.get(sujeto.id, []),
                                            sujeto.estado)
 
+    creados["eventos_calendario"] = asegurar_eventos_operacionales(db, company)
+
     actividad.log(db, company.id, "creacion", "empresa",
                   f"Datos demo regenerados: {creados['contratos']} contratos, "
                   f"{creados['personal']} trabajadores, {creados['equipos']} equipos",
@@ -1472,7 +1604,7 @@ def reset_demo(company_id: uuid.UUID, db: Session = Depends(get_db),
                   "La base de datos rechazó el borrado de un histórico "
                   "inmutable; revise las credenciales de plataforma rotadas")
 
-    creados = _sembrar_demo(db, c, admin.id)
+    creados = _sembrar_operacion_empresa(db, c, admin.id)
     db.commit()
     logger.info("empresa demo %s reiniciada por admin=%s", c.id, admin.id)
 

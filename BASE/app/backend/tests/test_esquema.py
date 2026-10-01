@@ -12,15 +12,56 @@ from app.database import SCHEMA_VERSION, schema_version
 
 
 def test_version_de_esquema(esquema):
-    """01→04 + 06 aplicados equivalen a la versión 6 que la API exige."""
-    assert SCHEMA_VERSION == 6
-    assert schema_version() == 6
+    """Los scripts de negocio y consola instalan la versión exigida por la API."""
+    assert SCHEMA_VERSION == 9
+    assert schema_version() == SCHEMA_VERSION
 
 
 def test_health_esquema(app_cliente):
     r = app_cliente.get("/health/esquema")
     assert r.status_code == 200, r.text
-    assert r.json() == {"status": "ok", "schema_version": 6}
+    assert r.json() == {"status": "ok", "schema_version": SCHEMA_VERSION}
+
+
+def test_migracion_indices_desde_v7_repetible(motor_admin, monkeypatch):
+    """Una base existente recibe los índices y repetir migración no cambia datos."""
+    from app import database
+
+    indices = ("ix_ops_jobs_componente", "ix_ops_jobs_pausado_por",
+               "ix_ops_runs_actor", "ix_ops_incidentes_creador",
+               "ix_metricas_plan_plan")
+    monkeypatch.setattr(database, "engine", motor_admin)
+    with motor_admin.begin() as conn:
+        antes = conn.execute(sa.text("SELECT count(*) FROM ops_jobs")).scalar()
+        for nombre in indices:
+            conn.execute(sa.text(f"DROP INDEX {nombre}"))
+        conn.execute(sa.text("DELETE FROM app_schema_migrations WHERE version >= 8"))
+    try:
+        assert database.schema_version() == 7
+        assert database.apply_schema() == 9
+        assert database.apply_schema() == 9
+        test_foreign_keys_con_indice(motor_admin)
+        with motor_admin.connect() as conn:
+            assert conn.execute(sa.text("SELECT count(*) FROM ops_jobs")).scalar() == antes
+    finally:
+        # Restaurar también si falla una aserción, sin contaminar otros casos.
+        database.apply_schema()
+
+
+def test_migracion_sesion_desde_v8(motor_admin, monkeypatch):
+    from app import database
+    monkeypatch.setattr(database, "engine", motor_admin)
+    with motor_admin.begin() as conn:
+        conn.execute(sa.text("ALTER TABLE users DROP COLUMN auth_version"))
+        conn.execute(sa.text("DELETE FROM app_schema_migrations WHERE version = 9"))
+    try:
+        assert database.schema_version() == 8
+        assert database.apply_schema() == 9
+        assert database.apply_schema() == 9
+        with motor_admin.connect() as conn:
+            assert conn.execute(sa.text("SELECT count(*) FROM users WHERE auth_version <> 0 OR auth_version IS NULL")).scalar() == 0
+    finally:
+        database.apply_schema()
 
 
 def test_rls_habilitado_y_forzado(motor_admin):

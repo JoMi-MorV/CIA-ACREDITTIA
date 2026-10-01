@@ -7,7 +7,7 @@ export default function Home() {
   const router = useRouter();
   useEffect(() => {
     const u = currentUser();
-    router.replace(u ? (u.role === "admin" ? "/admin" : "/dashboard") : "/login");
+    router.replace(u ? (u.role === "admin" ? "/admin/dashboard" : "/dashboard") : "/login");
   }, [router]);
   return null;
 }
