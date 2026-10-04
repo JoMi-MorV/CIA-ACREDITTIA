@@ -18,7 +18,8 @@ from fastapi.responses import JSONResponse
 
 from .config import settings
 from .database import (SessionLocal, apply_schema, assert_schema_version,
-                       reset_ctx, schema_version, set_ctx, wait_for_db,
+                       reset_ctx, schema_version, schema_version_compatible,
+                       set_ctx, wait_for_db,
                        install_runtime_role_guard)
 from .routers import (actividad, admin, alertas, auth, blobs, calendario, cargos,
                       company, contrato_requisitos, contratos, dashboard,
@@ -170,7 +171,7 @@ def health_esquema():
     """Readiness estricta: comprueba que la BD esté en la versión esperada."""
     v = schema_version()
     esperada = settings.schema_version_esperada
-    if v != esperada:
+    if not schema_version_compatible(v, esperada):
         return JSONResponse(
             status_code=503,
             content={"error": {"code": "ESQUEMA_DESFASADO",

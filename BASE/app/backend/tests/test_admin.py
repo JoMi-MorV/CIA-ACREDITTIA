@@ -10,7 +10,7 @@ mismo patrón que usa test_reportes.py.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -183,6 +183,40 @@ def test_cliente_detalle_y_404(app_cliente, admin, empresa_a, suscripcion_a):
                         headers=admin["headers"])
     assert r.status_code == 404
     assert r.json()["error"]["code"] == "NO_ENCONTRADO"
+
+
+def test_detalle_empresa_muestra_ultimo_evento_y_actor(
+        app_cliente, admin, empresa_a, motor_admin):
+    from sqlalchemy import text
+
+    empresa_id = empresa_a["company_id"]
+    usuario_id = empresa_a["user_id"]
+    anterior = datetime.now(timezone.utc) + timedelta(minutes=1)
+    reciente = datetime.now(timezone.utc) + timedelta(minutes=2)
+    with motor_admin.begin() as conexion:
+        conexion.execute(text(
+            "UPDATE users SET nombre = 'Usuario actor prueba' WHERE id = :user_id"),
+            {"user_id": usuario_id})
+        for fecha, modulo in ((anterior, "evento_anterior"),
+                              (reciente, "ultimo_evento_prueba")):
+            conexion.execute(text(
+                "INSERT INTO actividad "
+                "(company_id, user_id, tipo, modulo, descripcion, created_at) "
+                "VALUES (:company_id, :user_id, 'actualizacion', :modulo, "
+                "'texto libre que no debe salir en el detalle', :created_at)"), {
+                    "company_id": empresa_id, "user_id": usuario_id,
+                    "modulo": modulo, "created_at": fecha,
+                })
+
+    respuesta = app_cliente.get(
+        f"{API}/admin/companies/{empresa_id}", headers=admin["headers"])
+    assert respuesta.status_code == 200, respuesta.text
+    evento = respuesta.json()["ultimo_evento"]
+    assert evento["modulo"] == "ultimo_evento_prueba"
+    assert evento["tipo"] == "actualizacion"
+    assert evento["actor"] == "Usuario actor prueba"
+    assert "descripcion" not in evento
+    assert "email" not in evento
 
 
 # ============================================================================

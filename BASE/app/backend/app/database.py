@@ -258,9 +258,23 @@ def schema_version() -> int:
         return 4 if rls else 3
 
 
+def schema_version_compatible(actual: int, esperada: int = SCHEMA_VERSION) -> bool:
+    """Acepta el esquema 10 legado: solo añade users.rut nullable sin uso."""
+    if actual == esperada:
+        return True
+    if esperada != 9 or actual != 10:
+        return False
+    with engine.connect() as conn:
+        return conn.execute(text(
+            "SELECT 1 FROM information_schema.columns "
+            "WHERE table_schema = 'public' AND table_name = 'users' "
+            "AND column_name = 'rut' AND is_nullable = 'YES'"
+        )).first() is not None
+
+
 def assert_schema_version(esperada: int = SCHEMA_VERSION) -> None:
     actual = schema_version()
-    if actual != esperada:
+    if not schema_version_compatible(actual, esperada):
         raise RuntimeError(
             f"Esquema en versión {actual}, se esperaba {esperada}. "
             "Ejecuta el job de migración (python -m migrate.run) antes de arrancar la API."

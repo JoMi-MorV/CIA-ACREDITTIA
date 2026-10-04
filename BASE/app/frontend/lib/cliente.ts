@@ -22,6 +22,7 @@ import { api, patch, type Query } from "./api";
 import type {
   AcreditacionesEstado, ActividadFila, AdminStats, Alerta, AlertaPatch,
   BusquedaGlobal,
+  FiltrosBusquedaGlobal,
   Ambito, ArchivoConfirmado, CategoriaEvento, ChecklistSujeto, Conjunto,
   Contrato, ContratoCreado, ContratoIn, ContratoPatch, Credencial,
   CumplimientoContrato, Documento, DocumentoFila, DownloadUrl, Ejemplo, Empresa,
@@ -82,8 +83,11 @@ export const auth = {
 // §2 — admin (back-office de la plataforma)
 // ============================================================================
 export const admin = {
-  buscar: (q: string, limite = 8) =>
-    api<BusquedaGlobal>("/admin/search", { query: { q, limite } }),
+  buscar: (q: string, limite = 8, filtros?: FiltrosBusquedaGlobal) =>
+    api<BusquedaGlobal>("/admin/search", { query: { q, limite, ...filtros } }),
+
+  catalogosBusqueda: () =>
+    api<{ cargos: string[]; tipos_equipo: string[] }>("/admin/search/catalogos"),
 
   empresas: (params?: ParamsPagina & { status?: string; es_demo?: boolean }) =>
     api<Pagina<Empresa>>("/admin/companies", { query: q(params) }),

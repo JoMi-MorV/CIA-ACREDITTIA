@@ -799,6 +799,13 @@ export type Empresa = {
 };
 
 export type EmpresaDetalle = Empresa & {
+  ultimo_evento: {
+    created_at: string;
+    tipo: string;
+    modulo: string;
+    entidad_tipo: string | null;
+    actor: string;
+  } | null;
   stats: {
     usuarios: number;
     usuarios_activos: number;
@@ -891,7 +898,7 @@ export type AdminStats = {
 };
 
 export type ResultadoBusquedaGlobal = {
-  tipo: "empresa" | "contrato" | "trabajador" | "usuario";
+  tipo: "empresa" | "contrato" | "trabajador" | "equipo" | "usuario";
   id: string;
   titulo: string;
   subtitulo: string;
@@ -909,6 +916,21 @@ export type BusquedaGlobal = {
   hay_mas: boolean;
   permisos: Record<ResultadoBusquedaGlobal["tipo"], string>;
   items: ResultadoBusquedaGlobal[];
+};
+
+export type FiltrosBusquedaGlobal = {
+  tipo?: ResultadoBusquedaGlobal["tipo"];
+  empresa?: string;
+  estado?: string;
+  cargo?: string;
+  conductor?: boolean;
+  tipo_equipo?: string;
+  patente?: string;
+  marca?: string;
+  modelo?: string;
+  anio?: number;
+  rol?: string;
+  es_demo?: boolean;
 };
 
 export type PlantillaAdmin = PlantillaRequisito & {

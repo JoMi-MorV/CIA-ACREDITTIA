@@ -23,6 +23,25 @@ def test_health_esquema(app_cliente):
     assert r.json() == {"status": "ok", "schema_version": SCHEMA_VERSION}
 
 
+def test_esquema_10_heredado_compatible_sin_cambiar_datos(motor_admin, monkeypatch):
+    """El esquema 10 solo añade users.rut nullable, que la app ya no consulta."""
+    from app import database
+    monkeypatch.setattr(database, "engine", motor_admin)
+    with motor_admin.begin() as conn:
+        conn.execute(sa.text("ALTER TABLE users ADD COLUMN IF NOT EXISTS rut text"))
+        conn.execute(sa.text(
+            "INSERT INTO app_schema_migrations (version) VALUES (10) "
+            "ON CONFLICT DO NOTHING"))
+    try:
+        assert database.schema_version_compatible(10, 9)
+        database.assert_schema_version(9)
+        assert not database.schema_version_compatible(10, 8)
+    finally:
+        with motor_admin.begin() as conn:
+            conn.execute(sa.text("DELETE FROM app_schema_migrations WHERE version = 10"))
+            conn.execute(sa.text("ALTER TABLE users DROP COLUMN IF EXISTS rut"))
+
+
 def test_migracion_indices_desde_v7_repetible(motor_admin, monkeypatch):
     """Una base existente recibe los índices y repetir migración no cambia datos."""
     from app import database
@@ -53,7 +72,7 @@ def test_migracion_sesion_desde_v8(motor_admin, monkeypatch):
     monkeypatch.setattr(database, "engine", motor_admin)
     with motor_admin.begin() as conn:
         conn.execute(sa.text("ALTER TABLE users DROP COLUMN auth_version"))
-        conn.execute(sa.text("DELETE FROM app_schema_migrations WHERE version = 9"))
+        conn.execute(sa.text("DELETE FROM app_schema_migrations WHERE version >= 9"))
     try:
         assert database.schema_version() == 8
         assert database.apply_schema() == 9

@@ -1,4 +1,55 @@
-# Validación funcional — estado al 1 de octubre de 2026
+# Validación funcional — actualizado al 4 de octubre de 2026
+
+## Último evento en el detalle global de empresa — 4 de octubre de 2026
+
+La ficha expandible de empresa ahora muestra el evento más reciente con fecha,
+tipo, módulo, tipo de entidad y nombre del actor; si no hay nombre, se usa un
+identificador corto, y los eventos automáticos aparecen como Sistema. No se
+devuelve email ni descripción libre. La prueba focalizada valida que se elige
+el evento más reciente y que el actor corresponde; `tests/test_admin.py` pasó
+20/20. `docker compose --progress quiet build web` pasó y el contenedor web se
+recreó; Docker lo reportó `Up` y Next informó `Ready`. No se completó una
+comprobación HTTP de `/admin/empresas` después de ese reinicio.
+
+## Buscador global por categoría y RUT — 4 de octubre de 2026
+
+`GET /admin/search` admite filtros de servidor por empresa, contrato,
+trabajador/persona, equipo o usuario. Permite filtrar por empresa y estado;
+personas por cargo y condición de conductor; equipos por tipo, patente, marca,
+modelo y año; empresas por estado/demo; cuentas por rol y estado. La búsqueda
+por RUT usa las columnas existentes de empresas y sujetos. Las cuentas de
+acceso no tienen RUT propio; no se agregó una columna ni se requiere migración.
+Se conserva el límite de resultados por categoría. Para bases que ya tienen el
+marcador de esquema 10 y la columna nullable heredada `users.rut`, la API acepta
+esa versión compatible sin consultar ni modificar la columna. Versiones futuras
+o diferencias incompatibles continúan bloqueando el arranque.
+
+En PostgreSQL temporal, `test_admin_busqueda.py` y `test_esquema.py`:
+**34 aprobadas, 0 fallidas**. La regresión ampliada con `test_admin.py`,
+`test_admin_identidad.py` y `test_admin_reactivacion.py` sumó **58 aprobadas,
+0 fallidas**. Diagnósticos de los archivos
+frontend modificados: sin errores. `npm run build` no se pudo ejecutar porque
+Next.js no está instalado en las dependencias locales. `docker compose up --build`
+completó con el build web en caché; el job informó esquema 10 sin cambios, la API
+arrancó y `/health/esquema` respondió `{"status":"ok","schema_version":10}`.
+El frontend respondió HTTP 200 en `http://localhost:3000`; no se recorrió el
+navegador.
+
+## Interfaz del buscador global — 4 de octubre de 2026
+
+La revisión del código de `/admin/busqueda` confirma que los filtros de cargo
+y tipo de equipo se obtienen de catálogos; la búsqueda puede ejecutarse con el
+campo de texto vacío cuando hay filtros específicos y, de lo contrario,
+requiere al menos dos caracteres. La ficha agregada se despliega en una fila
+de resultado concreta, debajo de esa fila, con resumen y último evento/actor.
+Solo puede quedar abierta una ficha a la vez. Cambiar la búsqueda, seleccionar
+otra fila o cerrar la ficha invalida la solicitud en curso para no mostrar una
+respuesta tardía.
+
+Esta anotación documenta el comportamiento implementado a partir de la revisión
+del código; no se ejecutaron pruebas automatizadas ni una validación visual de
+navegador específica para estos cambios. La validación de interfaz queda
+pendiente.
 
 ## Regresión completa y datos demo multiempresa — 1 de octubre de 2026
 

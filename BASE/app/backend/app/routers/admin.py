@@ -28,6 +28,7 @@ from sqlalchemy import and_, delete, func, or_, select, update
 from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.orm import Session
 
+from ..config import TIPOS_EQUIPO
 from ..database import get_db
 from ..deps import (Page, aplicar_orden, err, paginacion, require_admin, sobre)
 from ..models import (
@@ -43,6 +44,7 @@ from ..services import actividad
 from ..services.checklist import (calc_estado_doc, calc_estado_sujeto,
                                   crear_expediente_conductor, instanciar_docs,
                                   vencimiento_por_plantilla)
+from ..security import hash_password
 from ..security import hash_password
 from ..services.storage import get_storage
 
@@ -149,6 +151,7 @@ SEARCH_PERMISSIONS = {
     "empresa": "admin.companies.read",
     "contrato": "admin.contracts.read",
     "trabajador": "admin.subjects.read",
+    "equipo": "admin.subjects.read",
     "usuario": "admin.users.read",
 }
 
@@ -330,8 +333,20 @@ def _valida_template(db: Session, ambito: str | None, tipo: str | None,
 # §5.1 — Empresas
 # ============================================================================
 @router.get("/search")
-def global_search(q: str = Query(..., min_length=2, max_length=100),
+def global_search(q: str | None = Query(None, max_length=100),
                   limite: int = Query(8, ge=1, le=25),
+                  tipo: str | None = Query(None),
+                  empresa: str | None = Query(None, max_length=100),
+                  estado: str | None = Query(None, max_length=24),
+                  cargo: str | None = Query(None, max_length=100),
+                  conductor: bool | None = Query(None),
+                  tipo_equipo: str | None = Query(None, max_length=100),
+                  patente: str | None = Query(None, max_length=20),
+                  marca: str | None = Query(None, max_length=100),
+                  modelo: str | None = Query(None, max_length=100),
+                  anio: int | None = Query(None, ge=1900, le=2100),
+                  rol: str | None = Query(None, max_length=30),
+                  es_demo: bool | None = Query(None),
                   db: Session = Depends(get_db)):
     """Busca entidades globales con un alcance de permisos explícito.
 
@@ -339,17 +354,36 @@ def global_search(q: str = Query(..., min_length=2, max_length=100),
     alcance que podrá separarse en roles más finos sin volver a exponer datos
     personales en los resultados actuales.
     """
-    q = q.strip()
-    if len(q) < 2:
+    if tipo is not None and tipo not in SEARCH_PERMISSIONS:
+        raise err(400, "TIPO_INVALIDO", "Tipo de búsqueda no reconocido")
+    q = (q or "").strip()
+    filtro_por_tipo = {
+        "empresa": bool(estado) or es_demo is not None,
+        "contrato": bool(empresa or estado),
+        "trabajador": bool(empresa or estado or cargo) or conductor is not None,
+        "equipo": bool(empresa or estado or tipo_equipo or patente or marca or modelo)
+        or anio is not None,
+        "usuario": bool(empresa or estado or rol),
+    }
+    if len(q) < 2 and not (tipo and filtro_por_tipo.get(tipo, False)):
         raise err(422, "BUSQUEDA_INVALIDA",
-                  "Escribe al menos 2 caracteres sin contar espacios exteriores")
-    like = f"%{q}%"
+                  "Escribe al menos 2 caracteres o aplica un filtro específico")
+    like = f"%{q}%" if q else "%"
+    empresa_like = f"%{empresa.strip()}%" if empresa and empresa.strip() else None
     resultados = []
 
-    empresas = db.scalars(select(Company).where(or_(
+    consulta_empresas = select(Company).where(or_(
         Company.nombre.ilike(like), Company.rut.ilike(like),
-        Company.email.ilike(like))).order_by(Company.nombre, Company.id)
-        .limit(limite + 1)).all()
+        Company.email.ilike(like)))
+    if empresa_like:
+        consulta_empresas = consulta_empresas.where(Company.nombre.ilike(empresa_like))
+    if estado:
+        consulta_empresas = consulta_empresas.where(Company.status == estado)
+    if es_demo is not None:
+        consulta_empresas = consulta_empresas.where(Company.es_demo.is_(es_demo))
+    empresas = (db.scalars(consulta_empresas.order_by(Company.nombre, Company.id)
+                           .limit(limite + 1)).all()
+        if tipo in (None, "empresa") else [])
     for company in empresas[:limite]:
         resultados.append({
             "tipo": "empresa", "id": str(company.id),
@@ -359,12 +393,17 @@ def global_search(q: str = Query(..., min_length=2, max_length=100),
             "detalle": f"/admin/companies/{company.id}",
         })
 
-    contratos = db.execute(select(Contrato, Company.nombre)
-                           .join(Company, Company.id == Contrato.company_id)
-                           .where(or_(Contrato.nombre.ilike(like),
-                                      Contrato.codigo.ilike(like)))
-                           .order_by(Contrato.nombre, Contrato.id)
-                           .limit(limite + 1)).all()
+    consulta_contratos = (select(Contrato, Company.nombre)
+                          .join(Company, Company.id == Contrato.company_id)
+                          .where(or_(Contrato.nombre.ilike(like),
+                                     Contrato.codigo.ilike(like))))
+    if empresa_like:
+        consulta_contratos = consulta_contratos.where(Company.nombre.ilike(empresa_like))
+    if estado:
+        consulta_contratos = consulta_contratos.where(Contrato.estado == estado)
+    contratos = (db.execute(consulta_contratos.order_by(Contrato.nombre, Contrato.id)
+                            .limit(limite + 1)).all()
+                 if tipo in (None, "contrato") else [])
     for contrato, company_name in contratos[:limite]:
         resultados.append({
             "tipo": "contrato", "id": str(contrato.id),
@@ -374,13 +413,25 @@ def global_search(q: str = Query(..., min_length=2, max_length=100),
             "detalle": f"/admin/companies/{contrato.company_id}",
         })
 
-    trabajadores = db.execute(select(Sujeto, Company.nombre)
-                              .join(Company, Company.id == Sujeto.company_id)
-                              .where(Sujeto.tipo == "trabajador",
-                                     or_(Sujeto.nombre.ilike(like),
-                                         Sujeto.cargo.ilike(like)))
-                              .order_by(Sujeto.nombre, Sujeto.id)
-                              .limit(limite + 1)).all()
+    consulta_trabajadores = (select(Sujeto, Company.nombre)
+                             .join(Company, Company.id == Sujeto.company_id)
+                             .where(Sujeto.tipo == "trabajador",
+                                    or_(Sujeto.nombre.ilike(like),
+                                        Sujeto.cargo.ilike(like),
+                                        Sujeto.rut.ilike(like))))
+    if empresa_like:
+        consulta_trabajadores = consulta_trabajadores.where(Company.nombre.ilike(empresa_like))
+    if cargo:
+        consulta_trabajadores = consulta_trabajadores.where(
+            Sujeto.cargo == cargo.strip())
+    if conductor is not None:
+        consulta_trabajadores = consulta_trabajadores.where(
+            Sujeto.es_conductor.is_(conductor))
+    if estado:
+        consulta_trabajadores = consulta_trabajadores.where(Sujeto.estado == estado)
+    trabajadores = (db.execute(consulta_trabajadores.order_by(Sujeto.nombre, Sujeto.id)
+                               .limit(limite + 1)).all()
+                    if tipo in (None, "trabajador") else [])
     for sujeto, company_name in trabajadores[:limite]:
         resultados.append({
             "tipo": "trabajador", "id": str(sujeto.id),
@@ -390,12 +441,62 @@ def global_search(q: str = Query(..., min_length=2, max_length=100),
             "detalle": f"/admin/companies/{sujeto.company_id}",
         })
 
-    usuarios = db.execute(select(User, Company.nombre)
-                          .join(Company, Company.id == User.company_id)
-                          .where(or_(User.nombre.ilike(like),
-                                     User.email.ilike(like)))
-                          .order_by(User.nombre, User.id)
+    consulta_equipos = (select(Sujeto, Company.nombre)
+                        .join(Company, Company.id == Sujeto.company_id)
+                        .where(Sujeto.tipo == "equipo",
+                               or_(Sujeto.nombre.ilike(like),
+                                   Sujeto.patente.ilike(like),
+                                   Sujeto.tipo_equipo.ilike(like),
+                                   Sujeto.marca.ilike(like),
+                                   Sujeto.modelo.ilike(like))))
+    if empresa_like:
+        consulta_equipos = consulta_equipos.where(Company.nombre.ilike(empresa_like))
+    if tipo_equipo:
+        consulta_equipos = consulta_equipos.where(
+            Sujeto.tipo_equipo == tipo_equipo.strip())
+    if patente:
+        consulta_equipos = consulta_equipos.where(
+            Sujeto.patente.ilike(f"%{patente.strip()}%"))
+    if marca:
+        consulta_equipos = consulta_equipos.where(
+            Sujeto.marca.ilike(f"%{marca.strip()}%"))
+    if modelo:
+        consulta_equipos = consulta_equipos.where(
+            Sujeto.modelo.ilike(f"%{modelo.strip()}%"))
+    if anio is not None:
+        consulta_equipos = consulta_equipos.where(Sujeto.anio == anio)
+    if estado:
+        consulta_equipos = consulta_equipos.where(Sujeto.estado == estado)
+    equipos = (db.execute(consulta_equipos.order_by(Sujeto.nombre, Sujeto.id)
                           .limit(limite + 1)).all()
+              if tipo in (None, "equipo") else [])
+    for sujeto, company_name in equipos[:limite]:
+        descripcion = " · ".join(filter(None, (
+            sujeto.patente and f"Patente {sujeto.patente}",
+            sujeto.tipo_equipo,
+            " ".join(filter(None, (sujeto.marca, sujeto.modelo))) or None,
+        )))
+        resultados.append({
+            "tipo": "equipo", "id": str(sujeto.id),
+            "titulo": sujeto.nombre, "subtitulo": descripcion or "Equipo",
+            "empresa": company_name, "company_id": str(sujeto.company_id),
+            "permiso": SEARCH_PERMISSIONS["equipo"],
+            "detalle": f"/admin/companies/{sujeto.company_id}",
+        })
+
+    consulta_usuarios = (select(User, Company.nombre)
+                         .join(Company, Company.id == User.company_id)
+                         .where(or_(User.nombre.ilike(like),
+                                    User.email.ilike(like))))
+    if empresa_like:
+        consulta_usuarios = consulta_usuarios.where(Company.nombre.ilike(empresa_like))
+    if rol:
+        consulta_usuarios = consulta_usuarios.where(User.role == rol)
+    if estado:
+        consulta_usuarios = consulta_usuarios.where(User.status == estado)
+    usuarios = (db.execute(consulta_usuarios.order_by(User.nombre, User.id)
+                           .limit(limite + 1)).all()
+                if tipo in (None, "usuario") else [])
     for user, company_name in usuarios[:limite]:
         resultados.append({
             "tipo": "usuario", "id": str(user.id),
@@ -412,8 +513,20 @@ def global_search(q: str = Query(..., min_length=2, max_length=100),
         "total": len(resultados), "items": resultados,
         "limite_por_categoria": limite,
         "hay_mas": any(len(filas) > limite for filas in
-                       (empresas, contratos, trabajadores, usuarios)),
+                       (empresas, contratos, trabajadores, equipos, usuarios)),
     }
+
+
+@router.get("/search/catalogos")
+def global_search_catalogos(db: Session = Depends(get_db)):
+    """Opciones globales de filtros basadas en cargos en uso y tipos oficiales."""
+    cargos = db.scalars(
+        select(Sujeto.cargo).where(
+            Sujeto.tipo == "trabajador", Sujeto.cargo.is_not(None),
+            func.btrim(Sujeto.cargo) != "")
+        .distinct().order_by(Sujeto.cargo)
+    ).all()
+    return {"cargos": cargos, "tipos_equipo": TIPOS_EQUIPO}
 
 
 @router.get("/audit")
@@ -661,6 +774,22 @@ def detalle_company(company_id: uuid.UUID, db: Session = Depends(get_db)):
     c = _get_company(db, company_id)
     sujetos = _sujetos_por_tipo(db, c.id)
     out = _company_out(db, c)
+    ultimo_evento = db.execute(
+        select(Actividad, User.nombre.label("actor_nombre"))
+        .outerjoin(User, User.id == Actividad.user_id)
+        .where(Actividad.company_id == c.id)
+        .order_by(Actividad.created_at.desc(), Actividad.id.desc())
+        .limit(1)
+    ).first()
+    out["ultimo_evento"] = ({
+        "created_at": _iso(ultimo_evento.Actividad.created_at),
+        "tipo": ultimo_evento.Actividad.tipo,
+        "modulo": ultimo_evento.Actividad.modulo,
+        "entidad_tipo": ultimo_evento.Actividad.entidad_tipo,
+        "actor": (ultimo_evento.actor_nombre or
+                  (f"Usuario {str(ultimo_evento.Actividad.user_id)[:8]}"
+                   if ultimo_evento.Actividad.user_id else "Sistema")),
+    } if ultimo_evento else None)
     out["stats"] = {
         "usuarios": _cuenta(db, User, User.company_id == c.id),
         "usuarios_activos": _cuenta(db, User, User.company_id == c.id,

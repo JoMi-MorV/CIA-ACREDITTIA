@@ -1,6 +1,6 @@
 # SRS — Acredittia
 
-Especificación de requisitos de software · versión 0.16 · 01-10-2026
+Especificación de requisitos de software · versión 0.19 · 04-10-2026
 
 **Estado documental:** borrador de trabajo para revisión. No constituye aceptación de todas las propuestas ni certificación de producción.
 
@@ -61,6 +61,12 @@ La versión 0.14 corrige la identificación de cuentas en Usuarios: ADMIN recibe
 La versión 0.15 registra la ampliación de datos demo operacionales para las 16 empresas, la compatibilidad de rutas Ops bajo `/admin` y `/admin/ops`, la inclusión de empresas aprobadas sin usuarios en el resumen de baja actividad, la auditoría global de creación de faenas y el criterio de impacto indeterminado cuando no existe vínculo verificable con una empresa. La suite completa backend pasó 363/363 el 01-10-2026 en PostgreSQL temporal. Los requisitos relacionados continúan PAR/ISV donde aún quedan criterios de aceptación; no se cambian porcentajes ni se declara aceptación productiva.
 
 La versión 0.16 registra la nueva sección de asignación de responsables integrada en la página de Contratos del portal de empresa. Una cuenta `company` puede elegir una cuenta existente de su misma empresa para asignarla como `contract_admin` de un contrato; la interfaz advierte que la cuenta pierde el alcance general o se mueve desde otro contrato. Se elimina la página independiente de responsables. El frontend compila con 22 rutas. No se validaron mutaciones en navegador ni se implementaron invitación completa y activación por correo; RF-CLI-08 sigue PAR y la asignación no acredita la identidad real del encargado. Evidencia EV-10.
+
+La versión 0.17 incorpora filtro servidor por tipo y filtros específicos por categoría en el buscador global. Empresas y personas se pueden buscar por su RUT existente; las cuentas de acceso no tienen RUT propio. Los resultados no devuelven el RUT y no se requiere una migración de esquema. Se mantiene compatibilidad acotada con bases en versión 10 que conservan la columna nullable `users.rut` de la migración retirada. Pruebas focalizadas y arranque Compose registrados en EV-01; no se declara recorrido de navegador.
+
+La versión 0.18 añade al detalle global expandible de cada empresa el evento más reciente y su actor, mostrando fecha, acción/módulo y entidad, sin email ni descripción libre. Se probó el endpoint con dos eventos y actor identificado; el frontend compiló en Docker. El contenedor web se recreó y Next informó estado `Ready`; no se completó una comprobación HTTP de la ruta tras ese reinicio.
+
+La versión 0.19 documenta las mejoras de interfaz del buscador global: filtros de cargo y tipo de equipo cargados desde catálogos; búsqueda por filtros específicos aunque el texto esté vacío (sin filtro específico se requieren al menos dos caracteres); y ficha agregada expandible debajo de la fila seleccionada. La ficha se identifica por resultado, solo se mantiene una abierta y las respuestas tardías se descartan al cambiar la búsqueda, abrir otra fila o cerrar la ficha. La evidencia de esta actualización es la revisión del código frontend; no se registran pruebas ni recorrido de navegador nuevos.
 
 Se conservan los **100% declarados en el cronograma** como cierre de la actividad en su alcance y fecha originales. Se permite registrar **«Completada con observaciones»** cuando existen ajustes posteriores o evidencia por adjuntar. Esta convención de seguimiento no certifica aceptación del cliente ni convierte una funcionalidad parcial en validada.
 
@@ -168,9 +174,9 @@ Todas las rutas de API de esta sección son relativas a `/api/v1`. Cada requisit
 - **Avance estimado:** 100 % (propuesta inicial).
 - **Fundamento del avance:** Listado y ficha agregada implementados y recorridos en navegador dentro del alcance de lectura.
 - **Comportamiento esperado:** listar empresas con estado, plan, usuarios, contratos, trabajadores, nivel de uso y última actividad; abrir detalle agregado.
-- **Estado actual:** EV-01/02; `GET /admin/companies` y `GET /admin/companies/{id}`. Listado y botón Detalle comprobados en navegador; RUT/email excluidos de esta respuesta operativa.
+- **Estado actual:** EV-01/02; `GET /admin/companies` y `GET /admin/companies/{id}`. Listado y detalle expandible bajo la fila de empresa; el detalle incluye la fecha, acción/módulo, entidad y actor del último evento. RUT/email y descripción libre del evento no se incluyen en esta respuesta operativa.
 - **Pendientes / mejoras:** Mantener regresión de permisos, ausencia de plan/actividad y carga completa de páginas. Sin defecto confirmado en el recorrido de lectura probado.
-- **Validación:** Completa en el alcance de lectura declarado IV: listado y ficha recorridos en navegador. Casos límite y regresión de mantenimiento pendientes.
+- **Validación:** Listado y ficha dentro del alcance de lectura recorridos en navegador; prueba API del último evento/actor aprobada (`test_admin.py`, 20/20 al 04-10-2026), build web Docker correcto y Next informó `Ready` tras recrear el contenedor. No se completó una comprobación HTTP de la ruta después de ese reinicio. Casos límite y regresión de mantenimiento pendientes.
 - **Criterio de aceptación:** la carga mediante `paginarTodo` recupera todas las páginas de API (no implica paginación visual); empresa sin plan o actividad tiene representación explícita; ficha corresponde a la fila elegida; ni listado ni detalle incluyen archivos personales. Una consulta sin ADMIN se rechaza.
 - **Límite:** el uso refleja eventos, no tiempo conectado. No equivale al endpoint comercial `/admin/clientes/{id}` de RF-MET-03.
 
@@ -196,11 +202,13 @@ Todas las rutas de API de esta sección son relativas a `/api/v1`. Cada requisit
 - **Estado técnico:** PAR.
 - **Prioridad:** P1.
 - **Avance estimado:** 80 % (propuesta inicial).
-- **Fundamento del avance:** Búsqueda disponible en cuatro categorías; filtro de trabajadores corregido. Se conserva el 80 % como estimación previa; alcance de usuarios y aceptación integral pendientes.
+- **Fundamento del avance:** Búsqueda disponible en cinco categorías, filtro de tipo y filtros específicos aplicados en servidor; personas se buscan por RUT. El frontend expone filtros de cargo y tipo de equipo desde catálogos, permite buscar con texto vacío cuando hay filtros específicos y presenta la ficha agregada bajo la fila elegida. Se conserva el 80 % como estimación previa; permisos por categoría y aceptación integral pendientes.
 - **Comportamiento esperado:** Búsqueda por categoría. Cumplir las condiciones detalladas en el criterio de aceptación.
-- **Estado actual:** `GET /admin/search` filtra `Sujeto.tipo == "trabajador"` antes del límite, tanto al buscar por nombre como por cargo. Los usuarios sin empresa siguen excluidos por el join; su alcance depende de DEC-02. EV-01/02.
-- **Pendientes / mejoras:** resolver alcance de usuarios globales en DEC-02 y verificar la presentación de límites en navegador; permisos por categoría en RF-BUS-02.
+- **Estado actual:** `GET /admin/search` acepta `tipo` para consultar empresa, contrato, trabajador/persona, equipo o usuario. Aplica filtros por estado, empresa, cargo, conductor, tipo de equipo, patente, marca, modelo, año, rol y cuenta demo según la categoría. Busca por RUT de empresa y trabajador; las cuentas de acceso no tienen RUT. En la interfaz, los filtros de cargo y tipo de equipo se alimentan de catálogos; se inicia búsqueda con filtros específicos aunque el texto esté vacío y, sin filtros específicos, se exigen al menos dos caracteres. La ficha agregada se expande en la fila concreta seleccionada, muestra resumen y último evento con actor, y solo permite una ficha abierta a la vez. Al cambiar búsqueda/fila o cerrar la ficha, se invalida la solicitud anterior para descartar respuestas tardías. Los usuarios sin empresa siguen excluidos por el join; su alcance depende de DEC-02. EV-01/02.
+- **Pendientes / mejoras:** resolver alcance de usuarios globales en DEC-02; validar en navegador la presentación de límites, filtros, expansión/cierre y cambios rápidos de selección; permisos por categoría en RF-BUS-02.
 - **Validación:** Parcial: regresión por nombre/cargo con equipos y trabajadores de dos empresas, límites 1/25 y rechazo de empresa/sin sesión en `test_admin_busqueda.py`, 30-09-2026; resultado en EV-01. No acredita permisos granulares ni recorrido en navegador.
+- **Validación (04-10-2026):** filtro por categoría, RUT de trabajador, ausencia de RUT en resultados y filtros específicos de empresa, contrato, persona, equipo y usuario: `test_admin_busqueda.py`; compatibilidad del esquema vigente y heredado 10: `test_esquema.py`. Suite focalizada: 34 aprobadas, 0 fallidas; regresión ampliada de administración: 58 aprobadas, 0 fallidas. Compose inició API y web con la base en versión 10; health de esquema devolvió 200. No se recorrió el navegador.
+- **Interfaz del buscador (04-10-2026):** revisión del código confirma filtros de cargo/tipo de equipo cargados desde catálogos, búsqueda con texto vacío cuando hay filtros específicos, ficha agregada bajo cada fila y control de una sola ficha abierta. La invalidación por búsqueda, fila y cierre impide aplicar respuestas tardías. Esta actualización documental no añade evidencia de ejecución: el recorrido de navegador queda pendiente en EV-01.
 - **Criterio de aceptación:** un equipo no aparece como trabajador; resultados conservan categoría y empresa correctas; búsqueda vacía/corta/larga se valida; los límites no se presentan como un total exhaustivo si no lo son; apertura de ficha vuelve a comprobar permisos.
 
 - **Validación de entradas (30-09-2026):** se rechazan con 422 consultas ausentes, vacías, de un carácter, de solo espacios o de más de 100 caracteres. Tras `strip`, menos de dos caracteres produce `BUSQUEDA_INVALIDA`; el máximo de 100 se aplica al parámetro original. Se prueban límites válidos 2/100 y normalización de espacios. Suite buscador + ADMIN: 32/32; EV-01.
@@ -656,7 +664,7 @@ Responsables propuestos: responsable de producto para reglas de negocio; respons
 | ID | Decisión | Propuesta inicial, no aprobada | Bloquea |
 |---|---|---|---|
 | DEC-01 | Permisos ADMIN y acceso excepcional. | Agregados por defecto; permiso sensible separado, motivo y duración acotada; definir guardas del último ADMIN. | RF-BUS-02, RF-USU-02, RF-SEG-02, auditoría asociada. |
-| DEC-02 | Alcance del buscador. | Mantener cuatro categorías; incluir administradores solo con permiso correspondiente; ficha sin documentos. | RF-BUS-01/02. |
+| DEC-02 | Alcance del buscador. | Mantener cinco categorías; incluir administradores solo con permiso correspondiente; ficha sin documentos. | RF-BUS-01/02. |
 | DEC-03 | Universo/período de métricas. | Separar habilitado de activo; explicar denominadores y zona horaria. Dashboard: actividad/adopción; Métricas SaaS: MRR y crecimiento comercial. Esta distribución se incorpora en v0.7; universos pendientes. | Dashboard y RF-MET-01. |
 | DEC-04 | Riesgos e inactividad. | Usar 70%, 3 documentos y 30 días como base de discusión; definir sin datos y umbrales configurables si se necesitan. | RF-SAL-01 y baja actividad. |
 | DEC-05 | Medición de sesión. | Mantener estimaciones visibles en primera entrega; telemetría real como entrega posterior si se requiere. | Alcance final RF-MET-02. |
