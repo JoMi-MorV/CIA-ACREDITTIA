@@ -13,7 +13,9 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [aviso, setAviso] = useState("");
   const [cargando, setCargando] = useState(false);
-  const [f, setF] = useState({ email: "", password: "", empresa: "", rut: "", pass2: "" });
+  const [f, setF] = useState({
+    email: "", password: "", empresa: "", rut: "", nombre: "", pass2: "",
+  });
 
   const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setF({ ...f, [k]: e.target.value });
@@ -41,7 +43,10 @@ export default function LoginPage() {
     if (f.password !== f.pass2) { setError("Las contraseñas no coinciden"); return; }
     setCargando(true);
     try {
-      await Api.auth.register({ empresa: f.empresa, rut: f.rut, email: f.email, password: f.password });
+      await Api.auth.register({
+        empresa: f.empresa, rut: f.rut, nombre: f.nombre.trim(),
+        email: f.email, password: f.password,
+      });
       setPendiente(true);
     } catch (err) { setError(Api.mensajeError(err)); } finally { setCargando(false); }
   };
@@ -112,6 +117,7 @@ export default function LoginPage() {
           <form onSubmit={registrar} className="space-y-4">
             <Campo etiqueta="Razón social"><input className="input" value={f.empresa} onChange={set("empresa")} required /></Campo>
             <Campo etiqueta="RUT empresa"><input className="input" placeholder="76.543.210-9" value={f.rut} onChange={set("rut")} required /></Campo>
+            <Campo etiqueta="Nombre completo del usuario"><input className="input" autoComplete="name" maxLength={160} value={f.nombre} onChange={set("nombre")} required /></Campo>
             <Campo etiqueta="Email"><input className="input" type="email" value={f.email} onChange={set("email")} required /></Campo>
             <Campo etiqueta="Contraseña"><input className="input" type="password" minLength={8} value={f.password} onChange={set("password")} required /></Campo>
             <Campo etiqueta="Repite la contraseña"><input className="input" type="password" value={f.pass2} onChange={set("pass2")} required /></Campo>

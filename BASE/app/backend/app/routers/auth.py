@@ -25,7 +25,7 @@ import secrets
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field, field_validator
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -53,8 +53,17 @@ MSG_PASSWORD = "Mínimo 8 caracteres, una mayúscula y un dígito"
 class RegisterIn(BaseModel):
     empresa: str
     rut: str
+    nombre: str = Field(min_length=1, max_length=160)
     email: EmailStr
     password: str
+
+    @field_validator("nombre")
+    @classmethod
+    def normalizar_nombre(cls, value: str) -> str:
+        nombre = value.strip()
+        if not nombre:
+            raise ValueError("El nombre del usuario es obligatorio")
+        return nombre
 
 
 class LoginIn(BaseModel):
@@ -172,7 +181,8 @@ def register(body: RegisterIn):
         company = Company(nombre=body.empresa, rut=body.rut, email=body.email)
         db.add(company)
         db.flush()
-        user = User(email=body.email, password_hash=hash_password(body.password),
+        user = User(email=body.email, nombre=body.nombre,
+                    password_hash=hash_password(body.password),
                     role="company", company_id=company.id)
         db.add(user)
         db.commit()

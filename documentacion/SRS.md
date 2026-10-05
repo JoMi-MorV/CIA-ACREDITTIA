@@ -1,6 +1,6 @@
 # SRS — Acredittia
 
-Especificación de requisitos de software · versión 0.19 · 04-10-2026
+Especificación de requisitos de software · versión 0.21 · 05-10-2026
 
 **Estado documental:** borrador de trabajo para revisión. No constituye aceptación de todas las propuestas ni certificación de producción.
 
@@ -67,6 +67,10 @@ La versión 0.17 incorpora filtro servidor por tipo y filtros específicos por c
 La versión 0.18 añade al detalle global expandible de cada empresa el evento más reciente y su actor, mostrando fecha, acción/módulo y entidad, sin email ni descripción libre. Se probó el endpoint con dos eventos y actor identificado; el frontend compiló en Docker. El contenedor web se recreó y Next informó estado `Ready`; no se completó una comprobación HTTP de la ruta tras ese reinicio.
 
 La versión 0.19 documenta las mejoras de interfaz del buscador global: filtros de cargo y tipo de equipo cargados desde catálogos; búsqueda por filtros específicos aunque el texto esté vacío (sin filtro específico se requieren al menos dos caracteres); y ficha agregada expandible debajo de la fila seleccionada. La ficha se identifica por resultado, solo se mantiene una abierta y las respuestas tardías se descartan al cambiar la búsqueda, abrir otra fila o cerrar la ficha. La evidencia de esta actualización es la revisión del código frontend; no se registran pruebas ni recorrido de navegador nuevos.
+
+La versión 0.20 agrega el nombre completo del usuario inicial al registro de empresa y una sección autenticada «Mi perfil» para actualizar nombre, correo y contraseña usando el endpoint existente `/auth/me`. El nombre se almacena en `users.nombre`, separado de la razón social; cambiar contraseña exige la actual y conserva la sesión indicada. No requiere migración de esquema. La cobertura automatizada y compilación quedan registradas en VALIDACION_ACTUAL.md.
+
+La versión 0.21 oculta el acceso «Mi perfil» y bloquea la ruta `/perfil` cuando ADMIN utiliza «Ver como empresa»; el acceso directo se redirige al dashboard del contexto observado y no solicita ni modifica datos de perfil. Al salir de esa vista, el perfil propio de ADMIN vuelve a estar disponible. No cambia autorización ni contenido de los flujos propios de empresa para sus cuentas autenticadas.
 
 Se conservan los **100% declarados en el cronograma** como cierre de la actividad en su alcance y fecha originales. Se permite registrar **«Completada con observaciones»** cuando existen ajustes posteriores o evidencia por adjuntar. Esta convención de seguimiento no certifica aceptación del cliente ni convierte una funcionalidad parcial en validada.
 
@@ -320,6 +324,7 @@ Todas las rutas de API de esta sección son relativas a `/api/v1`. Cada requisit
 
 **Identificación de cuentas (30-09-2026):** listado y respuestas de modificación de usuarios exponen correo real únicamente bajo autorización ADMIN. La interfaz muestra nombre y correo, o «Sin nombre registrado» junto al correo, y permite filtrar por ambos. Las confirmaciones de revocación/reactivación incluyen correo. Este dato es necesario para identificar al destinatario de los permisos; no se modifica la minimización del buscador global.
 
+- **Registro y perfil (05-10-2026):** el registro solicita el nombre completo del usuario que crea la cuenta, distinto de la razón social, y lo persiste en `users.nombre`. La sección autenticada «Mi perfil» permite cambiar nombre, correo y contraseña; el cambio de contraseña exige la actual. Usa `/auth/me`, sin cambio de esquema.
 - **Estado técnico:** PAR.
 - **Prioridad:** P1.
 - **Avance estimado:** 65 % (propuesta inicial).

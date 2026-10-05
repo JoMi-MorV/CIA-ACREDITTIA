@@ -10,10 +10,10 @@ El SRS es un documento de trabajo; las decisiones de producto aun abiertas estan
 
 Y esta la carpeta codigo_adminitracion con lo que quieren que sea desarrollado. 
 
-## Implementación de la Especificación de API — Consola Interna v1.0
-(Acredittia_Especificacion_API_Consola_Interna.docx): 20 endpoints bajo
-/api/v1/admin/ops, 2 tablas nuevas, procedimientos almacenados PL/pgSQL,
-índices.
+La especificación original de la Consola Interna v1.0 describía 20 endpoints
+bajo `/api/v1/admin/ops`. La API administrativa actual se publica bajo
+`/api/v1/admin`; algunas rutas antiguas de Ops se conservan por compatibilidad.
+El alcance, estado y evidencia vigentes se detallan en el SRS.
 
 ## Ejecutar en local
 
@@ -640,69 +640,51 @@ con enlaces previos. Las rutas Ops antiguas de Plataforma, Usuarios e
 Indicadores también redirigen a sus destinos Admin. `/admin` y la entrada Ops
 abren ahora el Dashboard global.
 
-## Resumen de implementacion y avance (01-10-2026)
+## Cambios a la fecha — 05-10-2026
 
-El SRS vigente es `documentacion/SRS.md`, version 0.16. Define el alcance,
-criterios de aceptacion, estado tecnico, evidencia y pendientes del producto.
-Los porcentajes del cronograma se mantienen separados de los estados tecnicos
-del SRS; una prueba aprobada no equivale por si sola a aceptacion del cliente
-ni a preparacion para produccion.
+El documento funcional vigente es el [SRS v0.21](documentacion/SRS.md). Esta
+sección resume los cambios relevantes y el estado conocido a la fecha; no
+sustituye los criterios, pendientes ni evidencias detallados en el SRS y la
+[validación actual](documentacion/VALIDACION_ACTUAL.md).
 
-### Funcionalidad implementada
+### Funcionalidad y cambios recientes
 
-- Plataforma web Next.js y API FastAPI con PostgreSQL, sesiones JWT/refresh,
-    roles de administrador, empresa y administrador de contrato, y aislamiento
-    multiempresa mediante filtros de API y politicas RLS.
-- Operacion de contratistas: empresas, faenas, contratos, trabajadores,
-    vehiculos/equipos, requisitos, checklists documentales, vencimientos, alertas,
-    calendario, reportes y exportaciones.
-- Flujos de archivos y revision IA con adaptadores locales/simulados, junto con
-    conectores de integracion, suscripciones, planes y facturacion de demostracion.
-- Consola ADMIN bajo `/admin` para empresas, busqueda, metricas SaaS, salud,
-    usuarios, sistemas/procesos e incidentes, mas auditoria global.
-- Migracion versionada hasta esquema 9, invalidacion de sesiones al cambiar el
-    estado de acceso y validacion de roles PostgreSQL en conexiones de produccion.
+- Plataforma web Next.js y API FastAPI con PostgreSQL, autenticación JWT/refresh,
+  roles de ADMIN, empresa y administrador de contrato, y aislamiento multiempresa.
+- Portal de empresa para gestionar contratos, personal, equipos, documentos,
+  requisitos, alertas, calendario, reportes y responsables de contrato. El panel
+  de responsables asigna cuentas existentes de la misma empresa.
+- Consola ADMIN bajo `/admin` para empresas, buscador global, métricas, usuarios,
+  auditoría, sistemas, procesos e incidentes. La API administrativa actual usa
+  `/api/v1/admin`; mantiene rutas Ops anteriores por compatibilidad.
+- El buscador global ofrece filtros por categoría y catálogos. La ficha de un
+  resultado se expande debajo de su fila; solo queda una abierta y se descartan
+  respuestas tardías al cambiar la búsqueda o selección.
+- El registro solicita el nombre del usuario inicial, separado de la razón
+  social. «Mi perfil» permite editar nombre, correo y contraseña. Al usar
+  «Ver como empresa», ADMIN no puede abrir ni modificar su perfil desde ese
+  contexto.
+- El esquema está versionado hasta la versión 9 e incluye invalidación de sesiones
+  al cambiar el estado de acceso. La validación de seguridad de conexiones de
+  producción no configura por sí sola los roles reales de la base de datos.
 
-### Avances recientes
+### Validación y límites conocidos
 
-- El seed de demostracion es idempotente y pobla las 16 empresas con datos de
-    operacion: contratos, personal, equipos, documentos, alertas y eventos. La
-    dotacion de `DEMO SpA` es mayor; las otras empresas tienen poblaciones menores
-    para poder comparar vistas. Los nombres de usuarios/personas y las patentes
-    se comprueban sin duplicados.
-- Se corrigieron las 23 fallas detectadas en la suite completa: se preservan
-    rutas Ops antiguas junto a las actuales, se incluyen empresas sin usuarios
-    en el agregado de baja actividad, se registra la creacion de faenas globales
-    en auditoria y se hicieron deterministas las pruebas de tendencias en los
-    limites de mes y trimestre. El impacto de sistemas se informa como
-    indeterminado si no existe evidencia para vincularlo a empresas concretas.
-- Validacion backend del 01-10-2026: **363 pruebas aprobadas, 0 fallidas** en
-    PostgreSQL temporal. Persisten advertencias de deprecacion y del entorno de
-    pruebas; el detalle esta en `documentacion/VALIDACION_ACTUAL.md`.
-- Validacion frontend: `npm run build` completo con lint, tipos y generacion
-    de 22 rutas.
-- Se integro en la pagina **Contratos** el panel **Responsables de contrato**,
-    visible para cuentas `company`. Permite asignar a una cuenta existente de la
-    misma empresa como `contract_admin` de un contrato y quitar o mover esa
-    asignacion; advierte que `contract_admin` pierde el acceso general de
-    empresa. Se elimino la ruta y el enlace de navegacion independientes.
-- El build frontend posterior a la integracion paso correctamente y genero
-    22 rutas; la ruta `/encargados` ya no existe. Esta evidencia solo cubre
-    compilacion, no prueba las mutaciones en navegador ni contra la API.
-
-### Pendientes y limites
-
-- El Compose local es de demostracion: usa `APP_ENV=development`, base local y
-    un rol PostgreSQL administrador. No debe exponerse como despliegue productivo.
-- La preparacion productiva requiere roles separados para API, worker y
-    migraciones, secretos propios, storage/Key Vault reales y validacion de RLS
-    con esas identidades.
-- La invitacion completa de cuentas de empresa sigue pendiente: el endpoint
-    backend existente crea usuario/token, pero falta enviar el correo y
-    completar el canje del token para establecer la clave. El panel actual solo
-    asigna cuentas ya existentes. Recuperacion por correo, pasarela de pago y
-    algunas integraciones externas siguen sin completar; en local la IA es
-    simulada.
-- Siguen pendientes recorridos completos en navegador, ejecucion Celery
-    distribuida, respaldo/restauracion y cierre de permisos/auditoria integrales.
-    Los estados y criterios detallados se mantienen en el SRS.
+- La suite backend completa registró **363 pruebas aprobadas y 0 fallidas** el
+  01-10-2026 en PostgreSQL temporal. Las pruebas de autenticación relacionadas
+  con registro y perfil registraron **34 aprobadas y 0 fallidas**.
+- El build frontend con la ruta `/perfil` compiló, verificó tipos y generó
+  **23 rutas**. La ficha expandible del buscador se documentó mediante revisión
+  de código; no se registró para ese cambio una prueba automatizada ni un
+  recorrido visual específico de navegador.
+- El Compose local y su configuración de ngrok son para demostración, no para
+  producción. Antes de un despliegue real se requieren secretos propios,
+  roles separados para API/worker/migraciones, storage y correo reales, y
+  validación integral de aislamiento y permisos. Consultar
+  [la guía de ngrok](documentacion/LANZAMIENTO_NGROK.md) para una exposición
+  temporal.
+- La invitación completa de usuarios por correo, la recuperación productiva de
+  contraseña, algunas integraciones externas, Celery distribuido y los procesos
+  coordinados de respaldo/restauración siguen pendientes.
+- El borrado actual de contratos es destructivo y elimina información asociada;
+  el archivo y la restauración de contratos todavía no están implementados.

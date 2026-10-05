@@ -339,7 +339,8 @@ def admin(app_cliente):
 def _crear_empresa(cliente, admin, *, nombre: str, rut: str, email: str) -> dict:
     """Registro por la API + aprobación por el admin + login. El flujo real."""
     r = cliente.post(f"{API}/auth/register", json={
-        "empresa": nombre, "rut": rut, "email": email, "password": CLAVE})
+        "empresa": nombre, "rut": rut, "nombre": f"Contacto {nombre}",
+        "email": email, "password": CLAVE})
     assert r.status_code == 201, r.text
     company_id = r.json()["company_id"]
 

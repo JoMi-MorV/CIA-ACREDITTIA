@@ -3,6 +3,7 @@ services:
     environment:
       CORS_ORIGINS: https://${NGROK_DOMAIN}
       PUBLIC_BASE_URL: https://${NGROK_DOMAIN}
+      JWT_SECRET: ${JWT_SECRET:?Define JWT_SECRET en BASE/app/.env}
 
   web:
     build:
@@ -11,9 +12,14 @@ services:
 
   ngrok:
     image: ngrok/ngrok:latest
-    command: http --authtoken=${NGROK_AUTHTOKEN} --domain=${NGROK_DOMAIN} web:3000
+    environment:
+      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN:?Define NGROK_AUTHTOKEN en BASE/app/.env}
+    command:
+      - http
+      - --domain=${NGROK_DOMAIN:?Define NGROK_DOMAIN en BASE/app/.env}
+      - web:3000
     ports:
-      - "4040:4040"
+      - "127.0.0.1:4040:4040"
     depends_on:
       - api
       - web

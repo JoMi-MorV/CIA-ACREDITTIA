@@ -1,4 +1,34 @@
-# Validación funcional — actualizado al 4 de octubre de 2026
+# Validación funcional — actualizado al 5 de octubre de 2026
+
+## Perfil bloqueado durante «Ver como empresa» — 5 de octubre de 2026
+
+Cuando una sesión ADMIN mantiene el contexto de impersonación (`impersonar`),
+la navegación oculta «Mi perfil». Si se abre `/perfil` directamente, la vista
+no llama a `/auth/me`, informa que no está disponible y redirige a `/dashboard`
+del contexto observado. Al salir de «Ver como empresa», el perfil propio vuelve
+a estar accesible. Es una restricción de interfaz para evitar mezclar la
+administración del perfil de ADMIN con el contexto de una empresa; no altera
+los permisos del backend ni los flujos de gestión disponibles para cuentas
+autenticadas de empresa.
+
+La compilación de frontend verifica tipos y generación de la ruta. No se hizo
+un recorrido manual de navegador de este caso.
+
+## Nombre en registro y sección Mi perfil — 5 de octubre de 2026
+
+El formulario de registro solicita ahora el nombre completo del usuario inicial,
+separado de la razón social. El backend normaliza y persiste el dato en
+`users.nombre`; no requiere migración. Se agregó la ruta autenticada `/perfil`
+para actualizar nombre, correo y contraseña mediante `PATCH /auth/me`. El
+cambio de contraseña requiere la clave actual y envía el refresh token vigente
+para conservar la sesión elegida. La navegación incluye «Mi perfil».
+
+`tests/test_auth.py`: **34 aprobadas, 0 fallidas**, incluyendo persistencia del
+nombre, rechazo de nombre ausente/vacío y las pruebas existentes de edición de
+perfil/cambio de contraseña. `docker compose build web` completó correctamente:
+Next.js compiló y verificó tipos, generó 23 rutas incluyendo `/perfil`. Las
+advertencias de dependencias y fixtures de pruebas permanecen en el entorno;
+no se hizo recorrido manual del navegador.
 
 ## Último evento en el detalle global de empresa — 4 de octubre de 2026
 

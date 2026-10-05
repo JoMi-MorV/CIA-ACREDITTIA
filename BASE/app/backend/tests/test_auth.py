@@ -17,11 +17,16 @@ from tests.conftest import API, CLAVE, crear_contract_admin, rut_valido
 def test_registro_queda_pendiente(app_cliente):
     r = app_cliente.post(f"{API}/auth/register", json={
         "empresa": "Nueva SpA", "rut": rut_valido(50),
+        "nombre": "María Pérez",
         "email": "nueva@empresa.cl", "password": CLAVE})
     assert r.status_code == 201, r.text
     cuerpo = r.json()
     assert cuerpo["status"] == "pending"
     assert uuid.UUID(cuerpo["company_id"]) and uuid.UUID(cuerpo["user_id"])
+    with worker_session(is_admin=True) as db:
+        user = db.get(User, uuid.UUID(cuerpo["user_id"]))
+        assert user is not None
+        assert user.nombre == "María Pérez"
 
     # Sin aprobación no se puede entrar, y el motivo se distingue del rechazo.
     r = app_cliente.post(f"{API}/auth/login",
@@ -30,15 +35,31 @@ def test_registro_queda_pendiente(app_cliente):
     assert r.json()["error"]["code"] == "ACCOUNT_PENDING"
 
 
+def test_registro_exige_nombre_de_usuario(app_cliente):
+    r = app_cliente.post(f"{API}/auth/register", json={
+        "empresa": "Sin Contacto SpA", "rut": rut_valido(54),
+        "email": "sin.contacto@empresa.cl", "password": CLAVE})
+    assert r.status_code == 422
+
+
+def test_registro_rechaza_nombre_de_usuario_vacio(app_cliente):
+    r = app_cliente.post(f"{API}/auth/register", json={
+        "empresa": "Contacto Vacío SpA", "rut": rut_valido(55),
+        "nombre": "   ", "email": "vacio@empresa.cl", "password": CLAVE})
+    assert r.status_code == 422
+
+
 def test_registro_email_y_rut_duplicados(app_cliente, empresa_a):
     r = app_cliente.post(f"{API}/auth/register", json={
         "empresa": "Otra", "rut": rut_valido(51),
+        "nombre": "Contacto Empresa",
         "email": empresa_a["email"], "password": CLAVE})
     assert r.status_code == 409
     assert r.json()["error"]["code"] == "EMAIL_EN_USO"
 
     r = app_cliente.post(f"{API}/auth/register", json={
         "empresa": "Otra", "rut": empresa_a["rut"],
+        "nombre": "Contacto Empresa",
         "email": "otra@empresa.cl", "password": CLAVE})
     assert r.status_code == 409
     assert r.json()["error"]["code"] == "RUT_EN_USO"
@@ -47,6 +68,7 @@ def test_registro_email_y_rut_duplicados(app_cliente, empresa_a):
 def test_registro_rut_invalido(app_cliente):
     r = app_cliente.post(f"{API}/auth/register", json={
         "empresa": "Mal RUT", "rut": "76.111.111-1",
+        "nombre": "Contacto Mal RUT",
         "email": "malrut@empresa.cl", "password": CLAVE})
     assert r.status_code == 422
     assert r.json()["error"]["code"] == "RUT_INVALIDO"
@@ -60,6 +82,7 @@ def test_registro_rut_invalido(app_cliente):
 def test_registro_rechaza_password_debil(app_cliente, clave, motivo):
     r = app_cliente.post(f"{API}/auth/register", json={
         "empresa": "Débil", "rut": rut_valido(52),
+        "nombre": "Contacto Débil",
         "email": "debil@empresa.cl", "password": clave})
     assert r.status_code == 422, motivo
     assert r.json()["error"]["code"] == "PASSWORD_DEBIL"
@@ -70,6 +93,7 @@ def test_login_y_me(app_cliente, empresa_a):
     assert r.status_code == 200, r.text
     yo = r.json()
     assert yo["email"] == empresa_a["email"]
+    assert yo["nombre"] == f"Contacto {empresa_a['nombre']}"
     assert yo["role"] == "company"
     assert yo["activo"] is True
     assert yo["contrato_id"] is None and yo["contrato"] is None
@@ -116,6 +140,7 @@ def test_login_usuario_desactivado(app_cliente, empresa_a):
 def test_login_rechazado(app_cliente, admin):
     r = app_cliente.post(f"{API}/auth/register", json={
         "empresa": "Rechazada SpA", "rut": rut_valido(53),
+        "nombre": "Contacto Rechazado",
         "email": "rechazada@empresa.cl", "password": CLAVE})
     company_id = r.json()["company_id"]
     r = app_cliente.post(f"{API}/admin/companies/{company_id}/reject",

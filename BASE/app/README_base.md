@@ -37,6 +37,46 @@ docker compose up --build
 - Web: http://localhost:3000
 - API (OpenAPI): http://localhost:8000/docs
 
+## Demo temporal por ngrok
+
+El perfil `docker-compose.ngrok.yml` publica únicamente el frontend por ngrok,
+sin Basic Auth adicional en el túnel; el login de Acredittia permanece activo.
+PostgreSQL, Redis, API y el inspector de ngrok quedan ligados a `127.0.0.1`.
+Es exclusivamente para una demostración temporal con
+datos sintéticos. El Compose base usa roles de desarrollo y semillas/cuentas
+demo conocidas: no cargar información real ni tratarlo como despliegue de
+producción. La URL del túnel queda accesible públicamente a quien la conozca.
+
+Desde PowerShell, en `BASE/app`:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+Completa `.env` localmente con un token ngrok nuevo, el dominio reservado en tu
+cuenta ngrok y un `JWT_SECRET` aleatorio único de al menos 32 bytes. No
+reutilices credenciales expuestas ni compartas
+los secretos por chat. El `.env` está excluido de Git.
+
+Valida la configuración y levanta el perfil:
+
+```powershell
+docker compose -f docker-compose.yml -f docker-compose.ngrok.yml config --quiet
+docker compose -f docker-compose.yml -f docker-compose.ngrok.yml up --build -d
+docker compose -f docker-compose.yml -f docker-compose.ngrok.yml logs -f ngrok
+```
+
+Comparte la URL HTTPS con cuidado: sin Basic Auth, cualquier persona que la
+conozca llegará al login de Acredittia. No distribuyas cuentas demo conocidas.
+Al terminar:
+
+```powershell
+docker compose -f docker-compose.yml -f docker-compose.ngrok.yml down
+```
+
+Esto detiene el túnel sin borrar los volúmenes de la base de datos. Si el token
+ngrok se expone, revócalo en ngrok y reemplázalo localmente antes de iniciar.
+
 **Cuentas semilla**
 
 | Rol | Email | Contraseña |

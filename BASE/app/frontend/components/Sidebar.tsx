@@ -12,6 +12,7 @@ const ITEMS = [
   { href: "/equipos", icono: "▣", nombre: "Equipos" },
   { href: "/alertas", icono: "!", nombre: "Alertas" },
   { href: "/calendario", icono: "□", nombre: "Calendario" },
+  { href: "/perfil", icono: "○", nombre: "Mi perfil" },
 ];
 
 export default function Sidebar() {
@@ -65,7 +66,9 @@ export default function Sidebar() {
             <span className="grid h-5 w-5 place-items-center border border-current/60 text-xs">+</span><span className="hidden md:inline">{viendoEmpresa ? "Volver a Ops" : "Panel admin"}</span>
           </Link>
         )}
-        {(!esAdmin || viendoEmpresa) && ITEMS.map((i) => (
+        {(!esAdmin || viendoEmpresa) && ITEMS
+          .filter((i) => !(viendoEmpresa && i.href === "/perfil"))
+          .map((i) => (
           <Link key={i.href} href={i.href}
             className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm ${path.startsWith(i.href) ? "bg-accent font-semibold" : "hover:bg-white/10"}`}>
             <span className="grid h-5 w-5 place-items-center border border-current/60 text-xs">{i.icono}</span><span className="hidden md:inline">{i.nombre}</span>

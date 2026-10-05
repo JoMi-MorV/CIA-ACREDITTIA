@@ -51,7 +51,9 @@ export const auth = {
   login: (email: string, password: string) =>
     api<Sesion>("/auth/login", { body: { email, password } }),
 
-  register: (body: { empresa: string; rut: string; email: string; password: string }) =>
+  register: (body: {
+    empresa: string; rut: string; nombre: string; email: string; password: string;
+  }) =>
     api<{ ok: boolean; company_id: string; message?: string }>(
       "/auth/register", { body }),
 

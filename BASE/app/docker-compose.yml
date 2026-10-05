@@ -12,8 +12,6 @@ services:
       postgres -c log_error_verbosity=terse
     volumes:
       - pgdata:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d acredittia"]
       interval: 3s
@@ -24,7 +22,7 @@ services:
     image: redis:7-alpine
     command: redis-server --save "" --appendonly no
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 3s
@@ -77,7 +75,7 @@ services:
       - keys:/data/keys
       - ../modelo_datos:/schema:ro
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
 
   worker:
     build: ./backend
@@ -127,7 +125,7 @@ services:
     depends_on:
       - api
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
 
 volumes:
   pgdata:
