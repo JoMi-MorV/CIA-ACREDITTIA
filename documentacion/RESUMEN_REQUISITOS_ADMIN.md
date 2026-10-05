@@ -1,6 +1,7 @@
 # Resumen de requisitos ADMIN
 
-**Corte:** 4 de octubre de 2026  
+**Corte:** 5 de octubre de 2026  
+**Base documental:** SRS versión 0.21 y `VALIDACION_ACTUAL.md`, actualizados al 5 de octubre de 2026.  
 **Propósito:** resumir el estado técnico de las ocho prioridades ADMIN, distinguir lo implementado de lo validado y proponer criterios concretos para revisar su cierre.
 
 Este documento es una guía de revisión, no una aceptación contractual ni una certificación de producción. Los estados reflejan los requisitos y la evidencia descritos en el [SRS](SRS.md) y en [VALIDACION_ACTUAL.md](VALIDACION_ACTUAL.md). `IV` significa implementado y validado dentro del alcance probado; `ISV`, implementado sin validación completa; `PAR`, parcial; `COR`, requiere corrección; y `PEN`, pendiente. Los porcentajes estimados del SRS no equivalen a porcentaje de cumplimiento validado.
@@ -13,8 +14,8 @@ Este documento es una guía de revisión, no una aceptación contractual ni una 
 | 2 | Gestión global de empresas | **Mixto:** RF-EMP-01 **IV**; RF-EMP-02 **ISV** | La consulta de listado y ficha agregada está validada. Aprobación/rechazo requiere cerrar transiciones, auditoría y validación visual. |
 | 3 | Buscador global | **PAR** — RF-BUS-01/02 | Búsqueda y filtros implementados; falta validación integral de interfaz y autorización efectiva por categoría/detalle en servidor. |
 | 4 | Métricas SaaS | **PAR** — RF-MET-01/02/03 | Hay series e indicadores; faltan definiciones completas, precisión de las métricas de uso y metadatos/casos adicionales de conversión UF. |
-| 5 | Alertas y salud de clientes | **Mixto:** RF-SAL-01 **PAR**; RF-SAL-02 **COR**; RF-SAL-03 **ISV** | Hay riesgos y procesos implementados parcialmente; faltan clientes sin actividad bien clasificados, sondas operacionales verificables y recorrido distribuido. |
-| 6 | Usuarios, roles y permisos | **PAR** — RF-USU-01/02 | Listado, cambios de estado y reactivación existen; faltan altas completas, paginación/recorrido visual y validación integral de alcance. |
+| 5 | Alertas y salud de clientes | **Mixto:** RF-SAL-01 **PAR**; RF-SAL-02 **COR**; RF-SAL-03 **ISV** | Riesgos y procesos están parcialmente implementados. Métricas SaaS ya clasifica clientes de baja actividad; siguen pendientes las sondas operacionales verificables, los totales/paginación de alertas y el recorrido distribuido. |
+| 6 | Usuarios, roles y permisos | **PAR** — RF-USU-01/02 | En ADMIN existen listado, cambios de estado y reactivación; faltan altas completas, paginación/recorrido visual y validación integral del alcance. Registro con nombre y Mi perfil son mejoras del portal de empresa, no altas ni gestión global de usuarios ADMIN. |
 | 7 | Auditoría y trazabilidad | **PAR** — RF-AUD-01/02/03 | Hay registro parcial y ciertos accesos con motivo; falta cobertura de operaciones, historial de autenticación y controles uniformes para acceso sensible/exportaciones. |
 | 8 | Seguridad y aislamiento | **PAR** — RF-SEG-01/02/03, RNF-SEG-01 | Hay controles de aplicación y políticas definidas, pero falta demostrar aislamiento y mínimo privilegio con configuración equivalente a producción y cerrar el acceso excepcional. |
 
@@ -99,16 +100,17 @@ Este documento es una guía de revisión, no una aceptación contractual ni una 
 - Se cuentan sesiones vigentes usando refresh tokens.
 - No existe una medición de duración de sesión plenamente observada: el tiempo de uso y la duración promedio se etiquetan como estimados y se derivan de eventos/tokens.
 - Hay documentos procesados y series mensuales, pero debe conservarse la distinción entre revisiones/intentos y documentos únicos.
-- Se calculan clientes con baja actividad en backend; falta que queden visibles de forma suficiente en la vista de métricas.
+- La vista de Métricas SaaS muestra clientes de baja actividad clasificados como sin usuarios, usuarios sin actividad o baja actividad.
 - La conversión UF tiene un caso mensual probado, pero la respuesta aún requiere identificar fecha/fuente de UF y completar cobertura de períodos/monedas.
 
-**Actualización de implementación:** la vista de indicadores ahora muestra los
-clientes de baja actividad con clasificación explícita (sin usuarios, usuarios
-sin actividad o baja actividad), y el endpoint global entrega un diccionario de
-definiciones. El panel etiqueta la duración como estimada y denomina
-“revisiones IA procesadas” a la métrica documental; no se presenta como
-cantidad de documentos únicos. El requisito continúa PAR porque todavía no
-existe telemetría de sesión observada ni fuente/fecha de UF en cada respuesta.
+**Actualización al 05-10-2026:** la vista de indicadores muestra clientes de
+baja actividad clasificados como sin usuarios, usuarios sin actividad o baja
+actividad; el endpoint global entrega un diccionario de definiciones. El panel
+etiqueta la duración como estimada y denomina “revisiones IA procesadas” a la
+métrica documental, sin presentarla como cantidad de documentos únicos. Se
+retira el pendiente de visibilidad/clasificación de esta sección. El requisito
+sigue PAR: faltan telemetría de sesión observada y fuente/fecha de UF en cada
+respuesta.
 
 **Sugerencias y criterios a considerar**
 
@@ -129,14 +131,14 @@ existe telemetría de sesión observada ni fuente/fecha de UF en cada respuesta.
 
 - Calcula empresas con acreditación bajo el umbral existente, contratos con al menos tres documentos faltantes/vencidos, vencidos por empresa, morosidad y alertas activas.
 - Hay límites en las listas de contratos (25) y alertas (50); la cantidad visible no siempre representa el total global.
-- La clasificación de baja actividad no cubre de forma explícita todos los casos de empresas sin usuarios habilitados o empresas con usuarios sin eventos.
+- La vista de Métricas SaaS ya distingue clientes sin usuarios, con usuarios sin actividad y con baja actividad. No equivale al cierre de la prioridad de salud: faltan confirmar cobertura de esa clasificación en el flujo de alertas, además de umbrales y tratamiento de listas limitadas.
 - Existen panel y heartbeats operacionales, pero las sondas actuales no acreditan por sí solas disponibilidad real de API/workers.
 - Procesos e incidentes tienen catálogo y acciones; ejecución manual inproc fue corregida/probada, pero falta recorrido distribuido Celery.
 
 **Sugerencias y criterios a considerar**
 
 1. Acordar umbrales y ventanas para baja acreditación, “muchos pendientes”, inactividad y expiración de heartbeat.
-2. Clasificar por separado empresa sin usuarios, empresa con usuarios sin eventos, empresa sin documentos y empresa saludable.
+2. Verificar en las vistas de salud que se distingan empresa sin usuarios, empresa con usuarios sin eventos, empresa sin documentos y empresa saludable, manteniendo coherencia con la clasificación ya mostrada en Métricas SaaS.
 3. Mostrar total real, límite y mecanismo para recuperar el resto; no llamar “total” a la longitud de una muestra.
 4. Probar casos justo por debajo, en y por encima de cada umbral y con más registros que el límite.
 5. Comprobar que la API se detecta caída aunque el worker siga activo, y que cola vacía no se interpreta como worker disponible.
@@ -151,6 +153,7 @@ existe telemetría de sesión observada ni fuente/fecha de UF en cada respuesta.
 **Lo que hace hoy**
 
 - Existen roles `admin`, `company` y `contract_admin`, alcance por empresa/contrato, listado y cambios administrativos de estado.
+- En el portal de empresa, el registro solicita el nombre del usuario inicial y «Mi perfil» permite editar nombre, correo y contraseña; estas funciones se validaron con 34 pruebas de autenticación y build frontend, pero no completan el ciclo administrativo de altas/invitaciones de RF-USU-01. Durante «Ver como empresa», ADMIN no puede abrir su perfil; es una restricción de interfaz, no un cambio de autorización backend.
 - La reactivación de cuentas e invalidación de sesiones anteriores está implementada y probada en pruebas aisladas; el SRS registra pendiente aplicar migración al entorno habitual.
 - Listado de usuarios solicita hasta 100 y no presenta navegación completa para universos mayores.
 - Backend valida que el contrato pertenezca a la empresa; la interfaz puede enviar combinaciones inválidas que backend rechaza.
