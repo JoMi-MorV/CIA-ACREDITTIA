@@ -102,6 +102,14 @@ Este documento es una guía de revisión, no una aceptación contractual ni una 
 - Se calculan clientes con baja actividad en backend; falta que queden visibles de forma suficiente en la vista de métricas.
 - La conversión UF tiene un caso mensual probado, pero la respuesta aún requiere identificar fecha/fuente de UF y completar cobertura de períodos/monedas.
 
+**Actualización de implementación:** la vista de indicadores ahora muestra los
+clientes de baja actividad con clasificación explícita (sin usuarios, usuarios
+sin actividad o baja actividad), y el endpoint global entrega un diccionario de
+definiciones. El panel etiqueta la duración como estimada y denomina
+“revisiones IA procesadas” a la métrica documental; no se presenta como
+cantidad de documentos únicos. El requisito continúa PAR porque todavía no
+existe telemetría de sesión observada ni fuente/fecha de UF en cada respuesta.
+
 **Sugerencias y criterios a considerar**
 
 1. Aprobar un diccionario de métricas: nombre, definición, fuente, ventana temporal, unidad y universo.

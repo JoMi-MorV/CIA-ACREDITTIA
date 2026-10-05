@@ -60,16 +60,47 @@ export default function IndicadoresPage() {
             <SaaSValue label="Sesiones vigentes" value={saas.data.sesiones.vigentes} />
             <SaaSValue label="DAU" value={saas.data.sesiones.usuarios_activos_diarios} />
             <SaaSValue label="WAU" value={saas.data.sesiones.usuarios_activos_semanales} />
-            <SaaSValue label="Duración promedio" value={`${saas.data.sesiones.duracion_promedio_minutos_30d} min`} />
+            <SaaSValue label="Duración promedio (estimada)" value={`${saas.data.sesiones.duracion_promedio_minutos_30d} min`} />
             <SaaSValue label="Crecimiento usuarios / mes" value={usoUsuarios.data?.usuarios?.variacion_mes?.abs ?? "-"} />
             <SaaSValue label="Altas / bajas este mes" value={usoUsuarios.data?.clientes ? `${usoUsuarios.data.clientes.altas_mes} / ${usoUsuarios.data.clientes.bajas_mes}` : "-"} />
-            <SaaSValue label="Documentos procesados" value={saas.data.documentos_procesados.total} />
+            <SaaSValue label="Revisiones IA procesadas" value={saas.data.documentos_procesados.total} />
             <SaaSValue label="Completados" value={saas.data.documentos_procesados.completados} />
             <SaaSValue label="En proceso" value={saas.data.documentos_procesados.en_proceso} />
             <SaaSValue label="Fallidos" value={saas.data.documentos_procesados.fallidos} />
           </div>}
         </Estado>
-        <p className="ops-sub mt-3">La duración de sesión y el tiempo de uso son estimados según la telemetría actualmente disponible.</p>
+        <p className="ops-sub mt-3">
+          Las sesiones vigentes se cuentan por refresh tokens. La duración y el
+          tiempo de uso son estimados; el procesamiento documental cuenta
+          revisiones IA, no documentos únicos.
+        </p>
+      </Card>
+
+      <Card>
+        <CardHead titulo="Clientes con baja actividad"
+          sub="Cuentas aprobadas con menos de 50% de usuarios activos en los últimos 30 días" />
+        <Estado cargando={saas.cargando} error={saas.error} reintentar={saas.recargar}>
+          <div className="overflow-x-auto">
+            <table className="ops-table">
+              <thead><tr><th>Empresa</th><th>Clasificación</th>
+                <th className="num">Usuarios</th><th className="num">Activos</th>
+                <th className="num">Actividad</th></tr></thead>
+              <tbody>
+                {(saas.data?.actividad_global.clientes_baja_actividad ?? []).map((cliente) => (
+                  <tr key={cliente.company_id}>
+                    <td className="font-semibold">{cliente.nombre}</td>
+                    <td>{etiquetaBajaActividad(cliente.clasificacion)}</td>
+                    <td className="num">{cliente.usuarios}</td>
+                    <td className="num">{cliente.usuarios_activos}</td>
+                    <td className="num">{cliente.actividad_pct}%</td>
+                  </tr>
+                ))}
+                {!saas.cargando && !saas.data?.actividad_global.clientes_baja_actividad.length &&
+                  <tr><td colSpan={5}>No hay clientes bajo el umbral.</td></tr>}
+              </tbody>
+            </table>
+          </div>
+        </Estado>
       </Card>
 
       {/* ------- Evolución MRR ------- */}
@@ -191,6 +222,14 @@ export default function IndicadoresPage() {
       </Card>
     </div>
   );
+}
+
+function etiquetaBajaActividad(
+  clasificacion: "sin_usuarios" | "usuarios_sin_actividad" | "baja_actividad",
+) {
+  if (clasificacion === "sin_usuarios") return "Sin usuarios";
+  if (clasificacion === "usuarios_sin_actividad") return "Usuarios sin actividad";
+  return "Baja actividad";
 }
 
 function SaaSValue({ label, value }: { label: string; value: number | string }) {

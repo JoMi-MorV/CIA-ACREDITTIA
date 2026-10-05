@@ -1166,6 +1166,10 @@ def stats(db: Session = Depends(get_db)):
         "usuarios": int(f.usuarios), "usuarios_activos": int(f.activos),
         "actividad_pct": round(100 * int(f.activos) / int(f.usuarios))
         if f.usuarios else 0,
+        "clasificacion": (
+            "sin_usuarios" if not int(f.usuarios)
+            else "usuarios_sin_actividad" if not int(f.activos)
+            else "baja_actividad"),
     } for f in actividad_empresas
         if not int(f.usuarios) or int(f.activos) * 2 < int(f.usuarios)]
     clientes_baja_actividad.sort(key=lambda f: (f["actividad_pct"], f["nombre"]))
@@ -1304,6 +1308,52 @@ def stats(db: Session = Depends(get_db)):
     } for a, empresa in alertas_filas]
 
     return {
+        "definiciones": {
+            "clientes_activos": {
+                "formula": "Empresas aprobadas con suscripción activa o trial",
+                "ventana": "estado actual",
+            },
+            "usuarios_activos": {
+                "formula": "Cuentas no ADMIN aprobadas y habilitadas",
+                "ventana": "estado actual",
+            },
+            "usuarios_con_actividad_30d": {
+                "formula": "Usuarios con al menos un evento de actividad",
+                "ventana": "últimos 30 días",
+            },
+            "dau": {
+                "formula": "Usuarios únicos con actividad",
+                "ventana": "día calendario UTC actual",
+            },
+            "wau": {
+                "formula": "Usuarios únicos con actividad",
+                "ventana": "últimos 7 días",
+            },
+            "documentos_procesados": {
+                "unidad": "revisiones IA",
+                "formula": "Una revisión IA por cada procesamiento en cola",
+                "nota": "No equivale a documentos únicos; un documento puede reprocesarse.",
+            },
+            "tiempo_uso": {
+                "formula": "Rango entre primer y último evento por usuario",
+                "ventana": "últimos 30 días",
+                "estimada": True,
+            },
+            "duracion_sesion": {
+                "formula": "Vida del refresh token",
+                "ventana": "refresh tokens creados en últimos 30 días",
+                "estimada": True,
+            },
+            "baja_actividad": {
+                "formula": "Menos de 50% de cuentas activas en 30 días",
+                "ventana": "últimos 30 días",
+                "clasificaciones": [
+                    "sin_usuarios",
+                    "usuarios_sin_actividad",
+                    "baja_actividad",
+                ],
+            },
+        },
         "empresas_total": total, "pendientes": pend, "aprobadas": aprob,
         "rechazadas": rech,
         "contratos_total": _cuenta(db, Contrato),
@@ -1356,6 +1406,8 @@ def stats(db: Session = Depends(get_db)):
             "en_proceso": int(procesados.en_proceso),
             "pendientes": int(procesados.pendientes),
             "fallidos": int(procesados.fallidos),
+            "unidad": "revisiones_ia",
+            "documentos_unicos": None,
         },
         "mrr": {
             "actual": mrr_evolucion[-1]["mrr"] if mrr_evolucion else None,
