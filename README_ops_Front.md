@@ -1,9 +1,21 @@
 # Consola Interna — frontend (/ops)
 
-Versión funcional de la consola de administración en **React (Next.js 14 App
-Router + TypeScript + Tailwind)**, integrada al frontend existente
-(`app/frontend`). Implementa las tres vistas de la Especificación Consola
-Interna v1.0 contra `/api/v1/admin/ops`, con:
+Documento de la implementación original de la consola de administración en
+**React (Next.js 14 App Router + TypeScript + Tailwind)**. La consola ya está
+integrada en el frontend de Acredittia: las rutas visibles actuales están bajo
+`/admin` (por ejemplo, `/admin/usuarios`, `/admin/sistemas` y
+`/admin/metricas`) y la API administrativa se publica bajo
+`/api/v1/admin`. Se conservan rutas Ops anteriores bajo
+`/api/v1/admin/ops` por compatibilidad.
+
+Los nombres internos `app/ops`, `lib/ops` y las referencias a `/ops` de esta
+guía corresponden a la estructura heredada; no describen la navegación pública
+actual. Para el mapa de rutas, el arranque y las validaciones vigentes, consulta
+el [README principal](README.md), el [SRS](documentacion/SRS.md) y
+`documentacion/VALIDACION_ACTUAL.md`.
+
+La especificación original contemplaba las vistas de usuarios, sistemas e
+indicadores, con:
 
 * **Autenticación JWT** — login contra `/api/v1/auth/login`; solo `role=admin`
   entra. El access token (30 min) vive **en memoria**; el refresh token
@@ -60,14 +72,17 @@ Interna v1.0 contra `/api/v1/admin/ops`, con:
    };
    ```
 
-3. **`.env.local`**:
+3. **`.env.local` en la implementación original**:
 
    ```bash
    NEXT_PUBLIC_API_URL=http://localhost:8000   # ya existente
    NEXT_PUBLIC_OPS_MOCK=1                      # quitar para usar la API real
    ```
 
-No hay dependencias nuevas: `npm run dev` y abrir `http://localhost:3000/ops`.
+Estas instrucciones describen el montaje original de la consola, no una
+instalación independiente de la versión integrada actual. Para ejecutar el
+proyecto vigente, sigue las instrucciones del [README principal](README.md).
+No se debe asumir que `/ops` es una ruta pública disponible.
 En modo demo el login acepta `admin@acredittia.cl` con cualquier contraseña.
 
 ## Notas de diseño que conviene conocer
@@ -82,7 +97,9 @@ En modo demo el login acepta `admin@acredittia.cl` con cualquier contraseña.
 * Los umbrales visuales (colores de estado, pills) son los mismos del
   wireframe aprobado; la paleta categórica azul/cobre/teal/violeta está
   validada para daltonismo en ambos temas.
-* Backend requerido: módulo `codigo_administracion` (endpoints
-  `/api/v1/admin/ops/*`). Cualquier discrepancia de contrato aparecerá como
-  mensaje de error del backend en la tarjeta correspondiente (mismo formato
-  `{error:{code,message}}` del resto de la app).
+* Backend requerido en la implementación original: módulo
+  `codigo_administracion`. Actualmente las rutas principales están integradas
+  bajo `/api/v1/admin`; las rutas `/api/v1/admin/ops/*` se conservan para
+  compatibilidad. Cualquier discrepancia de contrato aparece como mensaje de
+  error del backend en la tarjeta correspondiente (formato
+  `{error:{code,message}}`).

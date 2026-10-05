@@ -110,8 +110,9 @@ Ruta base: `BASE/app/frontend/`
 | Archivo | Ruta visible | Responsabilidad |
 |---|---|---|
 | `app/page.tsx` | `/` | Redirige a `/login`, `/admin` o `/dashboard`. |
-| `app/login/page.tsx` | `/login` | Login, registro y recuperacion de contrasena. |
+| `app/login/page.tsx` | `/login` | Login, registro de empresa y usuario inicial con nombre, y solicitud de recuperacion de contrasena. |
 | `app/(app)/layout.tsx` | Layout protegido | Verifica que exista una sesion y monta el sidebar. |
+| `app/(app)/perfil/page.tsx` | `/perfil` | Consulta y edicion del nombre, correo y contraseña del usuario autenticado. |
 | `components/Sidebar.tsx` | Navegacion lateral | Enlaces, empresa actual, impersonacion y cierre de sesion. |
 | `components/ui.tsx` | Compartido | KPIs, tablas, modales, chips, spinner y paginacion. |
 
@@ -603,12 +604,15 @@ Ya existe:
 - clientes activos, altas y bajas;
 - consola de sistemas, procesos, incidentes y disponibilidad.
 
-Falta o debe consolidarse:
+Estado actual y pendientes:
 
-- una sola vista global que agrupe todos los KPI;
-- documentos pendientes y vencidos como KPI global del dashboard;
-- una vista global de actividad y crecimiento de la plataforma con la misma
-    lectura operativa.
+- existe un dashboard global bajo `/admin` con contadores, acreditacion,
+    documentos, actividad y accesos a las areas administrativas;
+- los universos de algunos contadores y la definicion de crecimiento de
+    adopcion aun deben acordarse; la actividad por eventos no equivale a nuevas
+    empresas, nuevos usuarios ni tiempo efectivo de uso;
+- MRR y crecimiento comercial se presentan en Metricas SaaS, no como
+    crecimiento de adopcion del dashboard.
 
 Archivos principales:
 
@@ -647,27 +651,24 @@ Archivos principales:
 
 ### 11.3 Buscador global
 
-**Estado: Pendiente.**
+**Estado: Implementado parcialmente; validacion y permisos por completar.**
 
-Ya existe:
+Ya existe `GET /api/v1/admin/search` y la vista global `/admin/busqueda`.
+Busca empresas, contratos, trabajadores/personas, equipos y usuarios; aplica
+filtros por categoria y filtros especificos. Los filtros de cargo y tipo de
+equipo se cargan desde catalogos. Se puede ejecutar una busqueda sin texto si
+hay filtros especificos; sin ellos se requieren al menos dos caracteres.
+Empresas y sujetos se pueden localizar por RUT, pero el RUT no se devuelve en
+los resultados y las cuentas de acceso no tienen RUT propio.
 
-- busqueda de empresas en Admin/Ops;
-- busqueda de usuarios dentro de una empresa;
-- busqueda separada de contratos, trabajadores, equipos, documentos y alertas
-    dentro de sus respectivos modulos.
+La ficha agregada se expande bajo la fila seleccionada, se mantiene una sola
+abierta y se descartan respuestas tardias al cambiar la consulta o la fila, o
+al cerrar la ficha.
 
-Falta:
-
-- un endpoint unico de busqueda global;
-- resultados agrupados por empresa, contrato, trabajador y usuario;
-- permisos diferenciados por tipo de resultado;
-- ocultar o enmascarar resultados sensibles segun el rol del administrador.
-
-Archivos donde implementarlo:
-
-- backend: nuevo router o una seccion en `routers/admin_ops.py`;
-- frontend: nueva vista dentro de `frontend/app/ops/`;
-- cliente: nuevo metodo en `frontend/lib/cliente.ts` o en el cliente Ops.
+Pendiente: acordar el tratamiento de usuarios sin empresa, definir y verificar
+la matriz de permisos por categoria en servidor, y completar pruebas/recorrido
+visual de filtros, limites, expansion y cambios rapidos de seleccion. Ver
+`documentacion/SRS.md` RF-BUS-01/02 y `documentacion/VALIDACION_ACTUAL.md`.
 
 ### 11.4 Metricas SaaS
 
@@ -684,12 +685,17 @@ Ya existe:
 
 Falta:
 
-- sesiones como entidad y metrica independiente;
-- duracion real de sesiones y tiempo de uso;
-- documentos procesados por empresa y por periodo;
+- telemetria observada para calcular duracion real de sesiones y tiempo de uso;
 - una definicion unica de "usuario activo" que incluya claramente login,
     actividad y sesiones;
-- historial completo de cambios de plan para expansion y contraccion de MRR.
+- fuente y fecha del valor UF en cada respuesta y cobertura de periodos/monedas;
+- mantener diferenciadas las revisiones de IA procesadas y la cantidad de
+    documentos unicos.
+
+La vista ya presenta clientes de baja actividad con clasificacion de sin
+usuarios, usuarios sin actividad o baja actividad, y muestra un diccionario de
+definiciones. El tiempo de uso se etiqueta como estimado. El detalle de
+validacion y criterios abiertos esta en RF-MET-01/02/03 del SRS.
 
 Archivos principales:
 
@@ -712,13 +718,19 @@ Ya existe:
 - estado de API, base de datos, workers, storage, IA e integraciones;
 - incidentes operacionales y ejecuciones de procesos con error.
 
-Falta:
+El dashboard de Metricas SaaS clasifica clientes de baja actividad como sin
+usuarios, usuarios sin actividad o baja actividad. Esta clasificacion no cierra
+por si sola los requisitos de alertas y salud de clientes.
+
+Falta o debe validarse:
 
 - alertas globales accionables para empresas bajo un umbral de acreditacion;
 - alertas para contratos con muchos requisitos pendientes;
 - alertas globales de documentos vencidos;
-- alertas o tareas de seguimiento para clientes sin actividad;
-- historial de notificaciones y responsables de atender cada alerta.
+- validar umbrales, casos sin datos y cobertura de empresas sin usuarios o con
+    usuarios sin eventos en el flujo de salud;
+- totales/paginacion de listas limitadas y sondas operacionales que verifiquen
+    disponibilidad real.
 
 ### 11.6 Usuarios, roles y permisos
 
@@ -734,12 +746,22 @@ Ya existe:
 - validacion de que un contrato pertenece a la empresa antes de asignarlo;
 - bloqueo para que un usuario de una empresa no gestione usuarios de otra.
 
+En el registro se solicita el nombre del usuario inicial, separado de la razon
+social. La seccion autenticada `/perfil` permite editar nombre, correo y
+contraseña. Si ADMIN usa «Ver como empresa», el enlace y la ruta de su perfil
+se bloquean en la interfaz; esto no modifica la autorizacion del backend.
+
 Falta:
 
-- administracion global de usuarios desde el backoffice Admin;
+- completar altas/invitaciones y activacion por correo;
 - permisos mas finos que los tres roles actuales;
 - matriz formal de permisos por recurso y accion;
 - flujo de aprobacion y revision de accesos excepcionales del administrador.
+
+La gestion administrativa global ya dispone de listado, cambios de estado,
+revocacion y reactivacion. Sigue pendiente la paginacion para mas de 100
+usuarios y la validacion integral de permisos y alcance. Estas funciones no
+deben confundirse con las altas/invitaciones del portal de empresa.
 
 Archivos principales:
 
@@ -808,23 +830,29 @@ Falta o debe reforzarse:
 
 ### 11.9 Orden recomendado de trabajo
 
-1. **Auditoria de seguridad:** login, descargas, accesos sensibles,
-     impersonacion y exportaciones.
-2. **Buscador global:** endpoint unico, permisos y minimizacion de resultados.
-3. **Dashboard global:** consolidar KPI y agregar pendientes/vencidos.
-4. **Alertas de clientes:** baja acreditacion, pendientes, vencimientos y
-     ausencia de actividad.
-5. **Metricas SaaS:** sesiones, tiempo de uso y documentos procesados.
-6. **Permisos:** matriz de acciones y administracion global de usuarios.
+1. **Permisos y aislamiento:** matriz de acciones, alcance ADMIN y pruebas
+     negativas por empresa/contrato.
+2. **Auditoria:** login, cambios administrativos, lecturas sensibles,
+     descargas, impersonacion y exportaciones.
+3. **Buscador global:** cerrar alcance/permisos por categoria y validar
+     filtros, ficha y limites.
+4. **Salud de clientes y operacion:** umbrales, listas completas, sondas
+     verificables y recorrido distribuido Celery.
+5. **Metricas y dashboard:** acordar universos/definiciones, completar fuente
+     de UF y decidir si se requiere telemetria real de sesiones.
+6. **Portal de empresa:** completar invitaciones/activacion por correo y
+     recorridos de mutaciones.
 
 ### 11.10 Resumen rapido
 
-**Ya esta:** aislamiento multiempresa, RLS, roles basicos, contratos,
-trabajadores, equipos, documentos, cumplimiento, actividad, empresas globales,
-metricas SaaS parciales, salud tecnica y exportaciones con alcance por empresa.
+**Ya esta:** portal multiempresa y roles basicos; contratos, trabajadores,
+equipos, documentos, cumplimiento, actividad; consola ADMIN con dashboard,
+gestion de empresas/usuarios, buscador global, metricas SaaS y operacion;
+registro del nombre del usuario inicial y edicion de perfil.
 
-**Falta:** buscador global, sesiones y tiempo de uso, documentos procesados como
-metrica SaaS, alertas globales de clientes, auditoria completa de login y
-descargas, motivos de acceso excepcional, permisos finos y minimizacion completa
-de informacion sensible en vistas administrativas.
-
+**Falta cerrar o validar:** permisos finos y aislamiento con identidades de
+minimo privilegio; auditoria integral de autenticacion y accesos sensibles;
+validacion de interfaces y recorridos; invitaciones por correo; telemetria real
+de sesiones si se aprueba; y los criterios de salud, sondas y listas completas.
+El detalle de estados, limites y evidencia vigente esta en `documentacion/SRS.md`
+y `documentacion/VALIDACION_ACTUAL.md`.
