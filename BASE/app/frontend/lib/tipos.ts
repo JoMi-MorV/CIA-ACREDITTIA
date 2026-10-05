@@ -857,7 +857,8 @@ export type AdminStats = {
     ultimas: { id: number; empresa: string; tipo: string; modulo: string;
       descripcion: string; created_at: string }[];
     clientes_baja_actividad: { company_id: string; nombre: string;
-      usuarios: number; usuarios_activos: number; actividad_pct: number }[];
+      usuarios: number; usuarios_activos: number; actividad_pct: number;
+      clasificacion: "sin_usuarios" | "usuarios_sin_actividad" | "baja_actividad" }[];
   };
   sesiones: {
     vigentes: number;
@@ -878,7 +879,17 @@ export type AdminStats = {
     en_proceso: number;
     pendientes: number;
     fallidos: number;
+    unidad: "revisiones_ia";
+    documentos_unicos: number | null;
   };
+  definiciones: Record<string, {
+    formula: string;
+    ventana?: string;
+    unidad?: string;
+    nota?: string;
+    estimada?: boolean;
+    clasificaciones?: string[];
+  }>;
   mrr: {
     actual: number | null;
     evolucion_mensual: { mes: string; mrr: number; clientes_activos: number }[];
