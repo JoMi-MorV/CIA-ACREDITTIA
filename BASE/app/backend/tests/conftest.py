@@ -69,7 +69,8 @@ MODELO = os.path.normpath(os.path.join(RAIZ, "..", "..", "modelo_datos"))
 
 SCRIPTS = ["01_esquema.sql", "02_indices.sql", "03_triggers.sql",
            "04_rls.sql", "06_migracion_v11.sql", "07_consola_interna.sql", "08_funciones_consola.sql",
-           "09_indices_consola.sql", "10_version_sesion.sql"]
+           "09_indices_consola.sql", "10_version_sesion.sql",
+           "11_ciclo_vida_contratos.sql"]
 
 _TMP = os.path.join(tempfile.gettempdir(), "acredittia_pruebas")
 PGDATA = os.path.join(_TMP, "pgdata")

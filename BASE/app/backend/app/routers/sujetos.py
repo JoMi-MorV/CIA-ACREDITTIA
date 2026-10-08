@@ -100,12 +100,16 @@ class EquipoPatch(BaseModel):
 # Helpers reutilizables por otros routers
 # ============================================================================
 def _get_sujeto(db: Session, cid: uuid.UUID, sid: uuid.UUID, tipo: str,
-                user: User | None = None) -> Sujeto:
+                user: User | None = None,
+                require_active: bool = False) -> Sujeto:
     s = db.get(Sujeto, sid)
     if not s or s.company_id != cid or s.tipo != tipo:
         raise err(404, "NO_ENCONTRADO", "No existe")
     if user is not None:
         require_contrato(s.contrato_id, user)
+    if require_active and s.contrato.ciclo_estado != "activo":
+        raise err(409, "CONTRATO_NO_ACTIVO",
+                  "No se puede modificar información de un contrato histórico")
     return s
 
 
@@ -116,6 +120,9 @@ def _validar_contrato(db: Session, cid: uuid.UUID, contrato_id: uuid.UUID,
     c = db.get(Contrato, contrato_id)
     if not c or c.company_id != cid:
         raise err(404, "NO_ENCONTRADO", "Contrato no existe")
+    if c.ciclo_estado != "activo":
+        raise err(409, "CONTRATO_NO_ACTIVO",
+                  "No se puede agregar información a un contrato histórico")
     return c
 
 
@@ -358,7 +365,7 @@ def editar_trabajador(sid: uuid.UUID, body: TrabajadorPatch,
     requisitos del cargo nuevo que falten se añaden desde
     `PATCH /cargos/{id}` o al crear el requisito en el contrato.
     """
-    s = _get_sujeto(db, cid, sid, "trabajador", user)
+    s = _get_sujeto(db, cid, sid, "trabajador", user, require_active=True)
     data = body.model_dump(exclude_unset=True)
     if not data:
         raise err(400, "SIN_CAMBIOS", "No se indicó ningún campo a modificar")
@@ -465,7 +472,7 @@ def editar_equipo(sid: uuid.UUID, body: EquipoPatch,
                   db: Session = Depends(get_db),
                   cid: uuid.UUID = Depends(get_company_id),
                   user: User = Depends(get_current_user)):
-    s = _get_sujeto(db, cid, sid, "equipo", user)
+    s = _get_sujeto(db, cid, sid, "equipo", user, require_active=True)
     data = body.model_dump(exclude_unset=True)
     if not data:
         raise err(400, "SIN_CAMBIOS", "No se indicó ningún campo a modificar")
@@ -486,7 +493,8 @@ def editar_equipo(sid: uuid.UUID, body: EquipoPatch,
 # ============================================================================
 def _baja(ruta: str, sid: uuid.UUID, db: Session, cid: uuid.UUID, user: User):
     """Baja lógica: el sujeto deja de contar pero conserva su expediente."""
-    s = _get_sujeto(db, cid, sid, TIPO_POR_RUTA[ruta], user)
+    s = _get_sujeto(db, cid, sid, TIPO_POR_RUTA[ruta], user,
+                    require_active=True)
     s.estado = "baja"
     s.updated_at = datetime.now(timezone.utc)
     actividad.log(db, cid, "actualizacion", ruta,
@@ -505,7 +513,8 @@ def _eliminar(ruta: str, sid: uuid.UUID, db: Session, cid: uuid.UUID, user: User
     from ..services.storage import get_storage
     from ..models import DocumentoArchivo
 
-    s = _get_sujeto(db, cid, sid, TIPO_POR_RUTA[ruta], user)
+    s = _get_sujeto(db, cid, sid, TIPO_POR_RUTA[ruta], user,
+                    require_active=True)
     nombre = s.nombre
     archivos = list(db.scalars(
         select(DocumentoArchivo)

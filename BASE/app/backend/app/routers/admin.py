@@ -24,7 +24,7 @@ from datetime import date, datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
-from sqlalchemy import and_, delete, func, or_, select, update
+from sqlalchemy import String, and_, cast, delete, func, or_, select, update
 from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.orm import Session
 
@@ -265,7 +265,8 @@ def _company_out(db: Session, c: Company, contratos: int | None = None) -> dict:
         "approved_at": _iso(c.approved_at),
         "created_at": _iso(c.created_at),
         "contratos": (contratos if contratos is not None
-                      else _cuenta(db, Contrato, Contrato.company_id == c.id)),
+                      else _cuenta(db, Contrato, Contrato.company_id == c.id,
+                                   Contrato.ciclo_estado == "activo")),
         "trabajadores": sujetos["trabajador"]["total"],
         "usuarios": usuarios,
         "plan": plan,
@@ -357,6 +358,12 @@ def global_search(q: str | None = Query(None, max_length=100),
     if tipo is not None and tipo not in SEARCH_PERMISSIONS:
         raise err(400, "TIPO_INVALIDO", "Tipo de búsqueda no reconocido")
     q = (q or "").strip()
+    terminos = q.split() or [""]
+
+    def coincide_con_todos_los_terminos(*campos):
+        return and_(*(or_(*(campo.ilike(f"%{termino}%") for campo in campos))
+                      for termino in terminos))
+
     filtro_por_tipo = {
         "empresa": bool(estado) or es_demo is not None,
         "contrato": bool(empresa or estado),
@@ -368,13 +375,12 @@ def global_search(q: str | None = Query(None, max_length=100),
     if len(q) < 2 and not (tipo and filtro_por_tipo.get(tipo, False)):
         raise err(422, "BUSQUEDA_INVALIDA",
                   "Escribe al menos 2 caracteres o aplica un filtro específico")
-    like = f"%{q}%" if q else "%"
     empresa_like = f"%{empresa.strip()}%" if empresa and empresa.strip() else None
     resultados = []
 
-    consulta_empresas = select(Company).where(or_(
-        Company.nombre.ilike(like), Company.rut.ilike(like),
-        Company.email.ilike(like)))
+    consulta_empresas = select(Company).where(
+        coincide_con_todos_los_terminos(
+            Company.nombre, Company.rut, Company.email))
     if empresa_like:
         consulta_empresas = consulta_empresas.where(Company.nombre.ilike(empresa_like))
     if estado:
@@ -395,8 +401,8 @@ def global_search(q: str | None = Query(None, max_length=100),
 
     consulta_contratos = (select(Contrato, Company.nombre)
                           .join(Company, Company.id == Contrato.company_id)
-                          .where(or_(Contrato.nombre.ilike(like),
-                                     Contrato.codigo.ilike(like))))
+                          .where(coincide_con_todos_los_terminos(
+                              Contrato.nombre, Contrato.codigo, Company.nombre)))
     if empresa_like:
         consulta_contratos = consulta_contratos.where(Company.nombre.ilike(empresa_like))
     if estado:
@@ -416,9 +422,9 @@ def global_search(q: str | None = Query(None, max_length=100),
     consulta_trabajadores = (select(Sujeto, Company.nombre)
                              .join(Company, Company.id == Sujeto.company_id)
                              .where(Sujeto.tipo == "trabajador",
-                                    or_(Sujeto.nombre.ilike(like),
-                                        Sujeto.cargo.ilike(like),
-                                        Sujeto.rut.ilike(like))))
+                                    coincide_con_todos_los_terminos(
+                                        Sujeto.nombre, Sujeto.cargo, Sujeto.rut,
+                                        Company.nombre)))
     if empresa_like:
         consulta_trabajadores = consulta_trabajadores.where(Company.nombre.ilike(empresa_like))
     if cargo:
@@ -444,11 +450,10 @@ def global_search(q: str | None = Query(None, max_length=100),
     consulta_equipos = (select(Sujeto, Company.nombre)
                         .join(Company, Company.id == Sujeto.company_id)
                         .where(Sujeto.tipo == "equipo",
-                               or_(Sujeto.nombre.ilike(like),
-                                   Sujeto.patente.ilike(like),
-                                   Sujeto.tipo_equipo.ilike(like),
-                                   Sujeto.marca.ilike(like),
-                                   Sujeto.modelo.ilike(like))))
+                               coincide_con_todos_los_terminos(
+                                   Sujeto.nombre, Sujeto.patente,
+                                   Sujeto.tipo_equipo, Sujeto.marca,
+                                   Sujeto.modelo, Company.nombre)))
     if empresa_like:
         consulta_equipos = consulta_equipos.where(Company.nombre.ilike(empresa_like))
     if tipo_equipo:
@@ -486,8 +491,9 @@ def global_search(q: str | None = Query(None, max_length=100),
 
     consulta_usuarios = (select(User, Company.nombre)
                          .join(Company, Company.id == User.company_id)
-                         .where(or_(User.nombre.ilike(like),
-                                    User.email.ilike(like))))
+                         .where(coincide_con_todos_los_terminos(
+                             User.nombre, User.email, cast(User.role, String),
+                             Company.nombre)))
     if empresa_like:
         consulta_usuarios = consulta_usuarios.where(Company.nombre.ilike(empresa_like))
     if rol:
@@ -519,14 +525,44 @@ def global_search(q: str | None = Query(None, max_length=100),
 
 @router.get("/search/catalogos")
 def global_search_catalogos(db: Session = Depends(get_db)):
-    """Opciones globales de filtros basadas en cargos en uso y tipos oficiales."""
-    cargos = db.scalars(
+    """Valores no sensibles que sirven como referencia para la búsqueda global."""
+    limite = 100
+
+    def opciones(consulta):
+        valores = db.scalars(consulta.limit(limite + 1)).all()
+        return valores[:limite], len(valores) > limite
+
+    empresas, mas_empresas = opciones(
+        select(Company.nombre).where(
+            Company.nombre.is_not(None), func.btrim(Company.nombre) != "")
+        .distinct().order_by(Company.nombre))
+    contratos, mas_contratos = opciones(
+        select(Contrato.nombre).where(
+            Contrato.nombre.is_not(None), func.btrim(Contrato.nombre) != "")
+        .distinct().order_by(Contrato.nombre))
+    cargos, mas_cargos = opciones(
         select(Sujeto.cargo).where(
             Sujeto.tipo == "trabajador", Sujeto.cargo.is_not(None),
             func.btrim(Sujeto.cargo) != "")
-        .distinct().order_by(Sujeto.cargo)
-    ).all()
-    return {"cargos": cargos, "tipos_equipo": TIPOS_EQUIPO}
+        .distinct().order_by(Sujeto.cargo))
+    marcas, mas_marcas = opciones(
+        select(Sujeto.marca).where(
+            Sujeto.tipo == "equipo", Sujeto.marca.is_not(None),
+            func.btrim(Sujeto.marca) != "")
+        .distinct().order_by(Sujeto.marca))
+    return {
+        "empresas": empresas,
+        "contratos": contratos,
+        "cargos": cargos,
+        "tipos_equipo": TIPOS_EQUIPO,
+        "marcas": marcas,
+        "hay_mas": {
+            "empresas": mas_empresas,
+            "contratos": mas_contratos,
+            "cargos": mas_cargos,
+            "marcas": mas_marcas,
+        },
+    }
 
 
 @router.get("/audit")
@@ -794,9 +830,14 @@ def detalle_company(company_id: uuid.UUID, db: Session = Depends(get_db)):
         "usuarios": _cuenta(db, User, User.company_id == c.id),
         "usuarios_activos": _cuenta(db, User, User.company_id == c.id,
                                     User.activo.is_(True)),
-        "contratos": _cuenta(db, Contrato, Contrato.company_id == c.id),
+        "contratos": _cuenta(db, Contrato, Contrato.company_id == c.id,
+                             Contrato.ciclo_estado == "activo"),
+        "contratos_historicos": _cuenta(
+            db, Contrato, Contrato.company_id == c.id,
+            Contrato.ciclo_estado.in_(("desactivado", "finalizado"))),
         "contratos_vigentes": _cuenta(db, Contrato, Contrato.company_id == c.id,
-                                      Contrato.estado == "vigente"),
+                                      Contrato.estado == "vigente",
+                                      Contrato.ciclo_estado == "activo"),
         "personal": sujetos["trabajador"],
         "equipos": sujetos["equipo"],
         "documentos": _docs_por_estado(db, c.id),
@@ -1356,7 +1397,11 @@ def stats(db: Session = Depends(get_db)):
         },
         "empresas_total": total, "pendientes": pend, "aprobadas": aprob,
         "rechazadas": rech,
-        "contratos_total": _cuenta(db, Contrato),
+        "contratos_total": _cuenta(db, Contrato,
+                                   Contrato.ciclo_estado == "activo"),
+        "contratos_historicos": _cuenta(
+            db, Contrato,
+            Contrato.ciclo_estado.in_(("desactivado", "finalizado"))),
         "faenas_total": _cuenta(db, Faena),
         "faenas_activas": _cuenta(db, Faena, Faena.activa.is_(True)),
         "plantillas_activas": _cuenta(db, RequisitoTemplate,

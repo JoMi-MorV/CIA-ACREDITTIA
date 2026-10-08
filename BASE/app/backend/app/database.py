@@ -88,8 +88,9 @@ def install_runtime_role_guard() -> None:
 # Scripts del modelo de datos en orden y versión de esquema que representan.
 SCHEMA_SCRIPTS = ["01_esquema.sql", "02_indices.sql", "03_triggers.sql",
                   "04_rls.sql", "06_migracion_v11.sql", "07_consola_interna.sql", "08_funciones_consola.sql",
-                  "09_indices_consola.sql", "10_version_sesion.sql"]
-SCHEMA_VERSION = 9
+                  "09_indices_consola.sql", "10_version_sesion.sql",
+                  "11_ciclo_vida_contratos.sql"]
+SCHEMA_VERSION = 11
 MIGRATION_LOCK_ID = 918273        # clave del pg_advisory_lock de migración
 
 
@@ -259,17 +260,8 @@ def schema_version() -> int:
 
 
 def schema_version_compatible(actual: int, esperada: int = SCHEMA_VERSION) -> bool:
-    """Acepta el esquema 10 legado: solo añade users.rut nullable sin uso."""
-    if actual == esperada:
-        return True
-    if esperada != 9 or actual != 10:
-        return False
-    with engine.connect() as conn:
-        return conn.execute(text(
-            "SELECT 1 FROM information_schema.columns "
-            "WHERE table_schema = 'public' AND table_name = 'users' "
-            "AND column_name = 'rut' AND is_nullable = 'YES'"
-        )).first() is not None
+    """La aplicación solo opera contra la versión exacta de esquema requerida."""
+    return actual == esperada
 
 
 def assert_schema_version(esperada: int = SCHEMA_VERSION) -> None:
@@ -346,9 +338,14 @@ def apply_schema(schema_dir: str | None = None) -> int:
             elif actual == 6:
                 pendientes = SCHEMA_SCRIPTS[5:]
             elif actual == 7:
-                pendientes = ["09_indices_consola.sql", "10_version_sesion.sql"]
+                pendientes = ["09_indices_consola.sql", "10_version_sesion.sql",
+                              "11_ciclo_vida_contratos.sql"]
             elif actual == 8:
-                pendientes = ["10_version_sesion.sql"]
+                pendientes = ["10_version_sesion.sql", "11_ciclo_vida_contratos.sql"]
+            elif actual == 9:
+                pendientes = ["11_ciclo_vida_contratos.sql"]
+            elif actual == 10:
+                pendientes = ["11_ciclo_vida_contratos.sql"]
             else:
                 # Por si viene de otra versión intermedia, aplicamos los scripts desde el 06 en adelante
                 pendientes = SCHEMA_SCRIPTS[4:]

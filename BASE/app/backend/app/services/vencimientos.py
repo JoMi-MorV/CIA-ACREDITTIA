@@ -47,15 +47,36 @@ def _emitir_alerta_vencimiento(db: Session, doc: Documento) -> None:
         db.add(Alerta(
             company_id=doc.company_id, severidad=sev, estado=estado,
             origen="vencimiento", titulo=titulo, descripcion=desc,
-            documento_id=doc.id, sujeto_id=doc.sujeto_id, contrato_id=doc.contrato_id,
+            documento_id=doc.id, sujeto_id=doc.sujeto_id,
+            contrato_id=(doc.contrato_id
+                         or (doc.sujeto.contrato_id if doc.sujeto else None)),
         ))
 
 
-def recalcular_documentos(db: Session, company_id: uuid.UUID | None = None) -> int:
+def recalcular_documentos(db: Session, company_id: uuid.UUID | None = None,
+                          contrato_id: uuid.UUID | None = None) -> int:
     """Recalcula `estado_calc` y emite alertas. Devuelve documentos cambiados."""
     q = select(Documento)
-    if company_id:
+    if contrato_id:
+        ids_sujetos = select(Sujeto.id).where(Sujeto.contrato_id == contrato_id)
+        q = q.where((Documento.contrato_id == contrato_id)
+                    | Documento.sujeto_id.in_(ids_sujetos))
+    elif company_id:
         q = q.where(Documento.company_id == company_id)
+        ids_contratos_activos = select(Contrato.id).where(
+            Contrato.company_id == company_id, Contrato.ciclo_estado == "activo")
+        ids_sujetos_activos = select(Sujeto.id).where(
+            Sujeto.company_id == company_id,
+            Sujeto.contrato_id.in_(ids_contratos_activos))
+        q = q.where((Documento.contrato_id.in_(ids_contratos_activos))
+                    | Documento.sujeto_id.in_(ids_sujetos_activos))
+    else:
+        ids_contratos_activos = select(Contrato.id).where(
+            Contrato.ciclo_estado == "activo")
+        ids_sujetos_activos = select(Sujeto.id).where(
+            Sujeto.contrato_id.in_(ids_contratos_activos))
+        q = q.where((Documento.contrato_id.in_(ids_contratos_activos))
+                    | Documento.sujeto_id.in_(ids_sujetos_activos))
     cambios = 0
     sujetos_afectados: set[uuid.UUID] = set()
     for doc in db.scalars(q):
@@ -87,9 +108,17 @@ def recalcular_sujeto(db: Session, sujeto_id: uuid.UUID) -> None:
 def _agregados(db: Session, company_id: uuid.UUID,
                contrato_id: uuid.UUID | None) -> dict:
     """Cumplimiento y conteos de una empresa o de uno de sus contratos."""
-    docs = select(Documento).where(Documento.company_id == company_id)
+    contratos_activos = select(Contrato.id).where(
+        Contrato.company_id == company_id, Contrato.ciclo_estado == "activo")
+    docs = select(Documento).where(
+        Documento.company_id == company_id,
+        (Documento.contrato_id.in_(contratos_activos)
+         | Documento.sujeto_id.in_(select(Sujeto.id).where(
+             Sujeto.company_id == company_id,
+             Sujeto.contrato_id.in_(contratos_activos)))))
     sujetos = select(Sujeto).where(Sujeto.company_id == company_id,
-                                  Sujeto.estado != "baja")
+                                   Sujeto.estado != "baja",
+                                   Sujeto.contrato_id.in_(contratos_activos))
     if contrato_id:
         # Documentos del contrato: los de empresa (contrato_id) más los de sus sujetos.
         ids_sujetos = select(Sujeto.id).where(Sujeto.contrato_id == contrato_id)
@@ -126,6 +155,7 @@ def _agregados(db: Session, company_id: uuid.UUID,
             Alerta.company_id == company_id,
             Alerta.severidad == "critica",
             Alerta.resuelta_at.is_(None),
+            Alerta.contrato_id.in_(contratos_activos),
             *([Alerta.contrato_id == contrato_id] if contrato_id else []),
         )
     ) or 0
@@ -152,7 +182,8 @@ def escribir_snapshots(db: Session, fecha: date | None = None) -> int:
     for cid in set(empresas):
         objetivos: list[uuid.UUID | None] = [None]
         objetivos += list(db.scalars(select(Contrato.id).where(
-            Contrato.company_id == cid, Contrato.estado != "terminado")).all())
+            Contrato.company_id == cid, Contrato.estado != "terminado",
+            Contrato.ciclo_estado == "activo")).all())
 
         for contrato_id in objetivos:
             existe = db.scalar(select(CumplimientoSnapshot.id).where(

@@ -92,6 +92,30 @@ def test_busqueda_equipos_por_patente_y_atributos(
         assert "rut" not in equipo
 
 
+def test_busqueda_equipos_combina_terminos_entre_marca_y_patente(
+        app_cliente, admin, empresa_a, contrato_a, motor_admin):
+    from sqlalchemy import text
+
+    alta = app_cliente.post(f"{API}/equipos", headers=empresa_a["headers"], json={
+        "contrato_id": contrato_a["id"], "patente": patente_valida(89),
+        "tipo_equipo": "Camión", "marca": "Toyota", "modelo": "Hilux",
+    })
+    assert alta.status_code == 201, alta.text
+    prefijo_patente = alta.json()["patente"][:4]
+    with motor_admin.begin() as conexion:
+        conexion.execute(
+            text("UPDATE companies SET nombre = 'Aseo Transporte' WHERE id = :id"),
+            {"id": empresa_a["company_id"]})
+
+    respuesta = app_cliente.get(
+        f"{API}/admin/search", headers=admin["headers"],
+        params={"q": f"toy {prefijo_patente.lower()} cam aseo",
+                "tipo": "equipo"})
+
+    assert respuesta.status_code == 200, respuesta.text
+    assert [item["id"] for item in respuesta.json()["items"]] == [alta.json()["id"]]
+
+
 def test_busqueda_filtra_categoria_y_encuentra_persona_por_rut(
         app_cliente, admin, empresa_a, contrato_a):
     rut = rut_valido(84)
@@ -196,11 +220,29 @@ def test_catalogos_de_filtros_globales(app_cliente, admin, empresa_a,
         "rut": rut_valido(88), "cargo": "CargoCatalogoFiltro",
     })
     assert personal.status_code == 201, personal.text
+    equipo = app_cliente.post(f"{API}/equipos", headers=empresa_a["headers"], json={
+        "contrato_id": contrato_a["id"], "patente": patente_valida(88),
+        "tipo_equipo": "Camión", "marca": "MarcaCatalogoFiltro",
+        "modelo": "Modelo catálogo",
+    })
+    assert equipo.status_code == 201, equipo.text
     respuesta = app_cliente.get(f"{API}/admin/search/catalogos",
                                 headers=admin["headers"])
     assert respuesta.status_code == 200, respuesta.text
-    assert "CargoCatalogoFiltro" in respuesta.json()["cargos"]
-    assert "Camión" in respuesta.json()["tipos_equipo"]
+    catalogos = respuesta.json()
+    assert set(catalogos) == {
+        "empresas", "contratos", "cargos", "tipos_equipo", "marcas", "hay_mas"}
+    assert empresa_a["nombre"] in catalogos["empresas"]
+    assert contrato_a["nombre"] in catalogos["contratos"]
+    assert "CargoCatalogoFiltro" in catalogos["cargos"]
+    assert "Camión" in catalogos["tipos_equipo"]
+    assert "MarcaCatalogoFiltro" in catalogos["marcas"]
+    assert catalogos["hay_mas"] == {
+        "empresas": False, "contratos": False, "cargos": False, "marcas": False}
+    assert all(isinstance(valores, list) for clave, valores in catalogos.items()
+               if clave != "hay_mas")
+    assert "alfa@empresa.cl" not in str(catalogos)
+    assert empresa_a["rut"] not in str(catalogos)
 
 
 def test_busqueda_filtra_empresas_contratos_y_usuarios(
@@ -264,7 +306,8 @@ def test_busqueda_informa_recorte_por_categoria(
                              {"nombre": f"RecorteBusqueda {numero}", "id": identificador})
     for limite in (1, 2, 25):
         respuesta = app_cliente.get(f"{API}/admin/search", headers=admin["headers"],
-                                     params={"q": "RecorteBusqueda", "limite": limite})
+                                     params={"q": "RecorteBusqueda", "limite": limite,
+                                             "tipo": categoria})
         assert respuesta.status_code == 200, respuesta.text
         datos = respuesta.json()
         assert datos["hay_mas"] is (limite == 1)

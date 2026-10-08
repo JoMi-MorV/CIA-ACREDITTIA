@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import * as Api from "@/lib/cliente";
 import type { CategoriaEvento, EventoCalendario, Eventos } from "@/lib/tipos";
-import { Chip, Modal, Spinner } from "@/components/ui";
+import { Chip, Modal, Spinner, useDialog } from "@/components/ui";
 
 const CATEGORIAS: { value: CategoriaEvento | ""; label: string }[] = [
   { value: "", label: "Todas las categorías" },
@@ -60,6 +60,7 @@ function eventoTitulo(evento: EventoCalendario) {
 }
 
 export default function CalendarioPage() {
+  const dialog = useDialog();
   const [month, setMonth] = useState(() => monthStart(new Date()));
   const [categoria, setCategoria] = useState<CategoriaEvento | "">("");
   const [data, setData] = useState<Eventos | null>(null);
@@ -113,7 +114,13 @@ export default function CalendarioPage() {
     finally { setSaving(false); }
   };
   const eliminar = async (event: EventoCalendario) => {
-    if (!event.id || !confirm(`¿Eliminar "${event.titulo}"?`)) return;
+    if (!event.id || !await dialog.confirm({
+      title: "Eliminar evento",
+      message: `¿Eliminar "${event.titulo}"? Esta acción no se puede deshacer.`,
+      confirmLabel: "Eliminar",
+      danger: true,
+      doubleConfirm: true,
+    })) return;
     try { await Api.calendario.eliminar(event.id); cargar(); }
     catch (err) { setError(Api.mensajeError(err)); }
   };
@@ -121,6 +128,7 @@ export default function CalendarioPage() {
   if (!data && !error) return <Spinner />;
   return (
     <div className="space-y-5">
+      {dialog.host}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="text-2xl font-extrabold text-brand">Calendario</h1>

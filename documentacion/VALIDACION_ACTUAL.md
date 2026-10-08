@@ -1,4 +1,309 @@
-# Validación funcional — actualizado al 5 de octubre de 2026
+# Validación funcional — actualizado al 8 de octubre de 2026
+
+## Décima entrega — ciclo de contratos y diálogos de confirmación — 8 de octubre de 2026
+
+Se implementó la separación entre estado operacional del contrato y ciclo
+`activo`/`desactivado`/`finalizado`; desactivación, finalización y restauración
+exigen motivo y dejan actor, fecha y transición en actividad. El borrado físico
+de contratos desde la API ordinaria queda deshabilitado. Se incorporaron vistas
+Activos e Histórico, preservación de relaciones, exclusión del histórico de
+conteos operacionales y alertas, bloqueo de cambios sobre expedientes históricos
+y recálculo de vencimientos al restaurar. Una revisión IA en cola se cancela si
+el contrato ya fue archivado.
+
+Las acciones de alto impacto usan doble confirmación y las capturas de motivo,
+errores, cambios de responsables, rechazo de empresas, revocación/reactivación,
+eliminación de eventos y acceso a documentos usan diálogos con contexto claro.
+No quedan llamadas a `window.confirm`, `window.prompt` o `window.alert` en las
+pantallas frontend revisadas.
+
+`npm run build`: **salida 0**, compilación optimizada, chequeo de tipos y 23
+rutas completados. `python -m compileall -q app`: **salida 0**. La regresión
+backend focalizada de ocho archivos pasó **247/247 pruebas**, incluido
+`test_esquema.py`, en PostgreSQL efímero. Se verificaron transiciones y motivos,
+auditoría con actor, lectura histórica acotada, denegación de mutaciones de
+requisitos/plantillas/Carpeta de Arranque en contratos archivados, `contract_admin`
+sin permiso de transición, ADMIN con `X-Company-Id`, y exclusión/recreación de
+alertas vencidas al archivar/restaurar. La prueba de ciclo y el resumen de alertas
+se repitieron tras los últimos cambios: **2/2 aprobadas**; este resultado se
+superpone a la regresión de 247 y no se suma.
+
+Durante la regresión se corrigió también `GET /alertas/resumen`: el campo
+`activas` devolvía una fila de alerta en vez de un contador.
+
+```powershell
+$basePruebas = (Resolve-Path BASE).Path
+docker run --rm --network none --mount "type=bind,source=$basePruebas,target=/workspace/BASE,readonly" -w /workspace/BASE/app/backend -e PYTHONDONTWRITEBYTECODE=1 app-api python -m pytest tests/test_contratos.py tests/test_esquema.py tests/test_documentos.py tests/test_sujetos.py tests/test_tenants.py tests/test_operacion.py tests/test_reportes.py tests/test_ops.py -q -p no:cacheprovider --tb=short
+```
+
+La ejecución usó la imagen existente `app-api` con Python 3.12, sin red, con el
+código montado en solo lectura y base temporal; no se migró ni reinició la base
+habitual. Persisten advertencias de clave JWT corta en fixtures, cliente de
+pruebas obsoleto y `distinct()` en requisitos/reportes. No se ejecutó la suite
+backend completa. RF-CLI-02 y DEC-12 quedan **implementados con validación
+focalizada; aceptación integral pendiente**. Restan recorrido visual, pruebas
+API→Redis/Celery distribuido, más casos de procesos asíncronos y validar la
+migración 11 en el procedimiento de despliegue antes de usar la versión nueva
+de API/worker con datos habituales.
+
+## DEC-01/02 — permisos ADMIN y alcance del buscador — 7 de octubre de 2026
+
+**DEC-01 acordada:** ADMIN realiza operaciones ordinarias y consulta agregados.
+El acceso a datos sensibles requiere permiso específico, motivo y alcance
+limitado por recurso/tiempo; deben auditarse concesión, uso y revocación. Se
+impide desactivar, revocar o degradar al último ADMIN activo.
+
+**DEC-02 confirmada:** el buscador conserva cinco categorías (empresas,
+contratos, personas, equipos y usuarios), excluye administradores de plataforma
+y usuarios sin empresa —gestionados desde sus vistas específicas— y no presenta
+documentos ni contenido documental en las fichas.
+
+Estas son decisiones funcionales; no prueban que la autorización granular, las
+exclusiones en todas las rutas ni las guardas del último ADMIN estén
+implementadas y validadas. Esas comprobaciones siguen pendientes en servidor.
+
+## DEC-03 — universos de adopción y métricas — 7 de octubre de 2026
+
+Se acordó separar solicitudes de registro (embudo, incluyendo pendientes y
+rechazadas), empresas aprobadas en el período (adopción) y clientes activos
+(empresa aprobada con suscripción activa o trial). La aprobación no equivale a
+ser cliente pagador/activo. Las cuentas habilitadas deben distinguirse de
+usuarios con actividad. Cada indicador debe mostrar definición, período,
+universo, denominador cuando aplique y zona horaria; MRR y crecimiento
+comercial quedan en Métricas SaaS.
+
+Se precisó que DAU/WAU cuenta usuarios únicos de empresas con actividad humana,
+excluye ADMIN de plataforma y eventos automáticos, y usa `America/Santiago`
+para los límites de día y semana. El tratamiento de empresas con pagos
+atrasados y otros estados no estándar de suscripción queda pendiente de
+validación con el cliente. Los acuerdos de definición no validan los cálculos
+actuales; se requieren pruebas con datos conocidos.
+
+## DEC-04 — umbrales de riesgo e inactividad — 7 de octubre de 2026
+
+Se acordaron como umbrales iniciales, revisables: acreditación bajo 70% para
+empresas aprobadas con documentos obligatorios evaluables; tres o más
+documentos requeridos faltantes/vencidos dentro de un mismo contrato; y 30 días
+sin actividad humana registrada para una empresa aprobada que tenga usuarios
+habilitados. Se excluyen eventos automáticos del cómputo de inactividad. Sin
+usuarios, sin documentos evaluables o con datos insuficientes son estados
+explícitos, no indicadores de salud ni riesgos con valor cero.
+
+Estos umbrales no se han validado contra todos los casos límite ni implementado
+de forma integral. La inactividad por eventos no equivale a duración real de
+uso, cuya telemetría sigue pendiente según DEC-05.
+
+## DEC-05 — medición de tiempo activo — 7 de octubre de 2026
+
+Se acordó emitir un heartbeat cada 60 segundos solo mientras la sesión esté
+autenticada, la pestaña visible y haya interacción reciente. El tiempo debe
+pausarse después de cinco minutos sin actividad. El intervalo reduce el costo
+de señalización frente a intervalos más frecuentes sin tratar la señal como
+medición continua exacta.
+
+Se acordó guardar un registro por sesión lógica y agregados diarios por
+empresa/usuario, sin almacenar cada heartbeat como evento individual. Los
+registros de sesión y los agregados por usuario son identificables: retención
+propuesta de 90 días; solo agregados no identificables por empresa podrían
+conservarse hasta 12 meses, sujetos a revisión y aprobación de DEC-08.
+
+Se decidió que la métrica principal sea minutos activos medidos divididos por
+usuarios únicos con actividad medida en el período; no se añadirá duración
+promedio por sesión. El período exacto y el tratamiento de sesiones simultáneas
+siguen pendientes. La población de usuarios de empresas excluye ADMIN de
+plataforma según DEC-03. La estimación actual no debe presentarse como
+telemetría real.
+
+## DEC-09 — contrato de error del motivo documental (cerrada) — 7 de octubre de 2026
+
+Se decidió conservar el comportamiento actual por compatibilidad; no se cambia
+la API ni se unifican las respuestas. El parámetro ausente o la longitud
+original fuera de 12–240 caracteres se rechaza con HTTP 422. Si la longitud
+inicial está dentro del rango, pero después de quitar espacios el motivo queda
+bajo 12 caracteres, se rechaza con HTTP 400 y código `MOTIVO_REQUERIDO`.
+
+La evidencia de la primera entrega documenta ambas ramas: motivo ausente/corto
+rechazado por validación inicial y un motivo de doce espacios rechazado tras
+normalizar. También se valida que la descarga cruzada con motivo válido llega
+al control de pertenencia y responde 404. Se cierra la decisión de producto
+para el contrato vigente; cualquier cambio futuro requiere decisión nueva y
+pruebas de compatibilidad.
+
+## DEC-10 — aislamiento contractual y RLS — 7 de octubre de 2026
+
+Se acordó que la autorización del acceso por contrato en la API y las
+credenciales de base de datos de mínimo privilegio son obligatorias. RLS
+contractual podrá añadirse como defensa en profundidad si el contrato activo
+puede establecerse en la base de forma confiable y se prueba correctamente con
+API, workers, ADMIN, reportes agregados y conexiones reutilizadas. Si esa
+propagación no puede hacerse de forma segura, no se debe activar RLS contractual
+de manera parcial o con un contexto que el cliente pueda falsificar; los
+controles de API siguen siendo obligatorios.
+
+Esta es una decisión de diseño, no evidencia de implementación. El código y la
+configuración deben probar autorización negativa entre contratos y empresa,
+credenciales sin superusuario/BYPASSRLS, y el aislamiento de cualquier contexto
+si se adopta RLS. El estado de RF-SEG-01/RNF-SEG-01 continúa pendiente de
+validación integral.
+
+## DEC-03 — clasificación comercial de clientes — 8 de octubre de 2026
+
+Se acordó contar como cliente activo solo a una empresa aprobada con suscripción
+activa o trial. `past_due` se muestra por separado como pago atrasado; estados
+como pausada, incompleta, impaga, cancelada o desconocida se muestran como
+«otro estado/no activo». Ninguno de esos estados cuenta como cliente activo.
+La decisión funcional no valida los cálculos ni las fuentes comerciales.
+
+## DEC-05 — período y sesiones concurrentes — 8 de octubre de 2026
+
+El promedio de minutos activos por usuario único permite seleccionar día,
+últimos 7 días, últimos 30 días o mes calendario, usando límites de días
+calendario en `America/Santiago`: hoy; hoy y los 6 días previos; hoy y los 29
+días previos; o el mes calendario local. Si una persona tiene sesiones
+concurrentes, se suman sus minutos aunque superen el tiempo de reloj: una hora
+activa simultánea en dos sesiones computa dos horas de actividad de sesión para
+esa persona. El denominador continúa siendo usuarios únicos con actividad.
+Implementación y validación siguen pendientes; las reglas no certifican que la
+telemetría actual mida ya ese comportamiento.
+
+## DEC-11 — exportación de datos de negocio y archivos — 8 de octubre de 2026
+
+Se precisó que la exportación ADMIN puede abarcar datos estructurados de una
+empresa, contrato, persona o equipo e incluir los archivos documentales
+asociados. Se acordó el formato ZIP con CSV y documentos organizados por
+carpetas; las relaciones se incluyen por defecto y se pueden desmarcar
+categorías. Toda exportación requiere motivo, debe entregarse para descarga
+inmediata y no conservarse una vez transferida; las generaciones incompletas o
+fallidas deben limpiarse. No se incluyen contraseñas, tokens, secretos ni
+credenciales. Cada entidad/archivo debe respetar autorización y alcance; la
+solicitud, generación, resultado y transferencia deben distinguirse y
+auditarse.
+
+No se fijan límites funcionales de filas ni tamaño: se intentará incluir todo
+el alcance autorizado. Se acordó un CSV por tipo de entidad bajo `/datos` y
+documentos bajo `/archivos/<tipo>/<id>/`, con nombre original saneado y ruta
+registrada en el CSV correspondiente para evitar duplicar el mismo archivo.
+Si la generación falla, se cancela completa, se elimina el paquete incompleto y
+se informa el error; no hay reintento automático, pero el actor puede iniciar
+uno nuevo. Falta validar viabilidad técnica ante volúmenes grandes, además de
+probar autorización y transferencia. Esta decisión funcional no demuestra
+implementación ni validación, y la exportación no sustituye los respaldos de
+RNF-REC-01.
+
+## DEC-12 — ciclo de vida de contratos — 8 de octubre de 2026
+
+Se acordó reemplazar la eliminación física como acción ordinaria por estados
+diferenciados: **desactivado** para una pausa temporal y **finalizado** para el
+cierre del contrato. Ambos se conservan en una sección histórica de solo
+lectura y pueden restaurarse al estado operativo, sin perder contrato,
+trabajadores, equipos, documentos, requisitos ni historial. Las transiciones
+deben registrar actor, fecha y estado anterior/nuevo.
+
+Las fechas de vencimiento continúan avanzando mientras el contrato está en
+histórico. Al restaurarlo, se recalcula el estado vigente y se generan solo las
+alertas/notificaciones aún aplicables, sin reproducir individualmente avisos
+atrasados. `company` puede gestionar sus contratos y ADMIN hacerlo
+globalmente; `contract_admin` solo consulta el histórico dentro de su alcance.
+Desactivación, finalización y restauración exigen motivo y deben auditar actor,
+fecha, motivo y estado anterior/nuevo. Implementación y validación siguen
+pendientes.
+
+## DEC-13 — solicitud de vinculación de cuenta a otra empresa — 8 de octubre de 2026
+
+**Propuesta pendiente de aprobación del cliente:** permitir que una cuenta
+`company` o `contract_admin` solicite vinculación a otra empresa con una
+justificación. La solicitud queda bloqueada hasta autorización explícita de
+ADMIN; no cambia `company_id`, membresía ni permisos mientras espera. Deben
+auditarse la solicitud, la justificación y la decisión.
+
+**Alternativa recomendada, aún no aprobada por el cliente:** transferencia de
+la cuenta, sin membresía simultánea. La persona titular debe aceptar primero;
+después ADMIN revisa y decide. Ambas etapas deben completarse dentro de los 14
+días desde el envío. Solo tras ambas aprobaciones se cambiaría la empresa; se
+retiraría el acceso a la empresa de origen y no se heredarían permisos de
+contratos en destino, que deberían asignarse expresamente. Hasta entonces no
+cambia empresa ni permisos; un rechazo o expiración no transfiere la cuenta.
+El esquema actual tiene un único `company_id` y `contrato_id` por usuario. La
+propuesta no autoriza por sí misma el cambio ni acceso multiempresa. No se ha
+implementado ni validado el flujo.
+
+> **BLOQUEO P0 — GO/NO-GO DE PRODUCCIÓN:** no exponer datos reales hasta que DEC-08 tenga revisión legal/contractual documentada, decisiones definitivas de retención, responsables y aprobaciones identificados, y evidencia de que los controles de privacidad y auditoría están implementados y validados. La propuesta de retención no equivale a aprobación. **Estado actual: pendiente; no hay evidencia de cierre registrada aquí.**
+
+## Evidencia requerida para levantar el bloqueo DEC-08
+
+Registrar en esta validación (o enlazar un acta/control documental aprobado):
+
+- responsable y fecha de la revisión legal/contractual, alcance revisado y conclusión;
+- plazos definitivos de retención aprobados, responsables de custodia y proceso de eliminación/anonimización;
+- aprobación de producto/operación y responsables de implementar, operar y revisar los controles;
+- evidencia técnica de minimización, autorización y auditoría de consultas, manejo de registros históricos y validación de retención;
+- decisión explícita de go/no-go para producción con datos reales, con fecha y aprobadores.
+
+## Decisión de trazabilidad de incidentes (DEC-06) — 7 de octubre de 2026
+
+Se acordó que los incidentes deben conservar contexto útil para investigar qué
+ocurrió y dónde: componente/proceso, operación, momento, resultado/error e
+identificador de correlación cuando estén disponibles. La incidencia se asocia
+a una empresa solo con evidencia verificable; si no se conoce el alcance, se
+presenta como global o indeterminado y no se infiere qué clientes fueron
+afectados. La política de minimización, acceso y retención queda vinculada a
+DEC-08. Esta es una decisión funcional, no una prueba de que el sistema actual
+ya persista o correlacione todos esos campos; implementación y validación
+operacional siguen pendientes.
+
+## Propuesta de auditoría y privacidad (DEC-08) — 7 de octubre de 2026
+
+Se acordó como propuesta registrar únicamente metadatos necesarios para
+investigar: actor, acción, recurso, fecha, resultado e identificador de
+correlación cuando exista. No deben almacenarse contraseñas, tokens, URLs
+firmadas ni contenido de documentos. El motivo se exigirá solo para operaciones
+sensibles según la matriz de permisos; la consulta quedará limitada a ADMIN y
+roles autorizados, y esos accesos también se auditarán.
+
+Retención inicial propuesta: registros de auditoría por 12 meses, logs técnicos
+por 90 días y telemetría identificable por 90 días; métricas agregadas hasta
+12 meses. Una URL emitida no demuestra que el archivo se haya transferido; si
+se necesita acreditar una transferencia, se requerirá evidencia confiable del
+almacenamiento. Los plazos quedan sujetos a revisión legal/contractual antes
+de producción. Esta decisión no prueba que los controles estén implementados:
+faltan su materialización, la matriz de acceso y el tratamiento documentado de
+los registros históricos.
+
+## Búsqueda global y catálogo de referencias — 7 de octubre de 2026
+
+La barra admite varios términos parciales separados por espacios; todos deben
+coincidir con campos de un mismo resultado o con el nombre de su empresa. Por
+ejemplo, una búsqueda puede combinar marca, prefijo de patente, tipo de equipo
+y empresa. El explorador plegable ofrece empresas, cargos, contratos, tipos y
+marcas de equipo; sus valores se activan o desactivan y se muestran como chips
+removibles en la barra, combinados con el texto libre. Se muestran hasta 100
+valores por categoría dinámica. El usuario del proyecto confirmó que los
+resultados revisados no muestran datos sensibles; el catálogo solo entrega
+nombres/categorías de referencia, nunca RUT o correo.
+
+`test_admin_busqueda.py`: **25 aprobadas, 0 fallidas**, incluyendo el catálogo y
+la combinación de marca, patente, tipo y empresa en la misma búsqueda, además
+de la forma no sensible de la respuesta del catálogo. El build frontend de
+producción compiló y verificó tipos. No se hizo un recorrido visual manual de
+la selección/deselección de chips; esa validación queda pendiente.
+
+## Registro y aprobación de empresa — 7 de octubre de 2026
+
+Según la verificación manual informada por el usuario del proyecto, el
+formulario de registro crea la empresa y el usuario inicial en estado pendiente.
+La cuenta espera la autorización de ADMIN; al aprobarla, la empresa y el usuario
+quedan aprobados y el usuario conserva el rol `company`. Este flujo corresponde
+a RF-EMP-02 del SRS v0.24.
+
+El usuario también confirmó que la aprobación queda auditada como una
+actualización, con la descripción exacta
+`Cuenta approved por administrador , verificado por mi parte`.
+
+La evidencia registrada cubre el camino normal de creación y aprobación,
+incluida la categoría y descripción de ese evento. No documenta una prueba
+manual del rechazo, motivo, aprobación/rechazo repetidos, ni una regresión
+automatizada específica de estos casos; se mantienen como pendientes de
+validación.
 
 ## Perfil bloqueado durante «Ver como empresa» — 5 de octubre de 2026
 
@@ -261,7 +566,8 @@ locales existentes. No es una instalación limpia ni un recorrido en navegador.
 
 No se repitió la suite completa, no se modificó la base habitual y no se aplicó
 un despliegue. No sumar estos casos a ejecuciones anteriores. RF-BUS-01 sigue PAR
-por DEC-02 y validación visual; RF-BUS-02 conserva sus permisos granulares pendientes.
+por validación visual; el alcance de DEC-02 se confirmó posteriormente el
+07-10-2026. RF-BUS-02 conserva sus permisos granulares pendientes.
 
 ## Tercera entrega: entradas del buscador — 30 de septiembre de 2026
 
@@ -313,8 +619,9 @@ docker run --rm --network none --mount "type=bind,source=$basePruebas,target=/wo
 No se repitió la suite completa ni el navegador, ni se reinició/migró el entorno
 habitual. No sumar estos 86 casos a los 295 de la entrega anterior. RF-BUS-01
 pasa de COR a PAR, conservando su estimación: quedan validación de entradas y
-límites, alcance de usuarios sin empresa (DEC-02) y permisos granulares
-(RF-BUS-02). AT-05 permanece parcial.
+límites y permisos granulares (RF-BUS-02). El alcance de usuarios sin empresa
+figuraba pendiente en esta validación del 30-09; DEC-02 lo confirma
+posteriormente el 07-10-2026. AT-05 permanece parcial.
 
 ## Revisión documental de brechas — 30 de septiembre de 2026
 

@@ -18,7 +18,8 @@ export default function DashboardGlobalPage() {
   return <div className="space-y-4">
     <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
       <Kpi label="Empresas" valor={fmt(data.empresas_total)} delta={`${fmt(data.aprobadas)} aprobadas`} tono="up" />
-      <Kpi label="Contratos" valor={fmt(data.contratos_total)} />
+      <Kpi label="Contratos activos" valor={fmt(data.contratos_total)}
+        delta={`${fmt(data.contratos_historicos)} en histórico`} />
       <Kpi label="Trabajadores" valor={fmt(data.personal.total)} delta={`${fmt(data.personal.acreditados)} acreditados`} tono="up" />
       <Kpi label="Usuarios" valor={fmt(data.usuarios_total)} delta={`${fmt(data.usuarios_activos)} cuentas habilitadas`} />
     </div>

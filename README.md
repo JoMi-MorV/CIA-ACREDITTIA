@@ -23,11 +23,12 @@ Bash
 cd BASE/app
 docker compose up --build
 
-### Actualización de esquema 9
+### Actualización de esquema 11
 
-La primera entrega de requisitos incorpora `09_indices_consola.sql`: cinco índices
-de claves foráneas y un registro explícito de migraciones. `10_version_sesion.sql`
-añade `users.auth_version` para invalidar accesos anteriores tras revocar/reactivar.
+Las migraciones `09_indices_consola.sql` y `10_version_sesion.sql` crean índices
+administrativos y añaden `users.auth_version`. `11_ciclo_vida_contratos.sql`
+añade estado de ciclo, motivo, actor y fecha de transición, preservando el estado
+operacional existente del contrato.
 Desde `BASE/app`,
 actualizar las imágenes y aplicar la migración antes de recrear los servicios:
 
@@ -37,7 +38,7 @@ docker compose run --rm migrate
 docker compose up -d api worker beat
 ```
 
-Si se configuró `SCHEMA_VERSION_ESPERADA` externamente, usar `9`. La migración
+Si se configuró `SCHEMA_VERSION_ESPERADA` externamente, usar `11`. La migración
 conserva los datos de negocio; crea índices con bloqueo de escritura durante su
 construcción, por lo que en una base grande debe programarse una ventana adecuada.
 La validación automatizada se realiza en PostgreSQL temporal; no aplica cambios
@@ -47,7 +48,7 @@ En Usuarios, las cuentas revocadas tienen la acción **Reactivar** con confirmac
 Conserva identidad, rol y alcance. Revocar o cambiar el estado activo desde ADMIN
 invalida los JWT anteriores y los refresh tokens; el usuario debe iniciar sesión
 nuevamente. Reactivar no aprueba una solicitud pendiente/rechazada. Instalar esquema
-9 antes de arrancar esta versión de API/worker. Las cuentas que ya estaban revocadas
+11 antes de arrancar esta versión de API/worker. Las cuentas que ya estaban revocadas
 también invalidan sus sesiones antiguas al reactivarse.
 
 
@@ -402,8 +403,10 @@ sesiones y documentos procesados.
 Los cambios necesarios se incorporaron en el contrato existente de
 `GET /api/v1/admin/stats`, sin crear un endpoint SaaS paralelo:
 
-- Se agregó la **duración promedio de sesiones** de los últimos 30 días,
-    calculada desde la vida de los refresh tokens registrados.
+- Se agregó el indicador heredado de **duración promedio estimada de sesiones**
+    de los últimos 30 días, calculado desde la vida de los refresh tokens
+    registrados. No es la telemetría real ni la métrica principal acordada en
+    DEC-05.
 - Se agregaron los **usuarios activos diarios (DAU)** y **semanales (WAU)**,
     calculados sobre usuarios que registraron eventos reales de actividad.
 - Se agregaron las series históricas de DAU de 30 días y WAU de 12 semanas
@@ -640,9 +643,9 @@ con enlaces previos. Las rutas Ops antiguas de Plataforma, Usuarios e
 Indicadores también redirigen a sus destinos Admin. `/admin` y la entrada Ops
 abren ahora el Dashboard global.
 
-## Cambios a la fecha — 05-10-2026
+## Cambios a la fecha — 08-10-2026
 
-El documento funcional vigente es el [SRS v0.21](documentacion/SRS.md). Esta
+El documento funcional vigente es el [SRS v0.51](documentacion/SRS.md). Esta
 sección resume los cambios relevantes y el estado conocido a la fecha; no
 sustituye los criterios, pendientes ni evidencias detallados en el SRS y la
 [validación actual](documentacion/VALIDACION_ACTUAL.md).
@@ -657,13 +660,100 @@ sustituye los criterios, pendientes ni evidencias detallados en el SRS y la
 - Consola ADMIN bajo `/admin` para empresas, buscador global, métricas, usuarios,
   auditoría, sistemas, procesos e incidentes. La API administrativa actual usa
   `/api/v1/admin`; mantiene rutas Ops anteriores por compatibilidad.
-- El buscador global ofrece filtros por categoría y catálogos. La ficha de un
-  resultado se expande debajo de su fila; solo queda una abierta y se descartan
-  respuestas tardías al cambiar la búsqueda o selección.
+- El buscador global permite combinar términos parciales de distintos campos
+  del mismo resultado y su empresa relacionada. Su explorador permite activar
+  o quitar referencias de empresas, cargos, contratos, tipos y marcas de
+  equipos desde chips en la barra. La ficha de un resultado se expande debajo
+  de su fila; solo queda una abierta y se descartan respuestas tardías al
+  cambiar la búsqueda o selección.
 - El registro solicita el nombre del usuario inicial, separado de la razón
   social. «Mi perfil» permite editar nombre, correo y contraseña. Al usar
   «Ver como empresa», ADMIN no puede abrir ni modificar su perfil desde ese
   contexto.
+- Se acordó incorporar telemetría real del tiempo activo para Métricas SaaS:
+  sesión autenticada, pestaña visible e interacción reciente, con pausa tras
+  cinco minutos sin actividad y heartbeat cada 60 segundos bajo esas
+  condiciones. Se guardará un registro por sesión lógica y agregados diarios por
+  empresa/usuario, no cada ping. Retención identificable propuesta: 90 días;
+  agregados no identificables por empresa, hasta 12 meses, sujetos a DEC-08.
+  La métrica principal acordada es minutos activos medidos por usuario único con
+  actividad en el período; no se añadirá duración promedio por sesión. El
+  período exacto, tratamiento de sesiones simultáneas e implementación
+  siguen pendientes; la duración actual sigue siendo estimada.
+- Se acordó como propuesta para DEC-08 minimizar y restringir los datos de
+  auditoría, excluir secretos y contenido documental, y definir retenciones
+  diferenciadas: auditoría 12 meses, logs técnicos 90 días y telemetría
+  identificable 90 días; métricas agregadas hasta 12 meses. Los plazos requieren
+  revisión legal/contractual antes de producción y la política aún no está
+  implementada.
+- **Bloqueo P0 de producción con datos reales:** DEC-08 requiere revisión legal
+  y contractual documentada, plazos finales aprobados, responsables y
+  aprobadores identificados, y evidencia de controles implementados y validados.
+  La propuesta actual no es aprobación; no autorizar go-live hasta cerrar y
+  registrar esta evidencia en `documentacion/VALIDACION_ACTUAL.md`.
+- DEC-10 exige autorización de acceso por contrato en la API y credenciales
+  PostgreSQL de mínimo privilegio. RLS contractual es una defensa adicional
+  condicionada a propagar el contexto de forma confiable y validar el caso con
+  API, workers, ADMIN y agregados; la decisión no implica que esa capa ya exista.
+- DEC-01/02 acuerdan operaciones ADMIN ordinarias y agregadas, acceso sensible
+  temporal y auditado, protección del último ADMIN activo, y un buscador de
+  cinco categorías que excluye administradores de plataforma y usuarios sin
+  empresa y no muestra documentos en las fichas. Los controles de servidor y
+  su validación permanecen pendientes.
+- DEC-03 separa solicitudes registradas (embudo), empresas aprobadas (adopción)
+  y clientes activos (empresa aprobada con suscripción activa/trial); también
+  distingue cuentas habilitadas de usuarios con actividad. Cada métrica debe
+  exponer definición, período, universo, denominador cuando aplique y zona
+  horaria. DAU/WAU cuenta usuarios únicos de empresas con actividad humana,
+  excluye ADMIN de plataforma y eventos automáticos, y usa America/Santiago.
+  `past_due` se muestra aparte como pago atrasado y otros estados no activos/
+  trial como «otro estado/no activo»; ninguno cuenta como cliente activo. MRR
+  y crecimiento comercial quedan en Métricas SaaS. La aplicación y validación
+  de los cálculos sigue pendiente.
+- DEC-05 define la métrica de tiempo activo como minutos medidos por usuarios
+  únicos, con período seleccionable de día, últimos 7 días, últimos 30 días o
+  mes calendario, en límites inclusivos de días calendario en
+  `America/Santiago`. Los minutos de sesiones simultáneas se suman aunque
+  excedan el tiempo de reloj. Implementación y validación siguen pendientes.
+- DEC-04 acuerda umbrales iniciales revisables para alertas: acreditación bajo
+  70%, al menos 3 documentos requeridos faltantes/vencidos en un contrato y
+  30 días sin actividad humana registrada para empresas aprobadas con usuarios
+  habilitados. Los casos sin usuarios o sin datos evaluables se distinguen;
+  implementar y probar estos criterios sigue pendiente.
+- DEC-11 precisa que las exportaciones ADMIN pueden incluir datos estructurados
+  de una empresa, contrato, persona o equipo, junto con archivos documentales
+  asociados. Se acordó ZIP con CSV y documentos por carpetas, relaciones
+  incluidas por defecto con opción de desmarcar, motivo obligatorio y descarga
+  inmediata sin conservar el ZIP tras la transferencia. No hay topes funcionales
+  de filas ni tamaño: se intenta incluir todo el alcance autorizado. Si falla,
+  se cancela la exportación completa, se elimina el paquete incompleto y se
+  informa el error, sin reintento automático; el actor puede iniciar otro
+  intento. Habrá un CSV por tipo de entidad en `/datos` y documentos bajo
+  `/archivos/<tipo>/<id>/`, con nombres saneados y ruta referenciada en el CSV.
+  Debe excluir secretos y respetar autorización/auditoría por recurso; falta
+  validar viabilidad ante volúmenes grandes.
+- DEC-12 reemplaza la eliminación ordinaria de contratos por estados separados
+  de desactivación temporal y finalización. Ambos se conservan en histórico de
+  solo lectura, se excluyen de totales/alertas operacionales y no generan
+  nuevas notificaciones. Las fechas continúan corriendo; al restaurar se
+  recalcula el estado actual y se emiten solo avisos vigentes, sin reproducir
+  individualmente notificaciones atrasadas. `company` gestiona contratos
+  propios, ADMIN globalmente y `contract_admin` solo consulta el histórico en
+  su alcance; cada transición exige motivo. Implementación y validación
+  pendientes.
+  Exportar datos no sustituye respaldar y restaurar el sistema.
+- DEC-13 registra como propuesta pendiente de aprobación del cliente una
+  solicitud justificada para vincular una cuenta existente a otra empresa.
+  Primero acepta la persona titular y luego ADMIN revisa y decide; ambas etapas
+  deben completarse dentro de los 14 días desde el envío. Rechazo o expiración
+  no cambian membresía ni permisos. La alternativa recomendada es transferir:
+  retirar el acceso de origen y asignar expresamente los permisos de destino,
+  sin heredar contratos. Sigue pendiente de aprobación del cliente; el esquema
+  actual solo admite un `company_id` y un `contrato_id` por cuenta.
+- El flujo normal de registro de empresa queda pendiente de autorización
+  ADMIN; al aprobarlo, la empresa y el usuario inicial quedan aprobados y el
+  usuario conserva el rol `company`. La verificación manual cubrió la
+  aprobación; rechazo y transiciones repetidas requieren validación separada.
 - El esquema está versionado hasta la versión 9 e incluye invalidación de sesiones
   al cambiar el estado de acceso. La validación de seguridad de conexiones de
   producción no configura por sí sola los roles reales de la base de datos.

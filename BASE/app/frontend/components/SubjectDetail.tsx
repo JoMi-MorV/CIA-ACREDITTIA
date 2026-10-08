@@ -4,7 +4,7 @@ import * as Api from "@/lib/cliente";
 import type {
   Archivo, Documento, Ejemplo, EstadoJob, Revision, SujetoDetalle,
 } from "@/lib/tipos";
-import { Barra, Chip, Modal, Spinner } from "./ui";
+import { Barra, Chip, Modal, Spinner, useDialog } from "./ui";
 
 /**
  * Expediente de un trabajador o de un equipo.
@@ -71,6 +71,7 @@ function FilaDoc({ doc, subiendo, analizando, onSubir, onToggle, onEjemplo, onDe
 }
 
 export default function SubjectDetail({ tipo, id }: { tipo: "personal" | "equipos"; id: string }) {
+  const dialog = useDialog();
   const [data, setData] = useState<SujetoDetalle | null>(null);
   const [subiendo, setSubiendo] = useState<Subiendo | null>(null);
   const [analizando, setAnalizando] = useState<Analizando | null>(null);
@@ -149,7 +150,12 @@ export default function SubjectDetail({ tipo, id }: { tipo: "personal" | "equipo
 
   const descargar = async (doc: Documento, a: Archivo) => {
     setError("");
-    const motivo = window.prompt("Motivo de acceso al documento (mínimo 12 caracteres):");
+    const motivo = await dialog.prompt({
+      title: "Acceso a documento sensible",
+      message: `Indica por qué necesitas acceder a “${a.filename}”. El motivo quedará registrado en auditoría.`,
+      inputLabel: "Motivo del acceso (mínimo 12 caracteres)",
+      minLength: 12,
+    });
     if (!motivo) return;
     try { await Api.descargarArchivo(doc.id, a.id, motivo); }
     catch (e) { setError(Api.mensajeError(e)); }
@@ -169,6 +175,7 @@ export default function SubjectDetail({ tipo, id }: { tipo: "personal" | "equipo
 
   return (
     <div className="space-y-5">
+      {dialog.host}
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="text-2xl font-bold text-brand">{data.nombre}</h1>
         <Chip estado={data.estado} />

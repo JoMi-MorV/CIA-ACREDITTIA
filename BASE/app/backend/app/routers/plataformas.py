@@ -85,7 +85,7 @@ def slug_plataforma(nombre: str | None) -> str:
 
 
 def contrato_de_empresa(db: Session, cid: uuid.UUID, contrato_id: uuid.UUID,
-                        user: User) -> Contrato:
+                        user: User, require_active: bool = False) -> Contrato:
     """Contrato de la empresa en curso, o 404.
 
     `require_contrato` acota al contract_admin a su propio contrato y devuelve
@@ -95,6 +95,9 @@ def contrato_de_empresa(db: Session, cid: uuid.UUID, contrato_id: uuid.UUID,
     c = db.get(Contrato, contrato_id)
     if not c or c.company_id != cid:
         raise err(404, "NO_ENCONTRADO", "Contrato no existe")
+    if require_active and c.ciclo_estado != "activo":
+        raise err(409, "CONTRATO_NO_ACTIVO",
+                  "No se puede modificar información de un contrato histórico")
     return c
 
 
@@ -347,7 +350,7 @@ def crear_plataforma(contrato_id: uuid.UUID, body: PlataformaIn,
     estado de acceso) y solo después se inserta la manual. Es la única forma de
     que añadir una plataforma no borre las del mandante.
     """
-    c = contrato_de_empresa(db, cid, contrato_id, user)
+    c = contrato_de_empresa(db, cid, contrato_id, user, require_active=True)
     nombre = (body.nombre or "").strip()
     if not nombre:
         raise err(400, "NOMBRE_REQUERIDO", "El nombre de la plataforma es obligatorio")
@@ -396,7 +399,7 @@ def editar_plataforma(contrato_id: uuid.UUID, pid: uuid.UUID,
     pasar a `solicitada` fija `solicitado_at` y pasar a `activa` fija
     `habilitado_at`, si estaban nulos.
     """
-    c = contrato_de_empresa(db, cid, contrato_id, user)
+    c = contrato_de_empresa(db, cid, contrato_id, user, require_active=True)
     data = body.model_dump(exclude_unset=True)
     if not data:
         raise err(400, "SIN_CAMBIOS", "No se indicó ningún campo a actualizar")
@@ -460,7 +463,7 @@ def eliminar_plataforma(contrato_id: uuid.UUID, pid: uuid.UUID,
     Solo se borran las manuales: una plataforma del mandante no desaparece
     porque la empresa deje de usarla, se desactiva con `estado='sin_acceso'`.
     """
-    c = contrato_de_empresa(db, cid, contrato_id, user)
+    c = contrato_de_empresa(db, cid, contrato_id, user, require_active=True)
     if not confirm:
         raise err(400, "REQUIERE_CONFIRMACION",
                   "Eliminar la plataforma borra sus requisitos y credenciales; "
@@ -519,7 +522,7 @@ def solicitar_acceso(contrato_id: uuid.UUID, pid: uuid.UUID,
     (SIGA, WorkMate, MetaContratas…), la solicitud se encola para que el worker
     la curse; si no, queda registrada para seguimiento manual.
     """
-    c = contrato_de_empresa(db, cid, contrato_id, user)
+    c = contrato_de_empresa(db, cid, contrato_id, user, require_active=True)
     p, materializadas = resolver_plataforma(db, cid, c, pid, materializar=True)
     if p.estado == "activa":
         raise err(409, "PLATAFORMA_ACTIVA",
@@ -709,7 +712,7 @@ def crear_usuario(contrato_id: uuid.UUID, pid: uuid.UUID, body: CredencialIn,
     payload (claim `sub`): así el worker puede comprobar que el JWE que descifra
     es el de la fila que leyó, y una copia entre filas se detecta.
     """
-    c = contrato_de_empresa(db, cid, contrato_id, user)
+    c = contrato_de_empresa(db, cid, contrato_id, user, require_active=True)
     plat, materializadas = resolver_plataforma(db, cid, c, pid, materializar=True)
 
     usuario = (body.usuario or "").strip()
@@ -765,7 +768,7 @@ def editar_usuario(contrato_id: uuid.UUID, pid: uuid.UUID, uid: uuid.UUID,
     La contraseña no se edita por aquí: cambiarla es una rotación y tiene su
     propio endpoint, que es el que deja rastro en el historial de versiones.
     """
-    c = contrato_de_empresa(db, cid, contrato_id, user)
+    c = contrato_de_empresa(db, cid, contrato_id, user, require_active=True)
     plat, _ = resolver_plataforma(db, cid, c, pid)
     cred = _get_credencial(db, cid, plat, uid)
 
@@ -822,7 +825,7 @@ def rotar_usuario(contrato_id: uuid.UUID, pid: uuid.UUID, uid: uuid.UUID,
     `plataforma_credencial_versiones` y avanza `version` y `rotada_at`. Tocar
     esos dos campos a mano rompería la numeración del historial.
     """
-    c = contrato_de_empresa(db, cid, contrato_id, user)
+    c = contrato_de_empresa(db, cid, contrato_id, user, require_active=True)
     plat, _ = resolver_plataforma(db, cid, c, pid)
     cred = _get_credencial(db, cid, plat, uid)
     if cred.estado == "revocada":
@@ -872,7 +875,7 @@ def eliminar_usuario(contrato_id: uuid.UUID, pid: uuid.UUID, uid: uuid.UUID,
                      cid: uuid.UUID = Depends(get_company_id),
                      user: User = Depends(get_current_user)):
     """Elimina la cuenta. El historial de versiones cae por cascada de la BD."""
-    c = contrato_de_empresa(db, cid, contrato_id, user)
+    c = contrato_de_empresa(db, cid, contrato_id, user, require_active=True)
     plat, _ = resolver_plataforma(db, cid, c, pid)
     cred = _get_credencial(db, cid, plat, uid)
     usuario, version = cred.usuario, cred.version

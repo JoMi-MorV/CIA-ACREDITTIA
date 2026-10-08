@@ -7,13 +7,14 @@ el aislamiento y la confidencialidad dejan de estar garantizados por el motor.
 from __future__ import annotations
 
 import sqlalchemy as sa
+import pytest
 
 from app.database import SCHEMA_VERSION, schema_version
 
 
 def test_version_de_esquema(esquema):
     """Los scripts de negocio y consola instalan la versión exigida por la API."""
-    assert SCHEMA_VERSION == 9
+    assert SCHEMA_VERSION == 11
     assert schema_version() == SCHEMA_VERSION
 
 
@@ -23,23 +24,21 @@ def test_health_esquema(app_cliente):
     assert r.json() == {"status": "ok", "schema_version": SCHEMA_VERSION}
 
 
-def test_esquema_10_heredado_compatible_sin_cambiar_datos(motor_admin, monkeypatch):
-    """El esquema 10 solo añade users.rut nullable, que la app ya no consulta."""
+def test_esquema_futuro_exige_migrar_antes_de_arrancar(motor_admin, monkeypatch):
     from app import database
     monkeypatch.setattr(database, "engine", motor_admin)
     with motor_admin.begin() as conn:
         conn.execute(sa.text("ALTER TABLE users ADD COLUMN IF NOT EXISTS rut text"))
         conn.execute(sa.text(
-            "INSERT INTO app_schema_migrations (version) VALUES (10) "
+            "INSERT INTO app_schema_migrations (version) VALUES (12) "
             "ON CONFLICT DO NOTHING"))
     try:
-        assert database.schema_version_compatible(10, 9)
-        database.assert_schema_version(9)
-        assert not database.schema_version_compatible(10, 8)
+        assert not database.schema_version_compatible(12, 11)
+        with pytest.raises(RuntimeError):
+            database.assert_schema_version(11)
     finally:
         with motor_admin.begin() as conn:
-            conn.execute(sa.text("DELETE FROM app_schema_migrations WHERE version = 10"))
-            conn.execute(sa.text("ALTER TABLE users DROP COLUMN IF EXISTS rut"))
+            conn.execute(sa.text("DELETE FROM app_schema_migrations WHERE version = 12"))
 
 
 def test_migracion_indices_desde_v7_repetible(motor_admin, monkeypatch):
@@ -57,8 +56,8 @@ def test_migracion_indices_desde_v7_repetible(motor_admin, monkeypatch):
         conn.execute(sa.text("DELETE FROM app_schema_migrations WHERE version >= 8"))
     try:
         assert database.schema_version() == 7
-        assert database.apply_schema() == 9
-        assert database.apply_schema() == 9
+        assert database.apply_schema() == 11
+        assert database.apply_schema() == 11
         test_foreign_keys_con_indice(motor_admin)
         with motor_admin.connect() as conn:
             assert conn.execute(sa.text("SELECT count(*) FROM ops_jobs")).scalar() == antes
@@ -75,8 +74,8 @@ def test_migracion_sesion_desde_v8(motor_admin, monkeypatch):
         conn.execute(sa.text("DELETE FROM app_schema_migrations WHERE version >= 9"))
     try:
         assert database.schema_version() == 8
-        assert database.apply_schema() == 9
-        assert database.apply_schema() == 9
+        assert database.apply_schema() == 11
+        assert database.apply_schema() == 11
         with motor_admin.connect() as conn:
             assert conn.execute(sa.text("SELECT count(*) FROM users WHERE auth_version <> 0 OR auth_version IS NULL")).scalar() == 0
     finally:

@@ -6,13 +6,14 @@ import * as Api from "@/lib/cliente";
 import type {
   ActividadFila, Alerta, Contrato, Documento, Matriz, Pagina, Revision, Sujeto,
 } from "@/lib/tipos";
-import { Barra, Chip, Kpi, Modal, Paginador, SEVERIDAD_LABEL, Spinner } from "@/components/ui";
+import { Barra, Chip, Kpi, Modal, Paginador, SEVERIDAD_LABEL, Spinner, useDialog } from "@/components/ui";
 
 const TABS = ["Resumen", "Docs. empresa", "Personal", "Equipos", "Matriz",
   "Alertas", "Historial"] as const;
 type Tab = (typeof TABS)[number];
 
 export default function ContratoDetalle() {
+  const dialog = useDialog();
   const { id } = useParams<{ id: string }>();
   const [c, setC] = useState<Contrato | null>(null);
   const [tab, setTab] = useState<Tab>("Resumen");
@@ -90,7 +91,12 @@ export default function ContratoDetalle() {
 
   const descargar = async (docId: string, archivoId: string) => {
     setError("");
-    const motivo = window.prompt("Motivo de acceso al documento (mínimo 12 caracteres):");
+    const motivo = await dialog.prompt({
+      title: "Acceso a documento sensible",
+      message: "Indica por qué necesitas acceder a este documento. El motivo quedará registrado en auditoría.",
+      inputLabel: "Motivo del acceso (mínimo 12 caracteres)",
+      minLength: 12,
+    });
     if (!motivo) return;
     try { await Api.descargarArchivo(docId, archivoId, motivo); }
     catch (e) { setError(Api.mensajeError(e)); }
@@ -99,6 +105,7 @@ export default function ContratoDetalle() {
   if (!c) return error ? <p className="p-6 text-red-600">{error}</p> : <Spinner />;
   return (
     <div className="space-y-5">
+      {dialog.host}
       <div className="text-sm text-slate-500">
         <Link href="/contratos" className="text-accent hover:underline">Contratos</Link> / {c.nombre}
       </div>

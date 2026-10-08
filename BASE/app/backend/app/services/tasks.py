@@ -243,6 +243,15 @@ def revisar_documento(archivo_id: str, company_id: str,
 
         rid = review.id
         base = dict(review.campos_extraidos or {})
+        contrato_id = (doc.contrato_id
+                       or (doc.sujeto.contrato_id if doc.sujeto else None))
+        contrato = db.get(Contrato, contrato_id) if contrato_id else None
+        if contrato and contrato.ciclo_estado != "activo":
+            review.status = "failed"
+            review.error = "Revisión cancelada: el contrato está en el histórico"
+            db.commit()
+            logger.info("revisión %s cancelada por contrato histórico", rid)
+            return
         _marcar_procesando(db, review)
 
         try:
@@ -278,7 +287,7 @@ def revisar_documento(archivo_id: str, company_id: str,
                     origen="ia", titulo=titulo,
                     descripcion="; ".join(h["mensaje"] for h in errores),
                     documento_id=doc.id, sujeto_id=doc.sujeto_id,
-                    contrato_id=doc.contrato_id,
+                    contrato_id=contrato_id,
                 ))
                 accion = (f"documento mantenido en falta; alerta {severidad} "
                           f"generada ({', '.join(h['codigo'] for h in errores)})")

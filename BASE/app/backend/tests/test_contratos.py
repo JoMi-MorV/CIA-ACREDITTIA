@@ -23,7 +23,8 @@ from app.database import worker_session
 from app.models import ContratoRequisito, RequisitoTemplate
 from app.services.checklist import normalizar
 
-from tests.conftest import API, patente_valida, rut_valido
+from tests.conftest import (API, crear_contract_admin, patente_valida,
+                            rut_valido)
 
 PLATAFORMAS_PELAMBRES = {"SIGA", "DIRECTIC", "SGES", "Academia MLP", "EMSIPOR"}
 
@@ -64,26 +65,123 @@ def test_ia_review_de_otra_empresa_no_se_puede_referenciar(
     assert r.status_code == 404
 
 
-def test_borrar_el_contrato_purga_sujetos_y_archivos(app_cliente, empresa_a,
-                                                    contrato_a):
-    from tests.conftest import subir_archivo
-    app_cliente.post(f"{API}/personal", headers=empresa_a["headers"], json={
+def test_ciclo_de_vida_conserva_datos_y_exige_motivo(
+        app_cliente, admin, empresa_a, contrato_a):
+    sujeto = app_cliente.post(f"{API}/personal", headers=empresa_a["headers"], json={
         "contrato_id": contrato_a["id"], "nombre": "Juan Soto",
-        "rut": rut_valido(21)})
-    doc = app_cliente.get(f"{API}/contratos/{contrato_a['id']}/documentos",
-                          headers=empresa_a["headers"]).json()["items"][0]
-    subir_archivo(app_cliente, empresa_a, doc["id"])
+        "rut": rut_valido(21)}).json()
 
-    r = app_cliente.delete(f"{API}/contratos/{contrato_a['id']}",
-                           headers=empresa_a["headers"])
-    assert r.status_code == 400, "borrar exige confirmación"
-    r = app_cliente.delete(f"{API}/contratos/{contrato_a['id']}?confirm=true",
-                           headers=empresa_a["headers"])
+    url = f"{API}/contratos/{contrato_a['id']}"
+    docs = app_cliente.get(f"{API}/personal/{sujeto['id']}/documentos",
+                           headers=empresa_a["headers"]).json()["items"]
+    cambio = app_cliente.patch(
+        f"{API}/documentos/{docs[0]['id']}", headers=empresa_a["headers"],
+        json={"estado": "ok", "vence": (date.today() - timedelta(days=1)).isoformat()})
+    assert cambio.status_code == 200, cambio.text
+
+    from app.services.vencimientos import recalcular_documentos
+
+    with worker_session(company_id=empresa_a["company_id"]) as db:
+        recalcular_documentos(db, uuid.UUID(empresa_a["company_id"]))
+    alertas_url = f"{API}/alertas?contrato_id={contrato_a['id']}"
+    assert app_cliente.get(alertas_url, headers=empresa_a["headers"]).json()["total"] >= 1
+
+    requisito = app_cliente.post(
+        f"{url}/requisitos", headers=empresa_a["headers"],
+        json={"ambito": "empresa", "titulo": "Control de ciclo contractual"})
+    assert requisito.status_code == 201, requisito.text
+
+    jefe = crear_contract_admin(app_cliente, empresa_a, contrato_a["id"])
+    bloqueada = app_cliente.post(
+        f"{url}/desactivar", headers=jefe["headers"],
+        json={"motivo": "Suspensión solicitada por el administrador"})
+    assert bloqueada.status_code == 403
+
+    r = app_cliente.post(f"{url}/desactivar", headers=empresa_a["headers"],
+                         json={"motivo": " "})
+    assert r.status_code == 422
+
+    r = app_cliente.post(f"{url}/desactivar", headers=empresa_a["headers"],
+                         json={"motivo": "Servicio temporalmente suspendido"})
     assert r.status_code == 200, r.text
-    assert r.json()["sujetos_eliminados"] == 1
-    assert r.json()["archivos_eliminados"] >= 1
-    assert app_cliente.get(f"{API}/contratos/{contrato_a['id']}",
-                           headers=empresa_a["headers"]).status_code == 404
+    assert r.json()["ciclo_estado"] == "desactivado"
+    assert r.json()["ciclo_motivo"] == "Servicio temporalmente suspendido"
+
+    activos = app_cliente.get(f"{API}/contratos", headers=empresa_a["headers"])
+    historicos = app_cliente.get(f"{API}/contratos?ciclo_estado=historico",
+                                 headers=empresa_a["headers"])
+    assert all(c["id"] != contrato_a["id"] for c in activos.json()["items"])
+    assert any(c["id"] == contrato_a["id"] for c in historicos.json()["items"])
+    historicos_jefe = app_cliente.get(
+        f"{API}/contratos?ciclo_estado=historico", headers=jefe["headers"])
+    assert any(c["id"] == contrato_a["id"]
+               for c in historicos_jefe.json()["items"])
+    assert app_cliente.get(
+        alertas_url, headers=empresa_a["headers"]).json()["total"] == 0
+    assert app_cliente.get(
+        f"{url}/requisitos", headers=empresa_a["headers"]).status_code == 200
+    assert app_cliente.post(
+        f"{url}/requisitos", headers=empresa_a["headers"],
+        json={"ambito": "empresa", "titulo": "Cambio en contrato histórico"}
+    ).status_code == 409
+    assert app_cliente.patch(
+        f"{url}/requisitos/{requisito.json()['id']}",
+        headers=empresa_a["headers"], json={"titulo": "Modificado"}).status_code == 409
+    assert app_cliente.delete(
+        f"{url}/requisitos/{requisito.json()['id']}",
+        headers=empresa_a["headers"]).status_code == 409
+    assert app_cliente.put(
+        f"{url}/plantillas/empresa", headers=empresa_a["headers"],
+        json={"requisito_template_ids": []}).status_code == 409
+    assert app_cliente.post(
+        f"{url}/carpeta-arranque", headers=empresa_a["headers"],
+        json={"blob_path": "empresa/arranque.pdf", "filename": "arranque.pdf"}
+    ).status_code == 409
+    with worker_session(company_id=empresa_a["company_id"]) as db:
+        recalcular_documentos(db, uuid.UUID(empresa_a["company_id"]))
+    assert app_cliente.get(
+        alertas_url, headers=empresa_a["headers"]).json()["total"] == 0
+
+    sujetos = app_cliente.get(f"{API}/personal?contrato_id={contrato_a['id']}",
+                             headers=empresa_a["headers"])
+    assert sujetos.json()["total"] == 1
+    cambio = app_cliente.patch(f"{API}/documentos/{docs[0]['id']}",
+                               headers=empresa_a["headers"],
+                               json={"estado": "ok"})
+    assert cambio.status_code == 409
+
+    r = app_cliente.delete(url, headers=empresa_a["headers"])
+    assert r.status_code == 410
+    assert app_cliente.get(url, headers=empresa_a["headers"]).status_code == 200
+
+    r = app_cliente.post(f"{url}/restaurar", headers=empresa_a["headers"],
+                         json={"motivo": "La suspensión temporal ya terminó"})
+    assert r.status_code == 200, r.text
+    assert r.json()["ciclo_estado"] == "activo"
+    assert app_cliente.get(
+        alertas_url, headers=empresa_a["headers"]).json()["total"] >= 1
+
+    admin_headers = {
+        **admin["headers"], "X-Company-Id": empresa_a["company_id"]}
+    r = app_cliente.post(
+        f"{url}/finalizar", headers=admin_headers,
+        json={"motivo": "Cierre ejecutado por administración global"})
+    assert r.status_code == 200, r.text
+    assert r.json()["ciclo_estado"] == "finalizado"
+    r = app_cliente.post(
+        f"{url}/restaurar", headers=admin_headers,
+        json={"motivo": "Restauración autorizada por administración global"})
+    assert r.status_code == 200, r.text
+    assert r.json()["ciclo_estado"] == "activo"
+    historial = app_cliente.get(
+        f"{url}/historial?search=Motivo", headers=empresa_a["headers"])
+    assert historial.status_code == 200, historial.text
+    transiciones = [
+        item for item in historial.json()["items"]
+        if "Motivo:" in item["descripcion"]]
+    assert len(transiciones) >= 4
+    assert any(item["usuario"]["id"] == admin["user_id"]
+               for item in transiciones)
 
 
 # ============================================================================

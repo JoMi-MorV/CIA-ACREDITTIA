@@ -65,15 +65,19 @@ def kpis(db: Session = Depends(get_db),
         return db.scalar(q) or 0
 
     q_contratos = select(func.count()).select_from(Contrato).where(
-        Contrato.company_id == cid, Contrato.estado == "vigente")
+        Contrato.company_id == cid, Contrato.estado == "vigente",
+        Contrato.ciclo_estado == "activo")
     q_faenas = select(func.count(func.distinct(Contrato.faena_id))).where(
-        Contrato.company_id == cid)
+        Contrato.company_id == cid, Contrato.ciclo_estado == "activo")
     if scope:
         q_contratos = q_contratos.where(Contrato.id == scope)
         q_faenas = q_faenas.where(Contrato.id == scope)
 
+    contratos_activos = select(Contrato.id).where(
+        Contrato.company_id == cid, Contrato.ciclo_estado == "activo")
     base_s = select(func.count()).select_from(Sujeto).where(
-        Sujeto.company_id == cid, Sujeto.estado != "baja")
+        Sujeto.company_id == cid, Sujeto.estado != "baja",
+        Sujeto.contrato_id.in_(contratos_activos))
     base_s = _scope_sujeto(base_s, scope)
     p_tot = n(base_s.where(Sujeto.tipo == "trabajador"))
     p_ok = n(base_s.where(Sujeto.tipo == "trabajador", Sujeto.estado == "ok"))
@@ -81,13 +85,19 @@ def kpis(db: Session = Depends(get_db),
     e_ok = n(base_s.where(Sujeto.tipo == "equipo", Sujeto.estado == "ok"))
 
     oblig = select(func.count()).select_from(Documento).where(
-        Documento.company_id == cid, Documento.obligatorio.is_(True))
+        Documento.company_id == cid, Documento.obligatorio.is_(True),
+        Documento.contrato_id.in_(contratos_activos))
     oblig = _scope_documento(oblig, scope)
     d_tot = n(oblig)
     d_ok = n(oblig.where(Documento.estado_calc == "ok"))
 
+    sujetos_activos = select(Sujeto.id).where(
+        Sujeto.company_id == cid, Sujeto.contrato_id.in_(contratos_activos))
     base_a = select(func.count()).select_from(Alerta).where(
-        Alerta.company_id == cid, Alerta.resuelta_at.is_(None))
+        Alerta.company_id == cid, Alerta.resuelta_at.is_(None),
+        or_(Alerta.contrato_id.in_(contratos_activos),
+            Alerta.sujeto_id.in_(sujetos_activos),
+            (Alerta.contrato_id.is_(None) & Alerta.sujeto_id.is_(None))))
     if scope:
         base_a = base_a.where(Alerta.contrato_id == scope)
     return {
@@ -113,7 +123,8 @@ def cumplimiento(p: Page = Depends(paginacion), db: Session = Depends(get_db),
     from .contratos import _stats
 
     scope = contrato_scope(user)
-    q = select(Contrato).where(Contrato.company_id == cid)
+    q = select(Contrato).where(Contrato.company_id == cid,
+                               Contrato.ciclo_estado == "activo")
     if scope:
         q = q.where(Contrato.id == scope)
     if p.search:
@@ -303,7 +314,8 @@ def tendencia(periodo: str = Query("mes"),
     contratos_faena: list[uuid.UUID] | None = None
     if faena_id and not efectivo:
         contratos_faena = list(db.scalars(select(Contrato.id).where(
-            Contrato.company_id == cid, Contrato.faena_id == faena_id)))
+            Contrato.company_id == cid, Contrato.faena_id == faena_id,
+            Contrato.ciclo_estado == "activo")))
 
     hasta = hasta or date.today()
     desde = desde or (hasta - timedelta(days=VENTANA_DEFECTO[periodo]))

@@ -1,79 +1,109 @@
-# Configurar y lanzar la demo con ngrok
+# Configurar y lanzar Acredittia con ngrok
 
-Guía para publicar temporalmente la aplicación web mediante ngrok desde
-Windows. El túnel publica solo el frontend y no añade un segundo diálogo de
-usuario/contraseña; el inicio de sesión propio de Acredittia sigue activo. Este
-procedimiento es para una **demo con datos sintéticos**, no para producción.
+Guía para levantar la aplicación y exponer temporalmente el frontend mediante
+ngrok en **Windows PowerShell** o **Linux**. Los dos procedimientos usan
+Docker Compose y los mismos servicios. El túnel expone el frontend; Next.js
+redirige las llamadas de API por la red interna de Compose.
 
-> **Seguridad:** un token de ngrok fue compartido en el chat. Revócalo desde el
-> dashboard oficial de ngrok y crea uno nuevo antes de continuar. No pegues
-> tokens, contraseñas ni secretos en el chat, en este documento o en archivos
-> versionados. El `.env` local está excluido de Git.
+Este procedimiento es exclusivamente para una **demo con datos sintéticos**.
+No lo uses para producción ni cargues información real de empresas, personas,
+documentos o credenciales.
+
+> **Seguridad:** un token de ngrok fue compartido anteriormente. Revócalo en
+> el dashboard oficial de ngrok y genera uno nuevo antes de continuar. Nunca
+> pegues tokens, contraseñas o secretos en el chat ni los guardes en archivos
+> versionados. El archivo `.env` está excluido de Git.
 
 ## 1. Requisitos
 
-- Docker Desktop instalado y en ejecución.
+- Docker funcionando:
+  - **Windows:** Docker Desktop iniciado.
+  - **Linux:** Docker Engine y el plugin Docker Compose instalados; el usuario
+    debe tener permiso para ejecutar `docker`.
 - Cuenta de ngrok con el dominio reservado
   `unequal-unsolved-twitch.ngrok-free.dev`.
-- Un token ngrok nuevo, creado después de revocar el anterior.
-- PowerShell.
+- Un token ngrok nuevo.
+- Editor de texto para modificar `.env`.
 
-El Compose base usa servicios y credenciales de desarrollo, incluyendo cuentas
-demo conocidas y datos de semilla. No introduzcas información real de empresas,
-personas, documentos ni credenciales.
+El Compose de demostración utiliza configuración de desarrollo, cuentas y
+semillas conocidas. La URL del túnel es pública para quien la conozca; el login
+de Acredittia sigue activo, pero ngrok no agrega Basic Auth ni otro diálogo de
+credenciales.
 
-## 2. Abrir la carpeta de la aplicación
+## 2. Abrir la carpeta `BASE/app`
 
-Abre PowerShell y sitúate en la carpeta `BASE\app` del repositorio:
+Sitúate en `BASE/app`, que contiene `docker-compose.yml`,
+`docker-compose.ngrok.yml` y `.env.example`.
+
+### Windows PowerShell
+
+Abre PowerShell y usa la ruta real del repositorio:
 
 ```powershell
 Set-Location "C:\Users\Amaru\Desktop\ultima acredittia\CIA-ACREDITTIA-main\BASE\app"
-```
-
-Comprueba que están los archivos:
-
-```powershell
 Get-ChildItem docker-compose.yml, docker-compose.ngrok.yml, .env.example
 ```
 
-Si el repositorio está en otra ubicación, reemplaza la ruta por la ubicación
-real.
+Si el repositorio está en otra ubicación, cambia la ruta de `Set-Location`.
 
-## 3. Crear el archivo local `.env`
+### Linux
 
-Si todavía no existe:
+Desde la terminal, usa la ruta donde clonaste el repositorio:
 
-```powershell
-Copy-Item .env.example .env
+```bash
+cd "/ruta/al/repositorio/BASE/app"
+ls docker-compose.yml docker-compose.ngrok.yml .env.example
 ```
 
-Abre `.env` en VS Code:
+Por ejemplo, si lo clonaste en tu carpeta de usuario:
 
-```powershell
-code .env
+```bash
+cd "$HOME/CIA-ACREDITTIA-main/BASE/app"
 ```
 
-Completa los valores **localmente**:
+Los pasos siguientes deben ejecutarse desde esta carpeta en ambos sistemas.
+
+## 3. Crear y completar `.env`
+
+Si `.env` aún no existe, copia la plantilla. Si ya existe, **no la sobrescribas**:
+podrías borrar la configuración local.
+
+### Windows PowerShell
+
+```powershell
+if (-not (Test-Path .env)) { Copy-Item .env.example .env }
+notepad .env
+```
+
+También puedes abrirla en VS Code con `code .env`.
+
+### Linux
+
+```bash
+if [ ! -f .env ]; then cp .env.example .env; fi
+nano .env
+```
+
+Puedes reemplazar `nano` por tu editor de texto preferido.
+
+Completa localmente estas tres variables:
 
 ```dotenv
 NGROK_AUTHTOKEN=PEGA_AQUI_EL_TOKEN_NUEVO
 NGROK_DOMAIN=unequal-unsolved-twitch.ngrok-free.dev
-JWT_SECRET=REEMPLAZAR_POR_SECRETO_ALEATORIO_DE_32_BYTES_O_MAS
+JWT_SECRET=PEGA_AQUI_UN_SECRETO_ALEATORIO
 ```
 
-Indicaciones:
+- `NGROK_AUTHTOKEN`: token nuevo de tu cuenta ngrok; no reutilices el que se
+  compartió anteriormente.
+- `NGROK_DOMAIN`: debe coincidir exactamente con el dominio reservado en ngrok.
+- `JWT_SECRET`: secreto aleatorio propio de al menos 32 bytes. No uses el token
+  ngrok, una contraseña de usuario ni el valor de ejemplo de la plantilla.
 
-- `NGROK_AUTHTOKEN`: token nuevo del dashboard de ngrok; no reutilices el
-  compartido en el chat.
-- `NGROK_DOMAIN`: debe coincidir exactamente con el dominio reservado en la
-  cuenta de ngrok.
-- `JWT_SECRET`: secreto aleatorio único de al menos 32 bytes. No uses el token
-  ngrok como secreto JWT ni una contraseña de usuario.
+### Generar `JWT_SECRET` en Windows PowerShell
 
-### Generar los secretos aleatorios en PowerShell
-
-En una ventana local de PowerShell, genera un secreto JWT con 32 bytes
-criptográficamente aleatorios codificados en Base64:
+Ejecuta el bloque localmente. Imprime un secreto Base64 generado con 32 bytes
+criptográficamente aleatorios:
 
 ```powershell
 $bytes = New-Object byte[] 32
@@ -87,65 +117,73 @@ finally {
 }
 ```
 
-Copia el valor que imprime PowerShell en `JWT_SECRET` dentro de `.env`. Cada
-ejecución genera un secreto distinto. No lo uses como contraseña de ngrok ni lo
-compartas. Si se pierde, genera otro; las sesiones firmadas con el secreto
-anterior dejarán de ser válidas.
+Copia el resultado en `JWT_SECRET` dentro de `.env`. Si reemplazas este secreto
+después de iniciar la aplicación, las sesiones existentes dejarán de ser
+válidas.
 
-No se configura Basic Auth de ngrok en este perfil. Por lo tanto, cualquier
-persona que conozca la URL puede llegar a la pantalla de login de Acredittia.
-El login de la aplicación continúa siendo obligatorio para acceder a funciones
-autenticadas, pero la URL no tiene una segunda contraseña delante.
+### Generar `JWT_SECRET` en Linux
 
-Guarda el archivo y confirma que no está versionado:
+Con OpenSSL instalado:
 
-```powershell
-git check-ignore .env
+```bash
+openssl rand -base64 32
 ```
 
-El comando debe mostrar `.env` o `BASE/app/.env`. No ejecutes comandos que
-impriman el contenido completo del archivo en una consola compartida ni lo
-envíes por chat.
+Copia el resultado en `JWT_SECRET` dentro de `.env`. No guardes el secreto en
+este documento ni lo incluyas en comandos que vayas a compartir o publicar.
 
-## 4. Validar la configuración
+Guarda `.env` y comprueba que Git lo ignora. No imprimas el contenido del
+archivo:
 
-Desde `BASE\app`, ejecuta:
+```text
+Windows PowerShell: git check-ignore .env
+Linux:              git check-ignore .env
+```
 
-```powershell
+El comando debe indicar que `.env` está ignorado. Si no lo está, detente y
+comprueba `.gitignore` antes de continuar.
+
+## 4. Validar y construir
+
+Ejecuta desde `BASE/app`; los comandos Compose son iguales en Windows y Linux:
+
+```bash
 docker compose -f docker-compose.yml -f docker-compose.ngrok.yml config --quiet
 ```
 
-Si Compose informa que falta alguna variable, vuelve al paso 3 y verifica que
-guardaste `.env` en `BASE\app` y que cada variable tiene un valor.
+Si Compose indica que falta `NGROK_AUTHTOKEN`, `NGROK_DOMAIN` o `JWT_SECRET`,
+revisa que guardaste `.env` en `BASE/app` y que completaste cada variable.
+No compartas la salida de comandos que pudiera incluir secretos.
 
-## 5. Construir e iniciar servicios y túnel
+Construye y levanta los servicios en segundo plano:
 
-```powershell
+```bash
 docker compose -f docker-compose.yml -f docker-compose.ngrok.yml up --build -d
 ```
 
 Revisa el estado:
 
-```powershell
+```bash
 docker compose -f docker-compose.yml -f docker-compose.ngrok.yml ps
 ```
 
-Consulta los registros del túnel si algún servicio no inicia:
+Consulta los registros de ngrok y de los servicios si no arrancan:
 
-```powershell
+```bash
 docker compose -f docker-compose.yml -f docker-compose.ngrok.yml logs --tail 100 ngrok
+docker compose -f docker-compose.yml -f docker-compose.ngrok.yml logs --tail 100 web api migrate
 ```
 
-Para seguir los registros mientras inicia:
+Para seguir en tiempo real el registro de ngrok:
 
-```powershell
+```bash
 docker compose -f docker-compose.yml -f docker-compose.ngrok.yml logs -f ngrok
 ```
 
-Usa `Ctrl+C` para salir del seguimiento de logs; esto no detiene los
-contenedores.
+Pulsa `Ctrl+C` para dejar de seguir los registros; como los servicios se
+iniciaron con `-d`, esto no los detiene.
 
-## 6. Probar el acceso
+## 5. Abrir y probar la aplicación
 
 Abre en el navegador:
 
@@ -153,46 +191,39 @@ Abre en el navegador:
 https://unequal-unsolved-twitch.ngrok-free.dev
 ```
 
-La URL debe abrir la aplicación sin el diálogo adicional de credenciales de
-ngrok. Luego ingresa desde la pantalla de login de Acredittia. La URL será
-pública para quien la conozca; no compartas datos reales y no publiques ni
-distribuyas cuentas demo conocidas.
+Debe aparecer el login de Acredittia, sin un segundo diálogo de autenticación
+de ngrok. Inicia sesión con una cuenta válida configurada para tu entorno demo.
+No compartas cuentas demo conocidas.
 
-El túnel dirige tráfico al frontend (`web:3000`). La aplicación usa el proxy
-del frontend para las rutas de API. PostgreSQL no publica un puerto al host;
-Redis, API, frontend e inspector local de ngrok quedan ligados a `127.0.0.1`.
-PostgreSQL sigue disponible para los otros contenedores en la red interna de
-Compose.
+El servicio ngrok publica `web:3000`. Las llamadas de API se encaminan dentro
+de Compose; PostgreSQL no publica un puerto al host. Redis, API y el inspector
+local de ngrok están enlazados a `127.0.0.1` para limitar su acceso desde la
+máquina local.
 
-Si necesitas conectar una herramienta local directamente a PostgreSQL durante
-desarrollo, configura temporalmente una publicación local en `docker-compose.yml`
-con un puerto de host libre y limitado a `127.0.0.1`; no publiques la base de
-datos en todas las interfaces para el túnel ngrok.
+## 6. Detener la demo
 
-## 7. Detener la demo
+Desde `BASE/app`, tanto en PowerShell como en Linux:
 
-Al terminar, desde `BASE\app`:
-
-```powershell
+```bash
 docker compose -f docker-compose.yml -f docker-compose.ngrok.yml down
 ```
 
-Esto detiene los contenedores y el túnel, pero conserva los volúmenes locales.
-No añadas `-v` si deseas conservar la base de datos y archivos de demo.
+Esto detiene los servicios y el túnel, pero conserva los volúmenes de base de
+datos y archivos. No añadas `-v` si deseas conservar los datos de demostración.
 
-## 8. Incidentes y límites
+## 7. Incidentes y límites
 
-- Si el token se comparte o aparece en registros/capturas, revócalo y crea otro
-  en ngrok; actualiza `.env` antes de volver a iniciar.
-- Al quitar Basic Auth, el endpoint del túnel queda accesible públicamente. Si
-  necesitas restringir quién puede siquiera llegar al login, vuelve a activar
-  una protección en ngrok o limita el acceso desde el panel de ngrok antes de
-  compartir el enlace.
-- La autenticación propia de Acredittia y Basic Auth del túnel son controles
-  distintos. El Compose de demo usa configuración de desarrollo y cuentas
-  semilla conocidas; no alojes datos reales.
-- Para producción se requiere una configuración distinta: roles de base de
-  datos con mínimo privilegio y RLS efectivo, secretos gestionados fuera del
-  repositorio, almacenamiento privado, configuración de correo/recuperación,
-  migraciones separadas y pruebas de seguridad/aislamiento. Consulta
+- Si el token se comparte o aparece en registros/capturas, revócalo en ngrok,
+  crea uno nuevo y actualiza `.env`.
+- Cualquier persona que conozca el enlace puede llegar al login de Acredittia.
+  Si necesitas impedir incluso el acceso a esa pantalla, configura una
+  protección en ngrok o limita el acceso desde su panel antes de compartir el
+  enlace.
+- No uses datos reales: el Compose base usa configuración de desarrollo,
+  semillas y cuentas demo conocidas.
+- Esta guía no configura un despliegue productivo. Producción requiere
+  identidades de base de datos con mínimo privilegio y RLS efectivo, secretos
+  gestionados fuera del repositorio, almacenamiento privado, correo y
+  recuperación configurados, migraciones separadas y pruebas de seguridad e
+  aislamiento. Consulta
   [DESPLIEGUE_AZURE.md](../BASE/app/backend/DESPLIEGUE_AZURE.md).

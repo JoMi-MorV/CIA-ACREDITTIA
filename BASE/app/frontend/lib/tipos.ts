@@ -375,6 +375,9 @@ export type Contrato = {
   nombre: string;
   codigo: string | null;
   estado: EstadoContrato;
+  ciclo_estado: "activo" | "desactivado" | "finalizado";
+  ciclo_actualizado_at: string | null;
+  ciclo_motivo: string | null;
   fecha_inicio: string | null;
   fecha_termino: string | null;
   renovacion_automatica: boolean;
@@ -810,6 +813,7 @@ export type EmpresaDetalle = Empresa & {
     usuarios: number;
     usuarios_activos: number;
     contratos: number;
+    contratos_historicos: number;
     contratos_vigentes: number;
     personal: { total: number; acreditados: number };
     equipos: { total: number; acreditados: number };
@@ -825,6 +829,7 @@ export type AdminStats = {
   aprobadas: number;
   rechazadas: number;
   contratos_total: number;
+  contratos_historicos: number;
   faenas_total: number;
   faenas_activas: number;
   plantillas_activas: number;
@@ -942,6 +947,20 @@ export type FiltrosBusquedaGlobal = {
   anio?: number;
   rol?: string;
   es_demo?: boolean;
+};
+
+export type CatalogosBusquedaGlobal = {
+  empresas: string[];
+  contratos: string[];
+  cargos: string[];
+  tipos_equipo: string[];
+  marcas: string[];
+  hay_mas: {
+    empresas: boolean;
+    contratos: boolean;
+    cargos: boolean;
+    marcas: boolean;
+  };
 };
 
 export type PlantillaAdmin = PlantillaRequisito & {

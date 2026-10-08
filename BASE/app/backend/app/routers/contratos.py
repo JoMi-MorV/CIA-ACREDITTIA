@@ -30,12 +30,11 @@ from ..database import get_db
 from ..deps import (Page, aplicar_orden, contrato_scope, err, get_company_id,
                     get_current_user, paginacion, require_contrato, sobre)
 from ..models import (
-    Actividad, Alerta, Contrato, Documento, DocumentoArchivo, Faena, IaReview,
+    Actividad, Alerta, Contrato, Documento, Faena, IaReview,
     Sujeto, User,
 )
 from ..services import actividad
 from ..services.checklist import instanciar_docs, normalizar, stats_sujeto
-from ..services.storage import get_storage
 
 logger = logging.getLogger("acredittia.contratos")
 
@@ -69,6 +68,10 @@ class ContratoPatch(BaseModel):
     fecha_termino: date | None = None
     renovacion_automatica: bool | None = None
     estado: str | None = None
+
+
+class ContratoMotivo(BaseModel):
+    motivo: str
 
 
 class AnalizarIn(BaseModel):
@@ -138,6 +141,10 @@ def _out(db: Session, c: Contrato, con_stats: bool = True) -> dict:
     d = {
         "id": str(c.id), "nombre": c.nombre, "codigo": c.codigo,
         "estado": c.estado,
+        "ciclo_estado": c.ciclo_estado,
+        "ciclo_actualizado_at": (c.ciclo_actualizado_at.isoformat()
+                                 if c.ciclo_actualizado_at else None),
+        "ciclo_motivo": c.ciclo_motivo,
         "fecha_inicio": c.fecha_inicio.isoformat() if c.fecha_inicio else None,
         "fecha_termino": c.fecha_termino.isoformat() if c.fecha_termino else None,
         "renovacion_automatica": c.renovacion_automatica,
@@ -157,6 +164,7 @@ def _out(db: Session, c: Contrato, con_stats: bool = True) -> dict:
 @router.get("")
 def listar(faena_id: uuid.UUID | None = Query(None),
            estado: str | None = Query(None),
+           ciclo_estado: str = Query("activo", pattern="^(activo|desactivado|finalizado|historico)$"),
            p: Page = Depends(paginacion),
            db: Session = Depends(get_db),
            cid: uuid.UUID = Depends(get_company_id),
@@ -166,6 +174,10 @@ def listar(faena_id: uuid.UUID | None = Query(None),
         raise err(400, "ESTADO_INVALIDO",
                   f"Estado debe ser uno de: {', '.join(ESTADOS)}")
     q = select(Contrato).where(Contrato.company_id == cid)
+    if ciclo_estado == "historico":
+        q = q.where(Contrato.ciclo_estado.in_(("desactivado", "finalizado")))
+    else:
+        q = q.where(Contrato.ciclo_estado == ciclo_estado)
     scope = contrato_scope(user)
     if scope:
         q = q.where(Contrato.id == scope)
@@ -245,6 +257,9 @@ def editar(contrato_id: uuid.UUID, body: ContratoPatch,
            cid: uuid.UUID = Depends(get_company_id),
            user: User = Depends(get_current_user)):
     c = _get_contrato(db, cid, contrato_id, user)
+    if c.ciclo_estado != "activo":
+        raise err(409, "CONTRATO_NO_ACTIVO",
+                  "Restaura el contrato antes de modificar sus datos")
     data = body.model_dump(exclude_unset=True)
     if not data:
         raise err(400, "SIN_CAMBIOS", "No se indicó ningún campo a modificar")
@@ -266,38 +281,81 @@ def editar(contrato_id: uuid.UUID, body: ContratoPatch,
     return _out(db, c)
 
 
-@router.delete("/{contrato_id}")
-def eliminar(contrato_id: uuid.UUID, confirm: bool = Query(False),
-             db: Session = Depends(get_db),
-             cid: uuid.UUID = Depends(get_company_id),
-             user: User = Depends(get_current_user)):
-    """Borra el contrato y todo lo que cuelga de él. Exige confirm con dotación."""
+def _transicionar_ciclo(contrato_id: uuid.UUID, destino: str, body: ContratoMotivo,
+                        db: Session, cid: uuid.UUID, user: User) -> dict:
+    if user.role == "contract_admin":
+        raise err(403, "SOLO_GESTOR_EMPRESA",
+                  "Solo la empresa o ADMIN puede gestionar el ciclo del contrato")
+    motivo = body.motivo.strip()
+    if len(motivo) < 12:
+        raise err(422, "MOTIVO_CORTO", "El motivo debe tener al menos 12 caracteres")
     c = _get_contrato(db, cid, contrato_id, user)
-    n_sujetos = db.scalar(select(func.count()).select_from(Sujeto).where(
-        Sujeto.company_id == cid, Sujeto.contrato_id == c.id)) or 0
-    if n_sujetos and not confirm:
-        raise err(400, "REQUIERE_CONFIRMACION",
-                  f"El contrato tiene {n_sujetos} sujetos asociados; "
-                  "repita con confirm=true")
-    # Los blobs se purgan antes de borrar las filas: después no habría forma de
-    # saber qué rutas quedaron huérfanas en el storage.
-    archivos = list(db.scalars(
-        select(DocumentoArchivo)
-        .join(Documento, Documento.id == DocumentoArchivo.documento_id)
-        .where(DocumentoArchivo.company_id == cid,
-               or_(Documento.contrato_id == c.id,
-                   Documento.sujeto_id.in_(select(Sujeto.id).where(
-                       Sujeto.company_id == cid, Sujeto.contrato_id == c.id))))))
-    storage = get_storage()
-    for a in archivos:
-        storage.delete(a.blob_path)
-    nombre = c.nombre
-    db.delete(c)      # cascadas: sujetos, documentos, archivos, alertas, plataformas
-    actividad.log(db, cid, "actualizacion", "contrato",
-                  f"Contrato '{nombre}' eliminado", user_id=user.id)
+    anterior = c.ciclo_estado
+    if destino == "activo":
+        if anterior == "activo":
+            raise err(409, "CONTRATO_YA_ACTIVO", "El contrato ya está activo")
+    elif anterior != "activo":
+        raise err(409, "CONTRATO_NO_ACTIVO",
+                  "El contrato ya se encuentra en el histórico")
+
+    c.ciclo_estado = destino
+    c.ciclo_actualizado_at = datetime.now(timezone.utc)
+    c.ciclo_motivo = motivo
+    c.ciclo_actor_id = user.id
+    c.updated_at = c.ciclo_actualizado_at
+    if destino != "activo":
+        sujetos_contrato = select(Sujeto.id).where(
+            Sujeto.company_id == cid, Sujeto.contrato_id == c.id)
+        for alerta in db.scalars(select(Alerta).where(
+                Alerta.company_id == cid, Alerta.resuelta_at.is_(None),
+                or_(Alerta.contrato_id == c.id,
+                    Alerta.sujeto_id.in_(sujetos_contrato)))):
+            alerta.estado = "resuelta"
+            alerta.resuelta_at = c.ciclo_actualizado_at
+    accion = {"desactivado": "desactivacion", "finalizado": "finalizacion",
+              "activo": "restauracion"}[destino]
+    actividad.log(
+        db, cid, "actualizacion", "contrato",
+        f"Contrato '{c.nombre}' {accion}. Motivo: {motivo}",
+        user_id=user.id, entidad_tipo="contrato", entidad_id=c.id,
+        metadata={"ciclo_estado_anterior": anterior,
+                  "ciclo_estado_nuevo": destino, "motivo": motivo},
+    )
     db.commit()
-    return {"ok": True, "sujetos_eliminados": n_sujetos,
-            "archivos_eliminados": len(archivos)}
+    if destino == "activo":
+        from ..services.vencimientos import recalcular_documentos
+        recalcular_documentos(db, cid, contrato_id=c.id)
+    return _out(db, c)
+
+
+@router.post("/{contrato_id}/desactivar")
+def desactivar(contrato_id: uuid.UUID, body: ContratoMotivo,
+               db: Session = Depends(get_db),
+               cid: uuid.UUID = Depends(get_company_id),
+               user: User = Depends(get_current_user)):
+    return _transicionar_ciclo(contrato_id, "desactivado", body, db, cid, user)
+
+
+@router.post("/{contrato_id}/finalizar")
+def finalizar(contrato_id: uuid.UUID, body: ContratoMotivo,
+              db: Session = Depends(get_db),
+              cid: uuid.UUID = Depends(get_company_id),
+              user: User = Depends(get_current_user)):
+    return _transicionar_ciclo(contrato_id, "finalizado", body, db, cid, user)
+
+
+@router.post("/{contrato_id}/restaurar")
+def restaurar(contrato_id: uuid.UUID, body: ContratoMotivo,
+              db: Session = Depends(get_db),
+              cid: uuid.UUID = Depends(get_company_id),
+              user: User = Depends(get_current_user)):
+    return _transicionar_ciclo(contrato_id, "activo", body, db, cid, user)
+
+
+@router.delete("/{contrato_id}", status_code=410)
+def eliminar_contrato(contrato_id: uuid.UUID):
+    raise err(410, "BORRADO_DESHABILITADO",
+              "El borrado físico de contratos está deshabilitado; desactívalo o finalízalo")
 
 
 # ============================================================================

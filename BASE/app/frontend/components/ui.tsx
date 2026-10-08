@@ -1,5 +1,5 @@
 "use client";
-import { ReactNode } from "react";
+import { ReactNode, useEffect, useState } from "react";
 
 export const ESTADO_LABEL: Record<string, string> = {
   ok: "Vigente", falta: "Pendiente", venc: "Vencido", porvenc: "Por vencer",
@@ -70,18 +70,131 @@ export function Kpi({ titulo, valor, sub, color }: { titulo: string; valor: Reac
 export function Modal({ abierto, titulo, onCerrar, children, ancho = "max-w-lg" }: {
   abierto: boolean; titulo: string; onCerrar: () => void; children: ReactNode; ancho?: string;
 }) {
+  useEffect(() => {
+    if (!abierto) return;
+    const escapar = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onCerrar();
+    };
+    window.addEventListener("keydown", escapar);
+    return () => window.removeEventListener("keydown", escapar);
+  }, [abierto, onCerrar]);
+
   if (!abierto) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onCerrar}>
-      <div className={`w-full ${ancho} max-h-[85vh] overflow-y-auto rounded-xl bg-white p-5 shadow-xl`} onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      onClick={onCerrar}>
+      <div role="dialog" aria-modal="true" aria-labelledby="modal-titulo"
+        className={`w-full ${ancho} max-h-[85vh] overflow-y-auto rounded-xl bg-white p-5 shadow-xl`}
+        onClick={(e) => e.stopPropagation()}>
         <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-lg font-bold text-brand">{titulo}</h3>
-          <button onClick={onCerrar} className="text-2xl leading-none text-slate-400 hover:text-slate-700">×</button>
+          <h3 id="modal-titulo" className="text-lg font-bold text-brand">{titulo}</h3>
+          <button aria-label="Cerrar ventana" onClick={onCerrar}
+            className="text-2xl leading-none text-slate-400 hover:text-slate-700">×</button>
         </div>
         {children}
       </div>
     </div>
   );
+}
+
+type ConfirmOptions = {
+  title: string;
+  message: string;
+  confirmLabel?: string;
+  danger?: boolean;
+  doubleConfirm?: boolean;
+};
+type PromptOptions = ConfirmOptions & {
+  inputLabel: string;
+  minLength?: number;
+  maxLength?: number;
+};
+type DialogRequest =
+  | { kind: "confirm"; options: ConfirmOptions; resolve: (value: boolean) => void }
+  | { kind: "prompt"; options: PromptOptions; resolve: (value: string | null) => void }
+  | { kind: "alert"; options: Pick<ConfirmOptions, "title" | "message">; resolve: () => void };
+
+export function useDialog() {
+  const [request, setRequest] = useState<DialogRequest | null>(null);
+  const [input, setInput] = useState("");
+  const [step, setStep] = useState(0);
+  const [acknowledged, setAcknowledged] = useState(false);
+
+  useEffect(() => {
+    setInput("");
+    setStep(0);
+    setAcknowledged(false);
+  }, [request]);
+
+  const confirm = (options: ConfirmOptions) => new Promise<boolean>((resolve) => {
+    setRequest({ kind: "confirm", options, resolve });
+  });
+  const prompt = (options: PromptOptions) => new Promise<string | null>((resolve) => {
+    setRequest({ kind: "prompt", options, resolve });
+  });
+  const alert = (options: Pick<ConfirmOptions, "title" | "message">) =>
+    new Promise<void>((resolve) => setRequest({ kind: "alert", options, resolve }));
+
+  const close = () => {
+    if (!request) return;
+    if (request.kind === "confirm") request.resolve(false);
+    else if (request.kind === "prompt") request.resolve(null);
+    else request.resolve();
+    setRequest(null);
+  };
+
+  const host = request ? (
+    <Modal abierto titulo={request.options.title} onCerrar={close}>
+      <div className="space-y-4">
+        <p className="whitespace-pre-line text-sm text-slate-700">{request.options.message}</p>
+        {request.kind === "prompt" && (
+          <label className="block">
+            <span className="mb-1 block text-sm font-medium text-slate-700">
+              {request.options.inputLabel}
+            </span>
+            <textarea autoFocus className="input min-h-24" value={input}
+              onChange={(e) => setInput(e.target.value)}
+              minLength={request.options.minLength ?? 0}
+              maxLength={request.options.maxLength ?? 1000} required />
+          </label>
+        )}
+        {request.kind === "confirm" && request.options.doubleConfirm && step === 1 && (
+          <label className="flex items-start gap-2 text-sm text-slate-700">
+            <input type="checkbox" checked={acknowledged}
+              onChange={(e) => setAcknowledged(e.target.checked)} />
+            Entiendo el impacto de esta acción y deseo continuar.
+          </label>
+        )}
+        <div className="flex justify-end gap-2">
+          <button type="button" className="btn-ghost" onClick={close}>Cancelar</button>
+          {request.kind === "alert" ? (
+            <button type="button" className="btn-primary" onClick={close} autoFocus>Entendido</button>
+          ) : request.kind === "confirm" ? (
+            <button type="button"
+              className={request.options.danger ? "rounded-lg bg-red-700 px-4 py-2 font-semibold text-white hover:bg-red-800" : "btn-primary"}
+              disabled={request.options.doubleConfirm && step === 1 && !acknowledged}
+              autoFocus
+              onClick={() => {
+                if (request.options.doubleConfirm && step === 0) setStep(1);
+                else { request.resolve(true); setRequest(null); }
+              }}>
+              {request.options.doubleConfirm && step === 0
+                ? "Continuar" : request.options.confirmLabel ?? "Confirmar"}
+            </button>
+          ) : (
+            <button type="button" className="btn-primary"
+              autoFocus
+              disabled={input.trim().length < (request.options.minLength ?? 0)}
+              onClick={() => { request.resolve(input.trim()); setRequest(null); }}>
+              {request.options.confirmLabel ?? "Continuar"}
+            </button>
+          )}
+        </div>
+      </div>
+    </Modal>
+  ) : null;
+
+  return { confirm, prompt, alert, host };
 }
 
 export function Spinner({ texto = "Cargando..." }: { texto?: string }) {

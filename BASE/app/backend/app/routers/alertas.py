@@ -25,7 +25,7 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..deps import (Page, aplicar_orden, contrato_scope, err, get_company_id,
                     get_current_user, paginacion, require_contrato, sobre)
-from ..models import Alerta, User
+from ..models import Alerta, Contrato, Sujeto, User
 from ..services import actividad
 
 logger = logging.getLogger("acredittia.alertas")
@@ -73,8 +73,12 @@ def _get_alerta(db: Session, cid: uuid.UUID, alerta_id: uuid.UUID,
     a = db.get(Alerta, alerta_id)
     if not a or a.company_id != cid:
         raise err(404, "NO_ENCONTRADO", "Alerta no existe")
-    if a.contrato_id:
-        require_contrato(a.contrato_id, user)
+    contrato_id = a.contrato_id
+    if not contrato_id and a.sujeto_id:
+        contrato_id = db.scalar(select(Sujeto.contrato_id).where(
+            Sujeto.id == a.sujeto_id, Sujeto.company_id == cid))
+    if contrato_id:
+        require_contrato(contrato_id, user)
     elif contrato_scope(user):
         # Una alerta sin contrato es de alcance empresa: un contract_admin no la
         # ve, y se responde 404 y no 403 para no revelar su existencia.
@@ -83,8 +87,20 @@ def _get_alerta(db: Session, cid: uuid.UUID, alerta_id: uuid.UUID,
 
 
 def _base(cid: uuid.UUID, scope: uuid.UUID | None):
+    contratos_activos = select(Contrato.id).where(
+        Contrato.company_id == cid, Contrato.ciclo_estado == "activo")
+    sujetos_activos = select(Sujeto.id).where(
+        Sujeto.company_id == cid, Sujeto.contrato_id.in_(contratos_activos))
     q = select(Alerta).where(Alerta.company_id == cid)
-    return q.where(Alerta.contrato_id == scope) if scope else q
+    if scope:
+        sujetos_alcance = select(Sujeto.id).where(
+            Sujeto.company_id == cid, Sujeto.contrato_id == scope)
+        return q.where(or_(Alerta.contrato_id == scope,
+                           Alerta.sujeto_id.in_(sujetos_alcance)))
+    return q.where(or_(
+        Alerta.contrato_id.in_(contratos_activos),
+        Alerta.sujeto_id.in_(sujetos_activos),
+        (Alerta.contrato_id.is_(None) & Alerta.sujeto_id.is_(None))))
 
 
 @router.get("")
@@ -138,22 +154,23 @@ def resumen(db: Session = Depends(get_db),
             user: User = Depends(get_current_user)):
     """Contadores de la campana de notificaciones."""
     scope = contrato_scope(user)
-    base = select(func.count()).select_from(Alerta).where(Alerta.company_id == cid)
-    if scope:
-        base = base.where(Alerta.contrato_id == scope)
+    base = _base(cid, scope)
     hace30 = datetime.now(timezone.utc) - timedelta(days=30)
+    def contar(*filtros) -> int:
+        return db.scalar(select(func.count()).select_from(
+            base.where(*filtros).subquery())) or 0
+
     return {
-        "criticas": db.scalar(base.where(Alerta.severidad == "critica",
-                                         Alerta.resuelta_at.is_(None))) or 0,
-        "advertencias": db.scalar(base.where(
-            Alerta.severidad.in_(("advertencia", "alta")),
-            Alerta.resuelta_at.is_(None))) or 0,
-        "informativas": db.scalar(base.where(Alerta.severidad == "informativa",
-                                             Alerta.resuelta_at.is_(None))) or 0,
-        "resueltas_30d": db.scalar(base.where(Alerta.resuelta_at >= hace30)) or 0,
-        "no_leidas": db.scalar(base.where(Alerta.leida_at.is_(None),
-                                          Alerta.resuelta_at.is_(None))) or 0,
-        "activas": db.scalar(base.where(Alerta.resuelta_at.is_(None))) or 0,
+        "criticas": contar(Alerta.severidad == "critica",
+                           Alerta.resuelta_at.is_(None)),
+        "advertencias": contar(Alerta.severidad.in_(("advertencia", "alta")),
+                               Alerta.resuelta_at.is_(None)),
+        "informativas": contar(Alerta.severidad == "informativa",
+                               Alerta.resuelta_at.is_(None)),
+        "resueltas_30d": contar(Alerta.resuelta_at >= hace30),
+        "no_leidas": contar(Alerta.leida_at.is_(None),
+                            Alerta.resuelta_at.is_(None)),
+        "activas": contar(Alerta.resuelta_at.is_(None)),
     }
 
 

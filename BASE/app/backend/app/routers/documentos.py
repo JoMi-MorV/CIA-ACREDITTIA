@@ -141,7 +141,8 @@ def _contrato_del_doc(db: Session, d: Documento) -> uuid.UUID | None:
 
 
 def _get_doc(db: Session, cid: uuid.UUID, doc_id: uuid.UUID,
-             user: User | None = None) -> Documento:
+             user: User | None = None,
+             require_active: bool = False) -> Documento:
     d = db.get(Documento, doc_id)
     if not d or d.company_id != cid:
         raise err(404, "NO_ENCONTRADO", "Documento no existe")
@@ -149,6 +150,11 @@ def _get_doc(db: Session, cid: uuid.UUID, doc_id: uuid.UUID,
         contrato_id = _contrato_del_doc(db, d)
         if contrato_id:
             require_contrato(contrato_id, user)
+            if require_active:
+                contrato = db.get(Contrato, contrato_id)
+                if contrato and contrato.ciclo_estado != "activo":
+                    raise err(409, "CONTRATO_NO_ACTIVO",
+                              "No se puede modificar información de un contrato histórico")
     return d
 
 
@@ -265,7 +271,7 @@ def editar(doc_id: uuid.UUID, body: DocPatch, db: Session = Depends(get_db),
     los estados `porvenc` y `venc` no se activarían nunca. Si se derivó se avisa
     con `vence_derivado: true`, porque es una fecha que el usuario no escribió.
     """
-    d = _get_doc(db, cid, doc_id, user)
+    d = _get_doc(db, cid, doc_id, user, require_active=True)
     data = body.model_dump(exclude_unset=True)
     if not data:
         raise err(400, "SIN_CAMBIOS", "No se indicó ningún campo a modificar")
@@ -319,7 +325,7 @@ def upload_url(doc_id: uuid.UUID, body: UploadUrlIn,
     en vano, pero es un dato declarado por el cliente: el tamaño real se vuelve a
     comprobar al confirmar, leyéndolo del propio storage.
     """
-    d = _get_doc(db, cid, doc_id, user)
+    d = _get_doc(db, cid, doc_id, user, require_active=True)
     _valida_extension(body.filename)
     if body.size_bytes is not None:
         if body.size_bytes <= 0:
@@ -359,7 +365,7 @@ def confirmar_archivo(doc_id: uuid.UUID, body: ConfirmarArchivoIn,
     documento sigue en `falta` hasta que el job termina. El frontend hace polling
     con `GET /ia/revisiones/{job_id}`.
     """
-    d = _get_doc(db, cid, doc_id, user)
+    d = _get_doc(db, cid, doc_id, user, require_active=True)
     _valida_extension(body.filename)
 
     blob_path = (body.blob_path or "").strip()
@@ -476,7 +482,7 @@ def borrar_archivo(doc_id: uuid.UUID, archivo_id: uuid.UUID,
                    cid: uuid.UUID = Depends(get_company_id),
                    user: User = Depends(get_current_user)):
     """Borra el archivo y su blob. Sin archivos, el documento vuelve a `falta`."""
-    d = _get_doc(db, cid, doc_id, user)
+    d = _get_doc(db, cid, doc_id, user, require_active=True)
     a = _get_archivo(db, cid, d, archivo_id)
     get_storage().delete(a.blob_path)
     filename = a.filename

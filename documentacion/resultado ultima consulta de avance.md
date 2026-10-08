@@ -1,0 +1,22 @@
+Resultado
+La consola ADMIN tiene una base funcional amplia, pero no cumple todavía todos los requisitos. Mi estimación de cumplimiento es 54%, no 98%.
+
+Es una estimación de avance observable: asigné el mismo peso a cada una de las ocho prioridades y consideré tanto la funcionalidad implementada como sus brechas importantes de autorización, auditoría y validación. No es una certificación de seguridad ni de preparación para producción.
+
+#	Prioridad	Avance estimado	Estado y brechas principales
+1	Dashboard global	65%	Muestra empresas, contratos, trabajadores, usuarios, acreditación, estados documentales y actividad. La serie de actividad cuenta eventos, no crecimiento de adopción; también falta cerrar definiciones y validar todos los universos de los indicadores.
+2	Gestión global de empresas	80%	Hay listado, estados, contratos, trabajadores, uso y última actividad; la vista principal evita RUT y correo. El uso se basa en eventos y la última actividad puede ser automática. Rechazo y algunos casos límite todavía requieren validación.
+3	Buscador global	55%	Busca empresas, contratos, personas, equipos y usuarios, con filtros y fichas. Pero las etiquetas de permisos por categoría no son autorización granular: el router aplica require_admin de forma general. Falta hacer cumplir y probar restricciones por categoría y detalle en el servidor.
+4	Métricas SaaS	45%	Hay clientes activos, sesiones vigentes, DAU/WAU, actividad, revisiones de IA y series comerciales. El tiempo de uso sigue siendo estimado, no telemetría real; además, falta completar la validación de definiciones, períodos y fuentes.
+5	Alertas y salud de clientes	50%	Hay indicadores de acreditación baja, pendientes, vencimientos y morosidad, además de una vista operacional. Falta completar la inactividad en el flujo de salud, validar umbrales y casos límite, resolver límites de las listas y demostrar sondas operacionales reales.
+6	Usuarios, roles y permisos	55%	Se administran roles y alcance por empresa/contrato, se puede revocar o reactivar y se muestra el último acceso. Faltan altas/invitaciones completas, navegación sin límite práctico de 100 usuarios e historial completo de accesos. El modelo actual no permite que una cuenta pertenezca a varias empresas.
+7	Auditoría y trazabilidad	40%	Existe una vista global con actor, empresa, acción, recurso y motivo cuando está disponible. La cobertura no es uniforme: faltan eventos completos de autenticación, cambios anteriores/nuevos en todos los casos y trazabilidad integral de lecturas sensibles, exportaciones y descargas.
+8	Seguridad y aislamiento	42%	Hay autorización en la API y políticas RLS para separar datos por empresa. Sin embargo, ADMIN conserva acceso global, no está implementado el acceso excepcional temporal y limitado a documentos, y falta demostrar la protección con credenciales y configuración equivalentes a producción.
+La consola global y sus métricas están en admin_ops.py y admin.py. Por ejemplo, en la búsqueda las etiquetas de permisos aparecen como datos, mientras que la ruta aplica un requisito general de administrador; por sí solas no restringen resultados por categoría. El modelo de dependencias define el alcance general de ADMIN en deps.py, y las políticas de aislamiento están en 04_rls.sql.
+
+Qué significa el 54%
+No significa que solo exista el 54% de las pantallas: varias prioridades ya tienen funcionalidades visibles. Significa que, al incluir controles efectivos, cobertura de auditoría, comportamiento ante casos límite y evidencia de validación, aún hay brechas sustanciales. En particular, buscador, métricas, auditoría y seguridad no deberían considerarse cerrados solo porque sus vistas o endpoints existan.
+
+El informe funcional del repositorio también clasifica las ocho áreas como parciales o con validación pendiente en RESUMEN_REQUISITOS_ADMIN.md. La regresión reciente de 247 pruebas fue focalizada: no incluyó las suites específicas test_admin.py y test_admin_busqueda.py, ni reemplaza las pruebas de navegador y de despliegue indicadas en VALIDACION_ACTUAL.md.
+
+Prioridades para cerrar antes de declarar cumplimiento: definir y aplicar permisos granulares y mínimo privilegio para ADMIN; completar auditoría de accesos sensibles, autenticación y descargas/exportaciones; implementar telemetría real; y probar aislamiento con la configuración de base de datos prevista para producción. Además, el SRS mantiene un bloqueo explícito para producción con datos reales mientras siga abierta la revisión de privacidad y retención de DEC-08, según SRS.md.

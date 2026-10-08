@@ -438,7 +438,7 @@ def crear_requisitos(contrato_id: uuid.UUID,
     `aplicar_retroactivo=true` se instancia además como documento en estado
     `falta` en los sujetos activos que ya están en el contrato.
     """
-    c = contrato_de_empresa(db, cid, contrato_id, user)
+    c = contrato_de_empresa(db, cid, contrato_id, user, require_active=True)
     entradas = body if isinstance(body, list) else [body]
     es_bulk = bulk or isinstance(body, list)
     if not entradas:
@@ -512,7 +512,7 @@ def editar_requisito(contrato_id: uuid.UUID, rid: uuid.UUID,
                      cid: uuid.UUID = Depends(get_company_id),
                      user: User = Depends(get_current_user)):
     """Edita un requisito personalizado del contrato."""
-    c = contrato_de_empresa(db, cid, contrato_id, user)
+    c = contrato_de_empresa(db, cid, contrato_id, user, require_active=True)
     r = db.get(ContratoRequisito, rid)
     if not r or r.company_id != cid or r.contrato_id != c.id:
         raise err(404, "NO_ENCONTRADO", "Requisito no existe en el contrato")
@@ -575,7 +575,7 @@ def eliminar_requisito(contrato_id: uuid.UUID, rid: uuid.UUID,
     No se tocan los documentos ya instanciados: son expediente y su borrado se
     decide documento a documento.
     """
-    c = contrato_de_empresa(db, cid, contrato_id, user)
+    c = contrato_de_empresa(db, cid, contrato_id, user, require_active=True)
     r = db.get(ContratoRequisito, rid)
     if not r or r.company_id != cid or r.contrato_id != c.id:
         raise err(404, "NO_ENCONTRADO", "Requisito no existe en el contrato")
@@ -608,7 +608,7 @@ def definir_plantilla(contrato_id: uuid.UUID, ambito: str, body: PlantillaIn,
     a lo que se instancie a partir de ahora: no reescribe los documentos que ya
     tienen los sujetos.
     """
-    c = contrato_de_empresa(db, cid, contrato_id, user)
+    c = contrato_de_empresa(db, cid, contrato_id, user, require_active=True)
     if ambito not in AMBITOS:
         raise err(400, "AMBITO_INVALIDO",
                   f"Ámbito debe ser uno de: {', '.join(AMBITOS)}")
@@ -671,7 +671,7 @@ def analizar_carpeta_arranque(contrato_id: uuid.UUID, body: CarpetaArranqueIn,
     resultado del job y confirma lo que quiera con
     `POST /contratos/{id}/requisitos?bulk=true`, que ya omite los duplicados.
     """
-    c = contrato_de_empresa(db, cid, contrato_id, user)
+    c = contrato_de_empresa(db, cid, contrato_id, user, require_active=True)
     ext = os.path.splitext(body.filename or "")[1].lower()
     if ext not in ALLOWED_EXTENSIONS_ARRANQUE:
         raise err(400, "EXTENSION_NO_PERMITIDA",

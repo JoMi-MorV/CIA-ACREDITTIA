@@ -3,9 +3,10 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import * as Api from "@/lib/cliente";
 import { currentUser } from "@/lib/api";
 import type { Contrato, Usuario, UsuarioEmpresa } from "@/lib/tipos";
-import { Chip, Spinner } from "@/components/ui";
+import { Chip, Spinner, useDialog } from "@/components/ui";
 
 export default function ResponsablesContratos() {
+  const dialog = useDialog();
   const [contratos, setContratos] = useState<Contrato[] | null>(null);
   const [usuarios, setUsuarios] = useState<UsuarioEmpresa[] | null>(null);
   const [usuarioActual, setUsuarioActual] = useState<Usuario | null>(null);
@@ -54,12 +55,21 @@ export default function ResponsablesContratos() {
     const elegido = cuentasElegibles.find((usuario) => usuario.id === userId);
     if (!elegido) return;
 
-    if (elegido.role === "company" && !window.confirm(
-      `${elegido.nombre || elegido.email} dejará de tener acceso general de empresa y quedará limitado a este contrato. ¿Continuar?`)) return;
+    if (elegido.role === "company" && !await dialog.confirm({
+      title: "Limitar acceso a un contrato",
+      message: `${elegido.nombre || elegido.email} dejará de tener acceso general de empresa y quedará limitado a este contrato.`,
+      confirmLabel: "Continuar",
+      doubleConfirm: true,
+      danger: true,
+    })) return;
     if (elegido.role === "contract_admin" && elegido.contrato_id !== contrato.id) {
       const contratoAnterior = contratos?.find((item) => item.id === elegido.contrato_id);
-      if (!window.confirm(
-        `${elegido.nombre || elegido.email} dejará ${contratoAnterior?.nombre ?? "su contrato actual"} y quedará asignado a ${contrato.nombre}. ¿Continuar?`)) return;
+      if (!await dialog.confirm({
+        title: "Cambiar contrato asignado",
+        message: `${elegido.nombre || elegido.email} dejará ${contratoAnterior?.nombre ?? "su contrato actual"} y quedará asignado a ${contrato.nombre}.`,
+        confirmLabel: "Cambiar asignación",
+        doubleConfirm: true,
+      })) return;
     }
 
     setGuardando(contrato.id);
@@ -89,8 +99,12 @@ export default function ResponsablesContratos() {
     const asignados = usuarios?.filter((usuario) =>
       usuario.role === "contract_admin" && usuario.contrato_id === contrato.id) ?? [];
     if (!asignados.length) return;
-    if (!window.confirm(
-      `¿Quitar el responsable de ${contrato.nombre}? La cuenta volverá al alcance general de empresa.`)) return;
+    if (!await dialog.confirm({
+      title: "Quitar responsable",
+      message: `¿Quitar el responsable de ${contrato.nombre}? La cuenta volverá al alcance general de empresa.`,
+      confirmLabel: "Quitar responsable",
+      doubleConfirm: true,
+    })) return;
 
     setGuardando(contrato.id);
     setError("");
@@ -113,6 +127,7 @@ export default function ResponsablesContratos() {
 
   return (
     <section className="space-y-4 border-t border-slate-200 pt-5">
+      {dialog.host}
       <header>
         <h2 className="text-xl font-bold text-brand">Responsables de contrato</h2>
         <p className="mt-1 text-sm text-slate-600">

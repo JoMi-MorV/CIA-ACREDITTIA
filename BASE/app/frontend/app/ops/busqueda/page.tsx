@@ -1,17 +1,25 @@
 "use client";
 import { Fragment, useEffect, useRef, useState } from "react";
 import * as Api from "@/lib/cliente";
-import type { BusquedaGlobal, EmpresaDetalle, FiltrosBusquedaGlobal } from "@/lib/tipos";
+import type { BusquedaGlobal, CatalogosBusquedaGlobal, EmpresaDetalle } from "@/lib/tipos";
 import { Card, CardHead, Pill } from "@/components/ops/ui";
+
+type CategoriaReferencia = "empresas" | "cargos" | "contratos" | "tipos_equipo" | "marcas";
+type ReferenciaSeleccionada = { categoria: CategoriaReferencia; valor: string };
+
+const catalogosVacios: CatalogosBusquedaGlobal = {
+  empresas: [],
+  contratos: [],
+  cargos: [],
+  tipos_equipo: [],
+  marcas: [],
+  hay_mas: { empresas: false, contratos: false, cargos: false, marcas: false },
+};
 
 export default function BusquedaGlobalPage() {
   const [query, setQuery] = useState("");
-  const [tipo, setTipo] = useState<"" | BusquedaGlobal["items"][number]["tipo"]>("");
-  const [filtros, setFiltros] = useState({
-    empresa: "", estado: "", cargo: "", conductor: "", tipo_equipo: "",
-    patente: "", marca: "", modelo: "", anio: "", rol: "", es_demo: "",
-  });
-  const [catalogos, setCatalogos] = useState({ cargos: [] as string[], tipos_equipo: [] as string[] });
+  const [referencias, setReferencias] = useState<ReferenciaSeleccionada[]>([]);
+  const [catalogos, setCatalogos] = useState(catalogosVacios);
   const [resultado, setResultado] = useState<BusquedaGlobal | null>(null);
   const items = resultado?.items ?? [];
   const [detalle, setDetalle] = useState<EmpresaDetalle | null>(null);
@@ -21,18 +29,8 @@ export default function BusquedaGlobalPage() {
   const solicitudDetalle = useRef(0);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState("");
-  const filtroEspecifico = tipo === "empresa"
-    ? Boolean(filtros.estado || filtros.es_demo !== "")
-    : tipo === "contrato"
-      ? Boolean(filtros.empresa || filtros.estado)
-      : tipo === "trabajador"
-        ? Boolean(filtros.empresa || filtros.estado || filtros.cargo || filtros.conductor !== "")
-        : tipo === "equipo"
-          ? Boolean(filtros.empresa || filtros.estado || filtros.tipo_equipo || filtros.patente ||
-            filtros.marca || filtros.modelo || filtros.anio)
-          : tipo === "usuario"
-            ? Boolean(filtros.empresa || filtros.estado || filtros.rol)
-            : false;
+  const consultaCompleta = [...referencias.map(({ valor }) => valor), query.trim()]
+    .filter(Boolean).join(" ");
   useEffect(() => {
     let cancelado = false;
     Api.admin.catalogosBusqueda()
@@ -41,7 +39,7 @@ export default function BusquedaGlobalPage() {
     return () => { cancelado = true; };
   }, []);
   useEffect(() => {
-    const termino = query.trim();
+    const termino = consultaCompleta;
     let cancelado = false;
     setResultado(null);
     setDetalle(null);
@@ -49,7 +47,7 @@ export default function BusquedaGlobalPage() {
     setEmpresaDetalleId(null);
     solicitudDetalle.current += 1;
     setError("");
-    if (termino.length < 2 && !filtroEspecifico) {
+    if (termino.length < 2) {
       setCargando(false);
       return () => { cancelado = true; };
     }
@@ -57,31 +55,7 @@ export default function BusquedaGlobalPage() {
     setCargando(true);
     const temporizador = window.setTimeout(async () => {
       try {
-        const opciones: FiltrosBusquedaGlobal = {
-          tipo: tipo || undefined,
-          empresa: filtros.empresa.trim() || undefined,
-        };
-        if (tipo === "empresa") {
-          opciones.estado = filtros.estado || undefined;
-          opciones.es_demo = filtros.es_demo === "" ? undefined : filtros.es_demo === "true";
-        } else if (tipo === "contrato") {
-          opciones.estado = filtros.estado || undefined;
-        } else if (tipo === "trabajador") {
-          opciones.estado = filtros.estado || undefined;
-          opciones.cargo = filtros.cargo.trim() || undefined;
-          opciones.conductor = filtros.conductor === "" ? undefined : filtros.conductor === "true";
-        } else if (tipo === "equipo") {
-          opciones.estado = filtros.estado || undefined;
-          opciones.tipo_equipo = filtros.tipo_equipo.trim() || undefined;
-          opciones.patente = filtros.patente.trim() || undefined;
-          opciones.marca = filtros.marca.trim() || undefined;
-          opciones.modelo = filtros.modelo.trim() || undefined;
-          opciones.anio = filtros.anio ? Number(filtros.anio) : undefined;
-        } else if (tipo === "usuario") {
-          opciones.estado = filtros.estado || undefined;
-          opciones.rol = filtros.rol || undefined;
-        }
-        const respuesta = await Api.admin.buscar(termino, 8, opciones);
+        const respuesta = await Api.admin.buscar(termino);
         if (!cancelado) setResultado(respuesta);
       } catch (e) {
         if (!cancelado) setError(Api.mensajeError(e));
@@ -93,18 +67,35 @@ export default function BusquedaGlobalPage() {
       cancelado = true;
       window.clearTimeout(temporizador);
     };
-  }, [query, tipo, filtros, filtroEspecifico]);
-  const actualizarFiltro = (campo: keyof typeof filtros, valor: string) =>
-    setFiltros((actuales) => ({ ...actuales, [campo]: valor }));
-  const limpiarFiltros = () => setFiltros({
-    empresa: "", estado: "", cargo: "", conductor: "", tipo_equipo: "",
-    patente: "", marca: "", modelo: "", anio: "", rol: "", es_demo: "",
-  });
-  const estados = tipo === "empresa" || tipo === "usuario"
-    ? [["pending", "Pendiente"], ["approved", "Aprobado"], ["rejected", "Rechazado"]]
-    : tipo === "contrato"
-      ? [["vigente", "Vigente"], ["en_evaluacion", "En evaluación"], ["terminado", "Terminado"]]
-      : [["ok", "Acreditado"], ["falta", "Pendiente"], ["venc", "Vencido"], ["proc", "En proceso"], ["baja", "Inactivo"]];
+  }, [consultaCompleta]);
+  const alternarReferencia = (categoria: CategoriaReferencia, valor: string) => {
+    const yaSeleccionada = referencias.some(
+      (referencia) => referencia.categoria === categoria && referencia.valor === valor);
+    const nuevasReferencias = yaSeleccionada
+      ? referencias.filter((referencia) =>
+        referencia.categoria !== categoria || referencia.valor !== valor)
+      : [...referencias, { categoria, valor }];
+    const referenciasQuery = nuevasReferencias.map(({ valor: texto }) => texto).join(" ");
+    const nuevaBusqueda = [referenciasQuery, query.trim()].filter(Boolean).join(" ");
+    if (nuevaBusqueda.length > 100) {
+      setError("No se agregó la referencia: la búsqueda admite hasta 100 caracteres. Quita otra referencia o acorta el texto.");
+      return;
+    }
+    setError("");
+    setReferencias(nuevasReferencias);
+  };
+  const gruposCatalogo = [
+    { clave: "empresas", titulo: "Empresas", valores: catalogos.empresas, mas: catalogos.hay_mas.empresas },
+    { clave: "cargos", titulo: "Cargos de personas", valores: catalogos.cargos, mas: catalogos.hay_mas.cargos },
+    { clave: "contratos", titulo: "Contratos", valores: catalogos.contratos, mas: catalogos.hay_mas.contratos },
+    { clave: "tipos_equipo", titulo: "Tipos de equipo", valores: catalogos.tipos_equipo, mas: false },
+    { clave: "marcas", titulo: "Marcas de equipo", valores: catalogos.marcas, mas: catalogos.hay_mas.marcas },
+  ] as const;
+  const quitarReferencia = (referenciaQuitar: ReferenciaSeleccionada) => {
+    setReferencias((actuales) => actuales.filter((referencia) =>
+      referencia.categoria !== referenciaQuitar.categoria ||
+      referencia.valor !== referenciaQuitar.valor));
+  };
   const alternarFicha = async (filaId: string, companyId: string) => {
     if (filaExpandida === filaId) {
       solicitudDetalle.current += 1;
@@ -131,92 +122,60 @@ export default function BusquedaGlobalPage() {
   };
   return <div className="space-y-4">
     <Card>
-      <CardHead titulo="Buscador global" sub="Busca empresas, contratos, trabajadores, equipos por patente o usuarios" />
-      <div className="flex flex-wrap gap-2">
-        <select className="ops-input" value={tipo}
-          onChange={(event) => setTipo(event.target.value as typeof tipo)}
-          aria-label="Filtrar resultados por tipo">
-          <option value="">Todos los tipos</option>
-          <option value="empresa">Empresas</option>
-          <option value="contrato">Contratos</option>
-          <option value="trabajador">Personas</option>
-          <option value="equipo">Equipos</option>
-          <option value="usuario">Usuarios</option>
-        </select>
-        <input className="ops-input min-w-[240px] flex-1" type="search" value={query}
-          onChange={(event) => setQuery(event.target.value)} placeholder="Buscar por nombre, RUT o patente"
-          maxLength={100} aria-label="Buscar en toda la plataforma" />
+      <CardHead titulo="Buscador global" sub="Busca por nombre, RUT, patente, marca, modelo u otros datos." />
+      <div className="ops-input flex min-h-11 min-w-[240px] flex-wrap items-center gap-2">
+        {referencias.map((referencia) => <span key={`${referencia.categoria}:${referencia.valor}`}
+          className="inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs"
+          style={{ borderColor: "var(--ops-line)" }}>
+          {referencia.valor}
+          <button type="button" className="font-bold" aria-label={`Quitar filtro ${referencia.valor}`}
+            onClick={() => quitarReferencia(referencia)}>×</button>
+        </span>)}
+        <input className="min-w-[180px] flex-1 border-0 bg-transparent outline-none"
+          type="search" value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder={referencias.length
+            ? "Agregar términos a la búsqueda..."
+            : "Escribe términos parciales o selecciona referencias..."}
+          maxLength={Math.max(0, 100 - referencias.map(({ valor }) => valor).join(" ").length -
+            (referencias.length && query ? 1 : 0))}
+          aria-label="Buscar en toda la plataforma" />
       </div>
-      {tipo && <div className="mt-3 flex flex-wrap items-end gap-2">
-        {tipo !== "empresa" && <label className="grid gap-1 text-xs">
-          <span className="ops-lbl">Empresa</span>
-          <input className="ops-input w-48" value={filtros.empresa}
-            onChange={(event) => actualizarFiltro("empresa", event.target.value)} placeholder="Nombre de empresa" />
-        </label>}
-        <label className="grid gap-1 text-xs"><span className="ops-lbl">Estado</span>
-          <select className="ops-input" value={filtros.estado}
-            onChange={(event) => actualizarFiltro("estado", event.target.value)}>
-            <option value="">Todos</option>
-            {estados.map(([valor, etiqueta]) => <option key={valor} value={valor}>{etiqueta}</option>)}
-          </select>
-        </label>
-        {tipo === "empresa" && <label className="grid gap-1 text-xs"><span className="ops-lbl">Cuenta demo</span>
-          <select className="ops-input" value={filtros.es_demo}
-            onChange={(event) => actualizarFiltro("es_demo", event.target.value)}>
-            <option value="">Todas</option><option value="true">Demo</option><option value="false">Producción</option>
-          </select>
-        </label>}
-        {tipo === "trabajador" && <>
-          <label className="grid gap-1 text-xs"><span className="ops-lbl">Cargo</span>
-            <select className="ops-input w-48" value={filtros.cargo}
-              onChange={(event) => actualizarFiltro("cargo", event.target.value)}>
-              <option value="">Todos los cargos</option>
-              {catalogos.cargos.map((cargo) => <option key={cargo} value={cargo}>{cargo}</option>)}
-            </select>
-          </label>
-          <label className="grid gap-1 text-xs"><span className="ops-lbl">Conductor</span>
-            <select className="ops-input" value={filtros.conductor}
-              onChange={(event) => actualizarFiltro("conductor", event.target.value)}>
-              <option value="">Todos</option><option value="true">Sí</option><option value="false">No</option>
-            </select>
-          </label>
-        </>}
-        {tipo === "equipo" && <>
-          <label className="grid gap-1 text-xs"><span className="ops-lbl">Tipo de equipo</span>
-            <select className="ops-input w-48" value={filtros.tipo_equipo}
-              onChange={(event) => actualizarFiltro("tipo_equipo", event.target.value)}>
-              <option value="">Todos los tipos</option>
-              {catalogos.tipos_equipo.map((tipoEquipo) => <option key={tipoEquipo} value={tipoEquipo}>{tipoEquipo}</option>)}
-            </select>
-          </label>
-          <label className="grid gap-1 text-xs"><span className="ops-lbl">Patente</span>
-            <input className="ops-input w-36" value={filtros.patente}
-              onChange={(event) => actualizarFiltro("patente", event.target.value)} placeholder="Patente" />
-          </label>
-          <label className="grid gap-1 text-xs"><span className="ops-lbl">Marca</span>
-            <input className="ops-input w-36" value={filtros.marca}
-              onChange={(event) => actualizarFiltro("marca", event.target.value)} placeholder="Marca" />
-          </label>
-          <label className="grid gap-1 text-xs"><span className="ops-lbl">Modelo</span>
-            <input className="ops-input w-36" value={filtros.modelo}
-              onChange={(event) => actualizarFiltro("modelo", event.target.value)} placeholder="Modelo" />
-          </label>
-          <label className="grid gap-1 text-xs"><span className="ops-lbl">Año</span>
-            <input className="ops-input w-24" type="number" min="1900" max="2100" value={filtros.anio}
-              onChange={(event) => actualizarFiltro("anio", event.target.value)} placeholder="Año" />
-          </label>
-        </>}
-        {tipo === "usuario" && <label className="grid gap-1 text-xs"><span className="ops-lbl">Rol</span>
-          <select className="ops-input" value={filtros.rol}
-            onChange={(event) => actualizarFiltro("rol", event.target.value)}>
-            <option value="">Todos</option><option value="company">Empresa</option>
-            <option value="contract_admin">Administrador de contrato</option>
-          </select>
-        </label>}
-        <button type="button" className="ops-btn ops-btn-ghost" onClick={limpiarFiltros}>Limpiar filtros</button>
-      </div>}
-      {query.trim().length < 2 && <p className="ops-sub mt-2">
-        {filtroEspecifico ? "La búsqueda se aplicará con los filtros seleccionados." : "Escribe al menos 2 caracteres o aplica un filtro específico."}
+      <p className="ops-sub mt-2">
+        {referencias.length
+          ? `${referencias.length} referencia(s) seleccionada(s); cada término se aplicará a la búsqueda.`
+          : "Cada término debe coincidir con el mismo resultado. Puedes combinar referencias y texto libre."}
+      </p>
+      <details className="mt-4 rounded-lg border p-3" style={{ borderColor: "var(--ops-line)" }}>
+        <summary className="cursor-pointer text-sm font-semibold">
+          Explorar y seleccionar datos para buscar
+        </summary>
+        <p className="ops-sub mt-2">
+          Selecciona o deselecciona valores para agregarlos o quitarlos de la búsqueda.
+          Todos los criterios seleccionados se aplican a la vez.
+        </p>
+        <div className="mt-3 space-y-4">
+          {gruposCatalogo.map((grupo) => <section key={grupo.clave}>
+            <h3 className="ops-lbl mb-2">{grupo.titulo}</h3>
+            {grupo.valores.length
+              ? <div className="flex max-h-28 flex-wrap gap-2 overflow-y-auto">
+                {grupo.valores.map((valor) => <button key={valor} type="button"
+                  className={`ops-btn text-xs ${referencias.some((referencia) =>
+                    referencia.categoria === grupo.clave && referencia.valor === valor)
+                    ? "" : "ops-btn-ghost"}`}
+                  aria-pressed={referencias.some((referencia) =>
+                    referencia.categoria === grupo.clave && referencia.valor === valor)}
+                  onClick={() => alternarReferencia(grupo.clave, valor)}>{valor}</button>)}
+              </div>
+              : <p className="ops-sub text-xs">No hay valores disponibles.</p>}
+            {grupo.mas && <p className="ops-sub mt-1 text-xs">
+              Hay más valores de esta categoría; usa la barra para buscar otros.
+            </p>}
+          </section>)}
+        </div>
+      </details>
+      {consultaCompleta.length < 2 && <p className="ops-sub mt-2">
+        Escribe al menos 2 caracteres o selecciona una referencia para iniciar la búsqueda.
       </p>}
       {cargando && <p className="ops-sub mt-2" role="status">Buscando...</p>}
       {error && <p className="mt-3 text-sm" style={{ color: "var(--ops-crit)" }}>{error}</p>}

@@ -22,6 +22,7 @@ import { api, patch, type Query } from "./api";
 import type {
   AcreditacionesEstado, ActividadFila, AdminStats, Alerta, AlertaPatch,
   BusquedaGlobal,
+  CatalogosBusquedaGlobal,
   FiltrosBusquedaGlobal,
   Ambito, ArchivoConfirmado, CategoriaEvento, ChecklistSujeto, Conjunto,
   Contrato, ContratoCreado, ContratoIn, ContratoPatch, Credencial,
@@ -89,7 +90,7 @@ export const admin = {
     api<BusquedaGlobal>("/admin/search", { query: { q, limite, ...filtros } }),
 
   catalogosBusqueda: () =>
-    api<{ cargos: string[]; tipos_equipo: string[] }>("/admin/search/catalogos"),
+    api<CatalogosBusquedaGlobal>("/admin/search/catalogos"),
 
   empresas: (params?: ParamsPagina & { status?: string; es_demo?: boolean }) =>
     api<Pagina<Empresa>>("/admin/companies", { query: q(params) }),
@@ -274,7 +275,10 @@ export const cargos = {
 // §4 — contratos
 // ============================================================================
 export const contratos = {
-  listar: (params?: ParamsPagina & { faena_id?: string; estado?: string }) =>
+  listar: (params?: ParamsPagina & {
+    faena_id?: string; estado?: string;
+    ciclo_estado?: "activo" | "desactivado" | "finalizado" | "historico";
+  }) =>
     api<Pagina<Contrato>>("/contratos", { query: q(params) }),
 
   detalle: (id: string) => api<Contrato>(`/contratos/${id}`),
@@ -284,9 +288,14 @@ export const contratos = {
   editar: (id: string, cambios: ContratoPatch) =>
     patch<Contrato>(`/contratos/${id}`, cambios),
 
-  eliminar: (id: string) =>
-    api<{ ok: boolean; sujetos_eliminados: number; archivos_eliminados: number }>(
-      `/contratos/${id}`, { method: "DELETE", query: { confirm: true } }),
+  desactivar: (id: string, motivo: string) =>
+    api<Contrato>(`/contratos/${id}/desactivar`, { method: "POST", body: { motivo } }),
+
+  finalizar: (id: string, motivo: string) =>
+    api<Contrato>(`/contratos/${id}/finalizar`, { method: "POST", body: { motivo } }),
+
+  restaurar: (id: string, motivo: string) =>
+    api<Contrato>(`/contratos/${id}/restaurar`, { method: "POST", body: { motivo } }),
 
   documentos: (id: string, params?: ParamsPagina) =>
     api<Pagina<Documento>>(`/contratos/${id}/documentos`, { query: q(params) }),
