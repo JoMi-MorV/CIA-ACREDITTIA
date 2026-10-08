@@ -1,5 +1,22 @@
 # Validación funcional — actualizado al 8 de octubre de 2026
 
+## Incidente — error de renderizado en Alertas — 8 de octubre de 2026
+
+La consola del navegador reportó React #31 con un objeto que contiene los
+campos completos de `Alerta`. El síntoma coincide con una respuesta antigua de
+`GET /alertas/resumen` que devolvía una alerta en `activas` en lugar de un
+contador numérico. El endpoint actual calcula `activas` con `COUNT`; la
+regresión `test_resumen_de_alertas` verifica que la respuesta conserve los seis
+contadores esperados y pase con datos de prueba.
+
+La pantalla valida ahora en tiempo de ejecución el formato del resumen y
+muestra un error recuperable si el servidor devuelve una estructura
+incompatible, evitando que React intente renderizar el objeto. `npm run build`
+completó correctamente. Para que la protección llegue al entorno que presenta
+el error, se debe reconstruir y reiniciar/desplegar el frontend correspondiente;
+si el API desplegado aún entrega el formato antiguo, también se debe actualizar
+el backend.
+
 ## Décima entrega — ciclo de contratos y diálogos de confirmación — 8 de octubre de 2026
 
 Se implementó la separación entre estado operacional del contrato y ciclo

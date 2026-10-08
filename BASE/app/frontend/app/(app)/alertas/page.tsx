@@ -22,7 +22,13 @@ export default function AlertasPage() {
       // Con un estado concreto se muestran también las ya resueltas.
       solo_activas: estado === "resuelta" ? false : undefined,
     }).then(setData).catch((e) => setError(Api.mensajeError(e)));
-    Api.alertas.resumen().then(setResumen).catch(() => {});
+    Api.alertas.resumen().then((resultado) => {
+      if (!esResumenAlertas(resultado)) {
+        setError("El servidor devolvió un resumen de alertas inválido. Recarga la página o informa el problema a soporte.");
+        return;
+      }
+      setResumen(resultado);
+    }).catch((e) => setError(Api.mensajeError(e)));
   }, [page, sev, origen, estado]);
 
   useEffect(() => { cargar(); }, [cargar]);
@@ -130,3 +136,11 @@ const ORIGEN_LABEL: Record<OrigenAlerta, string> = {
   integracion: "integraciones",
   sistema: "sistema",
 };
+
+function esResumenAlertas(valor: unknown): valor is ResumenAlertas {
+  if (typeof valor !== "object" || valor === null) return false;
+  const resumen = valor as Record<string, unknown>;
+  return ["criticas", "advertencias", "informativas", "resueltas_30d",
+    "no_leidas", "activas"].every((campo) =>
+      typeof resumen[campo] === "number" && Number.isFinite(resumen[campo]));
+}
