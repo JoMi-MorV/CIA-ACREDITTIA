@@ -21,8 +21,9 @@ ENVOLTURA = {"items", "page", "page_size", "total", "total_pages"}
 
 TIPOS_PERSISTIBLES = ("estado_acreditacion", "cumplimiento_requisitos",
                       "personal_acreditado", "equipos_vehiculos", "vencimientos")
+TIPOS_REPORTE = (*TIPOS_PERSISTIBLES, "matriz_cumplimiento")
 RECURSOS = ("personal", "equipos", "personas", "flota", "documentos",
-            "requisitos", "alertas", "contratos")
+            "requisitos", "alertas", "contratos", "matriz")
 
 
 @pytest.fixture
@@ -49,11 +50,15 @@ def _descargar(app_cliente, url: str) -> bytes:
 # ============================================================================
 # Generación de reportes
 # ============================================================================
-@pytest.mark.parametrize("tipo", TIPOS_PERSISTIBLES)
+@pytest.mark.parametrize("tipo", TIPOS_REPORTE)
+@pytest.mark.parametrize("formato", ("csv", "pdf"))
 def test_generar_cada_tipo_de_reporte(app_cliente, empresa_a, contrato_a,
-                                      dotacion, tipo):
+                                      dotacion, tipo, formato):
+    params = ({"filtros": {"contrato_id": contrato_a["id"]}}
+              if tipo == "matriz_cumplimiento" else {})
     r = app_cliente.post(f"{API}/reportes", headers=empresa_a["headers"],
-                         json={"tipo": tipo, "formato": "excel"})
+                         json={"tipo": tipo, "formato": formato,
+                               "params": params})
     assert r.status_code == 202, r.text
     rid = r.json()["id"]
     assert r.json()["status"] == "queued", (
@@ -63,6 +68,7 @@ def test_generar_cada_tipo_de_reporte(app_cliente, empresa_a, contrato_a,
     assert r.status_code == 200, r.text
     rep = r.json()
     assert rep["tipo"] == tipo
+    assert rep["formato"] == formato
     assert rep["status"] == "done", rep
     assert rep["descargable"] is True
     assert rep["generado_por"]["email"] == empresa_a["email"]
@@ -71,14 +77,16 @@ def test_generar_cada_tipo_de_reporte(app_cliente, empresa_a, contrato_a,
     r = app_cliente.get(f"{API}/reportes/{rid}/download-url",
                         headers=empresa_a["headers"])
     assert r.status_code == 200, r.text
-    assert r.json()["filename"].endswith((".xlsx", ".csv"))
-    assert _descargar(app_cliente, r.json()["download_url"])
+    assert r.json()["filename"].endswith(f".{formato}")
+    datos = _descargar(app_cliente, r.json()["download_url"])
+    assert datos.startswith(b"%PDF") if formato == "pdf" else datos.startswith(b"\xef\xbb\xbf")
 
 
 def test_listado_de_reportes(app_cliente, empresa_a, contrato_a, dotacion):
-    for tipo in ("vencimientos", "personal_acreditado"):
+    for tipo, formato in (("vencimientos", "csv"),
+                          ("personal_acreditado", "pdf")):
         app_cliente.post(f"{API}/reportes", headers=empresa_a["headers"],
-                         json={"tipo": tipo, "formato": "excel"})
+                         json={"tipo": tipo, "formato": formato})
 
     r = app_cliente.get(f"{API}/reportes", headers=empresa_a["headers"])
     assert r.status_code == 200, r.text
@@ -89,25 +97,13 @@ def test_listado_de_reportes(app_cliente, empresa_a, contrato_a, dotacion):
                         headers=empresa_a["headers"])
     assert r.json()["total"] == 1
     r = app_cliente.get(f"{API}/reportes?formato=pdf", headers=empresa_a["headers"])
-    assert r.json()["total"] == 0
-
-
-def test_la_matriz_no_se_persiste_como_reporte(app_cliente, empresa_a,
-                                               contrato_a):
-    """El enum `reporte_tipo` de la BD no tiene 'matriz_cumplimiento'.
-
-    Se rechaza con un 400 explicativo que indica la alternativa, en lugar de
-    dejar que el driver devuelva un 22P02 opaco.
-    """
-    r = app_cliente.post(f"{API}/reportes", headers=empresa_a["headers"],
-                         json={"tipo": "matriz_cumplimiento", "formato": "excel"})
-    assert r.status_code == 400
-    assert r.json()["error"]["code"] == "TIPO_NO_SOPORTADO"
-    assert "exportaciones" in r.json()["error"]["message"]
+    assert r.json()["total"] == 1
+    r = app_cliente.get(f"{API}/reportes?formato=csv", headers=empresa_a["headers"])
+    assert r.json()["total"] == 1
 
 
 @pytest.mark.parametrize("cuerpo, codigo", [
-    ({"tipo": "inventado", "formato": "excel"}, "TIPO_INVALIDO"),
+    ({"tipo": "inventado", "formato": "csv"}, "TIPO_INVALIDO"),
     ({"tipo": "vencimientos", "formato": "docx"}, "FORMATO_INVALIDO"),
 ])
 def test_generar_valida_tipo_y_formato(app_cliente, empresa_a, cuerpo, codigo):
@@ -130,7 +126,7 @@ def test_el_contract_admin_no_accede_a_reportes(app_cliente, empresa_a,
     for metodo, ruta, kw in (
         ("get", f"{API}/reportes", {}),
         ("post", f"{API}/reportes", {"json": {"tipo": "vencimientos",
-                                              "formato": "excel"}}),
+                                              "formato": "csv"}}),
         ("get", f"{API}/reportes/programados", {}),
         ("post", f"{API}/exportaciones", {"json": {"recurso": "personal",
                                                    "formato": "csv"}}),
@@ -187,6 +183,35 @@ def test_ciclo_de_vida_de_un_programado(app_cliente, empresa_a):
                            headers=empresa_a["headers"]).json()["total"] == 0
 
 
+def test_programado_matriz_conserva_tipo_y_formato_al_editar_params(
+        app_cliente, empresa_a, contrato_a):
+    r = app_cliente.post(f"{API}/reportes/programados",
+                         headers=empresa_a["headers"], json={
+                             "nombre": "Matriz mensual",
+                             "tipo": "matriz_cumplimiento", "formato": "csv",
+                             "params": {"filtros": {
+                                 "contrato_id": contrato_a["id"],
+                             }},
+                             "cron_expr": "0 8 1 * *"})
+    assert r.status_code == 201, r.text
+    programado = r.json()
+
+    r = app_cliente.patch(
+        f"{API}/reportes/programados/{programado['id']}",
+        headers=empresa_a["headers"],
+        json={"params": {"filtros": {"contrato_id": contrato_a["id"],
+                                     "tipo": "personal"}}},
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["tipo"] == "matriz_cumplimiento"
+    assert r.json()["formato"] == "csv"
+
+    r = app_cliente.get(f"{API}/reportes/programados?tipo=matriz_cumplimiento",
+                        headers=empresa_a["headers"])
+    assert r.status_code == 200, r.text
+    assert r.json()["total"] == 1
+
+
 @pytest.mark.parametrize("cron", ["0 7 * * 1", "*/15 * * * *", "0 6,18 * * *",
                                   "0 7 1-5 * *", "30 0 * * 0"])
 def test_cron_valido(app_cliente, empresa_a, cron):
@@ -218,32 +243,54 @@ def test_programado_inexistente(app_cliente, empresa_a):
 # Exportaciones
 # ============================================================================
 @pytest.mark.parametrize("recurso", RECURSOS)
+@pytest.mark.parametrize("formato", ("csv", "pdf"))
 def test_exportar_cada_recurso_en_csv(app_cliente, empresa_a, contrato_a,
-                                      dotacion, recurso):
+                                      dotacion, recurso, formato):
+    filtros = ({"contrato_id": contrato_a["id"]} if recurso == "matriz" else {})
     r = app_cliente.post(f"{API}/exportaciones", headers=empresa_a["headers"],
-                         json={"recurso": recurso, "formato": "csv"})
+                         json={"recurso": recurso, "formato": formato,
+                               "filtros": filtros})
     assert r.status_code == 200, r.text
     salida = r.json()
-    assert salida["formato"] == "csv"
-    assert salida["filename"].endswith(".csv")
+    assert salida["formato"] == formato
+    assert salida["filename"].endswith(f".{formato}")
     assert salida["filas"] >= 0
 
-    contenido = _descargar(app_cliente, salida["download_url"]).decode("utf-8-sig")
-    cabecera = contenido.splitlines()[0]
-    assert ";" in cabecera, "separador ';' para Excel en configuración chilena"
-    assert len(contenido.splitlines()) == salida["filas"] + 1
+    contenido = _descargar(app_cliente, salida["download_url"])
+    if formato == "pdf":
+        assert contenido.startswith(b"%PDF")
+    else:
+        texto = contenido.decode("utf-8-sig")
+        assert ";" in texto.splitlines()[0]
+        assert len(texto.splitlines()) == salida["filas"] + 1
 
 
-def test_exportar_en_excel(app_cliente, empresa_a, contrato_a, dotacion):
+def test_exportar_sin_formato_usa_csv(app_cliente, empresa_a, contrato_a, dotacion):
     r = app_cliente.post(f"{API}/exportaciones", headers=empresa_a["headers"],
-                         json={"recurso": "personal", "formato": "excel"})
+                         json={"recurso": "personal"})
     assert r.status_code == 200, r.text
-    salida = r.json()
-    if salida["degradado_a_csv"]:
-        pytest.skip("openpyxl no instalado: la exportación degrada a CSV")
-    assert salida["formato"] == "xlsx"
-    datos = _descargar(app_cliente, salida["download_url"])
-    assert datos[:2] == b"PK", "un XLSX es un ZIP"
+    assert r.json()["formato"] == "csv"
+    assert r.json()["filename"].endswith(".csv")
+
+
+@pytest.mark.parametrize("formato", ("csv", "pdf"))
+def test_exportacion_grande_se_procesa_en_worker(app_cliente, empresa_a,
+                                                  contrato_a, dotacion,
+                                                  monkeypatch, formato):
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "export_filas_max", 0)
+    r = app_cliente.post(f"{API}/exportaciones", headers=empresa_a["headers"],
+                         json={"recurso": "personal", "formato": formato})
+    assert r.status_code == 202, r.text
+    rid = r.json()["id"]
+
+    r = app_cliente.get(f"{API}/reportes/{rid}/download-url",
+                        headers=empresa_a["headers"])
+    assert r.status_code == 200, r.text
+    assert r.json()["filename"].endswith(f".{formato}")
+    contenido = _descargar(app_cliente, r.json()["download_url"])
+    assert contenido.startswith(b"%PDF") if formato == "pdf" else contenido.startswith(b"\xef\xbb\xbf")
 
 
 def test_la_exportacion_de_matriz_exige_contrato(app_cliente, empresa_a,
@@ -270,7 +317,7 @@ def test_la_exportacion_respeta_los_filtros(app_cliente, empresa_a, contrato_a,
 
 @pytest.mark.parametrize("cuerpo, codigo", [
     ({"recurso": "inventado", "formato": "csv"}, "RECURSO_INVALIDO"),
-    ({"recurso": "personal", "formato": "pdf"}, "FORMATO_INVALIDO"),
+    ({"recurso": "personal", "formato": "xlsx"}, "FORMATO_INVALIDO"),
 ])
 def test_exportar_valida_recurso_y_formato(app_cliente, empresa_a, cuerpo,
                                            codigo):
@@ -291,9 +338,8 @@ def test_la_exportacion_y_el_reporte_producen_la_misma_tabla(
                             r.json()["download_url"]).decode("utf-8-sig")
 
     r = app_cliente.post(f"{API}/reportes", headers=empresa_a["headers"],
-                         json={"tipo": "personal_acreditado", "formato": "excel",
-                               "params": {"recurso": "personal",
-                                          "formato_export": "csv"}})
+                         json={"tipo": "personal_acreditado", "formato": "csv",
+                               "params": {"recurso": "personal"}})
     assert r.status_code == 202, r.text
     rid = r.json()["id"]
     r = app_cliente.get(f"{API}/reportes/{rid}/download-url",

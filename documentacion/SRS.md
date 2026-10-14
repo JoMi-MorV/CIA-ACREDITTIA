@@ -1,6 +1,6 @@
 # SRS — Acredittia
 
-Especificación de requisitos de software · versión 0.54 · 13-10-2026
+Especificación de requisitos de software · versión 0.56 · 14-10-2026
 
 **Estado documental:** borrador de trabajo para revisión. No constituye aceptación de todas las propuestas ni certificación de producción.
 
@@ -139,6 +139,10 @@ La versión 0.52 incorpora validación backend focalizada posterior: 247/247 pru
 La versión 0.53 registra ajustes de la consola ADMIN: Empresas (cuentas) presenta industria y estado de cuenta; Salud de clientes agrupa indicadores de actividad/adopción y permite desplegar el detalle; el buscador despliega sus resultados por botones de categoría y conserva filtros de referencia; y los cambios de rol/empresa/contrato requieren confirmación contextual y motivo, con auditoría de valores anteriores/nuevos e invalidación de sesiones. Se incorporan ayudas informativas en los indicadores y gráficos y se aclara el retorno a la consola interna durante la impersonación. La interfaz mejorada no cierra las brechas de validación de cálculos, permisos granulares, auditoría integral ni seguridad de producción. No se implementó una sección general de Ajustes para precios o supuestos financieros. Evidencia y límites en `VALIDACION_ACTUAL.md`.
 
 La versión 0.54 incorpora una revisión documental y de código de las ocho prioridades ADMIN realizada el 13-10-2026. La estimación de avance funcional es 67% como promedio simple de las ocho prioridades, con estimaciones por prioridad de 75%, 90%, 55%, 60%, 70%, 70%, 50% y 62%, respectivamente. Estos porcentajes son una estimación de cobertura, no cumplimiento validado ni preparación para producción; no se ejecutaron pruebas ni recorrido de navegador en esta revisión. Los bloqueos P0 de permisos granulares, auditoría, aislamiento/mínimo privilegio y DEC-08 permanecen abiertos. Detalle y fundamento en `RESUMEN_REQUISITOS_ADMIN.md`, `GAP_ANALYSIS.md` y `VALIDACION_ACTUAL.md`.
+
+La versión 0.55 registra la incorporación de la página `/reportes` al portal de empresa, conectada con las APIs existentes de generación, descarga, exportación y programación. Incluye filtros de contrato/período, historial paginado con actualización de estados, descarga, alta/edición/pausa/eliminación de programaciones y descripción de formatos. La matriz se exporta mediante el endpoint de vistas y admite Excel/CSV; los demás tipos disponibles admiten PDF/Excel. El build del frontend pasó el 14-10-2026; no se hizo recorrido visual ni validación de los flujos contra una instancia API. `contract_admin` no ve la entrada y la API rechaza el acceso a reportes consolidados. RF-CLI-07 continúa ISV hasta validar los flujos y sus permisos de extremo a extremo.
+
+La versión 0.56 actualiza la entrega de Reportes: todos los tipos disponibles, incluida la matriz de cumplimiento, ofrecen PDF y CSV en generación, exportación y programación. El PDF incorpora marca, metadatos del período/alcance, recuento de registros, tablas paginadas con encabezados repetidos y numeración de página. La interfaz trata el CSV como tal aunque el almacenamiento conserva compatibilidad con el enum histórico `excel`. El build frontend fue aprobado; las pruebas backend actuales no llegaron a recolectarse por falta de `pgserver`, y la generación PDF no se ejecutó localmente porque falta ReportLab. RF-CLI-07 permanece ISV hasta validar el flujo extremo a extremo, los permisos, worker y almacenamiento.
 
 Se conservan los **100% declarados en el cronograma** como cierre de la actividad en su alcance y fecha originales. Se permite registrar **«Completada con observaciones»** cuando existen ajustes posteriores o evidencia por adjuntar. Esta convención de seguimiento no certifica aceptación del cliente ni convierte una funcionalidad parcial en validada.
 
@@ -588,11 +592,11 @@ Esta sección requiere profundización posterior. Las fuentes principales son EV
 - **Estado técnico:** ISV.
 - **Prioridad:** P1.
 - **Avance estimado:** 90 % (propuesta inicial).
-- **Fundamento del avance:** Reportes/exportación; `reportes.py`, `test_reportes.py`. Completar recorrido de generación, fallos y descarga por actor.
+- **Fundamento del avance:** API, cliente frontend y página `/reportes`; `reportes.py`, `test_reportes.py`. La interfaz integra generación, historial, descarga y programación; completar el recorrido de generación, fallos y descarga por actor.
 - **Comportamiento esperado:** Reportes/exportación.
-- **Estado actual:** Reportes/exportación; `reportes.py`, `test_reportes.py`.
-- **Pendientes / mejoras:** Completar recorrido de generación, fallos y descarga por actor.
-- **Validación:** Parcial: revisión e inventario de la línea base; falta acreditar el flujo completo con los criterios indicados.
+- **Estado actual:** La página `/reportes` ofrece los seis tipos de informe —incluida la matriz de cumplimiento— en PDF y CSV. Incluye filtro de contrato/período, historial paginado con estados, descarga de resultados listos y alta/edición/pausa/activación/eliminación de programaciones. Los PDF incluyen marca, metadatos, recuento, tabla multipágina con encabezados repetidos y pie con número de página. El build frontend pasó el 14-10-2026; no se realizó recorrido de navegador ni validación contra una API activa. CSV se serializa como formato lógico CSV y se persiste usando el enum histórico `excel` con un parámetro de formato.
+- **Pendientes / mejoras:** Validar generación, fallos, permisos y descarga por actor; probar programaciones y exportaciones en entorno con API, worker y almacenamiento configurados; comprobar PDF y CSV con datos reales de prueba y volúmenes que produzcan varias páginas.
+- **Validación:** Parcial. Build frontend aprobado el 14-10-2026. La ejecución backend más reciente no llegó a recolectar pruebas por falta de `pgserver`; el PDF tampoco se probó en runtime local porque ReportLab no está instalado. No se acredita el flujo completo.
 - **Criterio de aceptación:** Job finaliza o informa fallo, formato y filtros correctos, descarga autorizada/temporal; administrador de contrato no obtiene reporte global de empresa.
 
 **RF-CLI-08 — Perfil y usuarios de empresa**

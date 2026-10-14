@@ -643,9 +643,9 @@ con enlaces previos. Las rutas Ops antiguas de Plataforma, Usuarios e
 Indicadores también redirigen a sus destinos Admin. `/admin` y la entrada Ops
 abren ahora el Dashboard global.
 
-## Cambios a la fecha — 13-10-2026
+## Cambios a la fecha — 14-10-2026
 
-El documento funcional vigente es el [SRS v0.54](documentacion/SRS.md). Esta
+El documento funcional vigente es el [SRS v0.56](documentacion/SRS.md). Esta
 sección resume los cambios relevantes y el estado conocido a la fecha; no
 sustituye los criterios, pendientes ni evidencias detallados en el SRS y la
 [validación actual](documentacion/VALIDACION_ACTUAL.md).
@@ -654,15 +654,18 @@ sustituye los criterios, pendientes ni evidencias detallados en el SRS y la
 clientes, el buscador y la confirmación/auditoría de cambios de permisos. El
 análisis documental/código estima 67% de avance funcional ADMIN, sin que esto
 equivalga a cumplimiento validado ni preparación para producción. El detalle y
-las limitaciones están en SRS, GAP y Validación actual.
+las limitaciones están en SRS, GAP y Validación actual. También se integró la
+página Reportes al portal con PDF/CSV para todos los tipos y PDF multipágina;
+su build pasó, pero los flujos aún requieren validación operativa.
 
 ### Funcionalidad y cambios recientes
 
 - Plataforma web Next.js y API FastAPI con PostgreSQL, autenticación JWT/refresh,
   roles de ADMIN, empresa y administrador de contrato, y aislamiento multiempresa.
 - Portal de empresa para gestionar contratos, personal, equipos, documentos,
-  requisitos, alertas, calendario, reportes y responsables de contrato. El panel
-  de responsables asigna cuentas existentes de la misma empresa.
+  requisitos, alertas, calendario, reportes y responsables de contrato. Reportes
+  integra generación, historial, descarga y programación; el panel de
+  responsables asigna cuentas existentes de la misma empresa.
 - Consola ADMIN bajo `/admin` para empresas, buscador global, métricas, usuarios,
   auditoría, sistemas, procesos e incidentes. La API administrativa actual usa
   `/api/v1/admin`; mantiene rutas Ops anteriores por compatibilidad.

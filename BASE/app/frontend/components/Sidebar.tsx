@@ -10,6 +10,7 @@ const ITEMS = [
   { href: "/faenas", icono: "◇", nombre: "Faenas" },
   { href: "/personal", icono: "◎", nombre: "Personal" },
   { href: "/equipos", icono: "▣", nombre: "Equipos" },
+  { href: "/reportes", icono: "▥", nombre: "Reportes" },
   { href: "/alertas", icono: "!", nombre: "Alertas" },
   { href: "/calendario", icono: "□", nombre: "Calendario" },
   { href: "/perfil", icono: "○", nombre: "Mi perfil" },
@@ -60,7 +61,7 @@ export default function Sidebar() {
           }}>Volver a consola interna</button>
         </div>
       )}
-      <nav className="ml-auto flex gap-1 px-2 md:ml-0 md:flex-1 md:flex-col md:gap-1 md:px-0">
+      <nav className="ml-auto flex max-w-[calc(100vw-145px)] gap-1 overflow-x-auto px-2 md:ml-0 md:max-w-none md:flex-1 md:flex-col md:gap-1 md:overflow-visible md:px-0">
         {esAdmin && !viendoEmpresa && (
           <Link href="/admin/dashboard" className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm ${path.startsWith("/admin") ? "bg-accent font-semibold" : "hover:bg-white/10"}`}>
             <span className="grid h-5 w-5 place-items-center border border-current/60 text-xs">+</span><span className="hidden md:inline">Panel admin</span>
@@ -68,9 +69,10 @@ export default function Sidebar() {
         )}
         {(!esAdmin || viendoEmpresa) && ITEMS
           .filter((i) => !(viendoEmpresa && i.href === "/perfil"))
+          .filter((i) => !(user?.role === "contract_admin" && i.href === "/reportes"))
           .map((i) => (
           <Link key={i.href} href={i.href}
-            className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm ${path.startsWith(i.href) ? "bg-accent font-semibold" : "hover:bg-white/10"}`}>
+            className={`flex shrink-0 items-center gap-3 rounded-md px-3 py-2 text-sm ${path.startsWith(i.href) ? "bg-accent font-semibold" : "hover:bg-white/10"}`}>
             <span className="grid h-5 w-5 place-items-center border border-current/60 text-xs">{i.icono}</span><span className="hidden md:inline">{i.nombre}</span>
             {i.href === "/alertas" && noLeidas > 0 && (
               <span className="ml-auto hidden rounded-full bg-red-500 px-2 py-0.5 text-xs font-bold md:inline">{noLeidas}</span>

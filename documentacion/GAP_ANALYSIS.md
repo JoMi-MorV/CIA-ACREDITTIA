@@ -1,9 +1,9 @@
 # Gap Analysis — Acredittia
 
 Estado: borrador de revisión
-Fecha de referencia: 13-10-2026
+Fecha de referencia: 14-10-2026
 
-Este documento consolida la evidencia documental y técnica del proyecto a partir de la especificación funcional ([SRS.md](./SRS.md)) y la implementación actual en código, sin ejecutar pruebas ni arranques. Su objetivo es dejar un resumen claro, útil para revisión interna y para conversión a PDF.
+Este documento consolida la evidencia documental y técnica del proyecto a partir de la especificación funcional ([SRS.md](./SRS.md)) y la implementación actual en código, sin ejecutar pruebas ni arranques. Su objetivo es dejar un resumen claro y útil para revisión interna.
 
 ## 1. Propósito
 
@@ -31,6 +31,16 @@ No se ejecutaron pruebas ni recorrido de navegador para producir esta
 estimación; no equivale a cumplimiento validado ni a preparación para
 producción. Los bloqueos P0 de DEC-08, permisos granulares, auditoría integral
 y evidencia de aislamiento/mínimo privilegio siguen abiertos.
+
+**Actualización 14-10-2026 — Reportes del portal de empresa:** la página
+`/reportes` ofrece generación, historial, descarga y programación de los seis
+tipos disponibles en PDF/CSV. El PDF tiene marca, metadatos, recuento de
+registros, tabla multipágina con encabezados repetidos y numeración de página.
+El build frontend pasó; no se completó la validación contra API/worker/storage.
+La ejecución backend más reciente no recolectó pruebas por falta de `pgserver`,
+y ReportLab no está instalado en el entorno local para probar la generación
+PDF. Esta entrega corresponde al portal de empresa: no se incorpora al cálculo
+de avance de las ocho prioridades ADMIN ni altera el 67%.
 
 El módulo admin tiene una base funcional sólida en:
 
@@ -75,6 +85,8 @@ históricas y no deben utilizarse como estimaciones vigentes.
 - [BASE/app/backend/app/routers/admin.py](../BASE/app/backend/app/routers/admin.py) — administración global.
 - [BASE/app/backend/app/routers/admin_ops.py](../BASE/app/backend/app/routers/admin_ops.py) — consola interna y métricas.
 - [BASE/app/backend/worker/ops_tasks.py](../BASE/app/backend/worker/ops_tasks.py) — jobs, health y operación.
+- [BASE/app/backend/app/routers/reportes.py](../BASE/app/backend/app/routers/reportes.py) y [BASE/app/backend/app/services/pdf.py](../BASE/app/backend/app/services/pdf.py) — generación y formatos de reportes del portal.
+- [VALIDACION_ACTUAL.md](./VALIDACION_ACTUAL.md) — evidencia y límites de validación de la entrega de Reportes.
 
 ## 5. Matriz de cumplimiento por prioridad de ADMIN
 
@@ -328,7 +340,7 @@ La consola administrativa ya no se encuentra en una fase totalmente exploratoria
 
 Por ese motivo, el estado correcto del módulo es: funcional y parcialmente validado, pero aún no cerrado para go-live con datos reales.
 
-El resumen siguiente refleja también los ajustes del 13-10-2026; para el
+El resumen siguiente refleja los ajustes ADMIN del 13-10-2026 y la entrega del
+portal de empresa del 14-10-2026; para el
 detalle vigente de estado y evidencia, prevalecen las secciones 3 a 10 y los
 documentos enlazados, no las estimaciones históricas.
-

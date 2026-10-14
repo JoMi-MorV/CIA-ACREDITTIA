@@ -7,7 +7,7 @@ Tres recursos con la misma materia prima y tres tiempos distintos:
   grandes.
 * `POST /reportes/programados` — el mismo job, disparado por cron. La ejecución
   la agenda el beat del worker; aquí solo se guarda la definición.
-* `POST /exportaciones` — «bajar a Excel la tabla que estoy viendo». Hasta
+* `POST /exportaciones` — «bajar a PDF o CSV la tabla que estoy viendo». Hasta
   `EXPORT_FILAS_MAX` filas se genera en el propio request y se responde 200 con
   la URL de descarga; por encima se crea un `Reporte` equivalente y se responde
   202. El umbral existe porque una exportación bloquea un worker de la API: es
@@ -24,8 +24,8 @@ Dos limitaciones conscientes:
   informe, no nueve recursos), así que al derivar una exportación grande el
   recurso real viaja en `params['recurso']` y el `tipo` queda como etiqueta. La
   tarea prioriza `params['recurso']`.
-* `reporte_formato` solo admite `pdf|excel`. Una exportación en CSV se persiste
-  como `excel` con `params['formato_export']='csv'`.
+* `reporte_formato` solo admite `pdf|excel`. El CSV se persiste como `excel`,
+  con `params['formato_export']='csv'`, sin exponer Excel como formato nuevo.
 """
 from __future__ import annotations
 
@@ -46,12 +46,13 @@ from ..config import EXPORT_RECURSOS, REPORTE_TIPOS, settings
 from ..deps import (Page, aplicar_orden, contrato_scope, err, get_company_id,
                     get_current_user, get_db, paginacion, require_company,
                     sobre)
-from ..models import (Alerta, Contrato, Documento, DocumentoArchivo, Faena,
-                      Reporte, ReporteProgramado, RequisitoTemplate, Sujeto,
-                      User)
+from ..models import (Alerta, Company, Contrato, Documento, DocumentoArchivo,
+                      Faena, Reporte, ReporteProgramado, RequisitoTemplate,
+                      Sujeto, User)
 from ..services import actividad
 from ..services.checklist import normalizar, stats_sujeto
 from ..services.jobs import enqueue
+from ..services.pdf import generar_pdf
 from ..services.storage import get_storage, make_tmp_path
 
 logger = logging.getLogger("acredittia.reportes")
@@ -59,18 +60,18 @@ logger = logging.getLogger("acredittia.reportes")
 router = APIRouter(prefix="/reportes", tags=["reportes"])
 router_export = APIRouter(prefix="/exportaciones", tags=["reportes"])
 
-FORMATOS_REPORTE: tuple[str, ...] = ("pdf", "excel")
-FORMATOS_EXPORT: tuple[str, ...] = ("excel", "csv")
+FORMATOS_REPORTE: tuple[str, ...] = ("pdf", "csv")
+FORMATOS_EXPORT: tuple[str, ...] = ("pdf", "csv")
 ESTADOS_JOB: tuple[str, ...] = ("queued", "processing", "done", "failed")
 
-# Valores del enum `reporte_tipo` en la BD (01_esquema.sql). REPORTE_TIPOS de
-# config añade 'matriz_cumplimiento', que el enum NO tiene: se valida contra
-# config (lo pide el contrato) y además contra esta tupla, para devolver un 400
-# entendible en vez de un 22P02 del driver.
+# Valores almacenables en el enum `reporte_tipo` (01_esquema.sql). La matriz se
+# guarda como `cumplimiento_requisitos` y se distingue con `tipo_solicitado`.
 TIPOS_PERSISTIBLES: tuple[str, ...] = (
     "estado_acreditacion", "cumplimiento_requisitos", "personal_acreditado",
     "equipos_vehiculos", "vencimientos",
 )
+TIPO_MATRIZ = "matriz_cumplimiento"
+TIPO_MATRIZ_INTERNO = "cumplimiento_requisitos"
 
 # Tipo de informe con el que se persiste una exportación derivada. Solo es una
 # etiqueta: el recurso efectivo lo guarda `params['recurso']`.
@@ -128,7 +129,7 @@ class ProgramadoPatch(BaseModel):
 class ExportacionIn(BaseModel):
     recurso: str
     filtros: dict = Field(default_factory=dict)
-    formato: str = "excel"
+    formato: str = "csv"
 
 
 # ============================================================================
@@ -152,11 +153,11 @@ def csv_bytes(cabeceras: list[str], filas: list[list]) -> bytes:
 
 def excel_bytes(cabeceras: list[str], filas: list[list],
                 titulo: str) -> bytes | None:
-    """XLSX con openpyxl, o None si la librería no está instalada.
+    """Compatibilidad XLSX para trabajos anteriores al cambio a CSV/PDF.
 
-    El import es perezoso a propósito: `openpyxl` no está en requirements.txt y
-    no se quiere convertir en dependencia dura de arrancar la API. Quien llama
-    decide qué hacer con el None (aquí, degradar a CSV).
+    El import es perezoso para que la ausencia accidental de openpyxl en un
+    despliegue no impida arrancar la API; quien llama degrada ese trabajo legado
+    a CSV.
     """
     try:
         from openpyxl import Workbook
@@ -196,14 +197,13 @@ def excel_bytes(cabeceras: list[str], filas: list[list],
 
 def serializar(formato: str, cabeceras: list[str], filas: list[list],
                titulo: str) -> tuple[bytes, str]:
-    """Devuelve (contenido, extensión). Si se pidió Excel y no hay openpyxl,
-    degrada a CSV; quien llama detecta la degradación porque la extensión no
-    coincide con el formato pedido."""
+    """Devuelve CSV; conserva XLSX solo para trabajos creados antes del cambio."""
     if formato == "excel":
         data = excel_bytes(cabeceras, filas, titulo)
         if data is not None:
             return data, "xlsx"
-        return csv_bytes(cabeceras, filas), "csv"
+    if formato not in ("csv", "excel"):
+        raise ValueError(f"Formato de tabla no soportado: {formato}")
     return csv_bytes(cabeceras, filas), "csv"
 
 
@@ -213,7 +213,7 @@ def _slug(texto: str) -> str:
 
 
 def nombre_archivo(titulo: str, formato: str, ext: str) -> str:
-    """Nombre visible de la descarga; avisa si el Excel degradó a CSV."""
+    """Nombre visible de la descarga; conserva aviso para XLSX legado."""
     sufijo = "-excel-no-disponible" if (formato == "excel" and ext == "csv") else ""
     return f"{_slug(titulo)}-{date.today().isoformat()}{sufijo}.{ext}"
 
@@ -850,6 +850,41 @@ def contar_de_recurso(db: Session, cid: uuid.UUID, recurso: str, filtros: dict,
     return len(filas)
 
 
+def metadatos_pdf(db: Session, cid: uuid.UUID, filtros: dict,
+                  cantidad: int) -> dict[str, object]:
+    """Metadatos legibles del informe sin incluir identificadores o PII."""
+    empresa = db.get(Company, cid)
+    contrato_id = _f_uuid(filtros, "contrato_id")
+    contrato = None
+    if contrato_id:
+        contrato = db.scalar(select(Contrato).where(
+            Contrato.id == contrato_id, Contrato.company_id == cid))
+
+    desde = _f_date(filtros, "desde")
+    hasta = _f_date(filtros, "hasta")
+    if desde or hasta:
+        periodo = f"{desde or 'Sin inicio'} — {hasta or 'Sin término'}"
+    elif _f_int(filtros, "dias") is not None:
+        periodo = f"Vencimientos próximos {_f_int(filtros, 'dias')} días"
+    else:
+        periodo = "Todos los registros disponibles"
+
+    resultado: dict[str, object] = {
+        "Empresa": empresa.nombre if empresa else "Empresa",
+        "Contrato": contrato.nombre if contrato else (
+            "Todos los contratos" if not contrato_id else "Contrato no disponible"
+        ),
+        "Período": periodo,
+        "Registros": f"{cantidad:,}",
+        "Generado": datetime.now(timezone.utc).astimezone().strftime(
+            "%d-%m-%Y %H:%M %Z"),
+    }
+    estado = _f_str(filtros, "estado")
+    if estado:
+        resultado["Estado aplicado"] = estado.replace("_", " ").capitalize()
+    return resultado
+
+
 # ============================================================================
 # Validaciones
 # ============================================================================
@@ -868,11 +903,36 @@ def _valida_tipo(tipo: str) -> str:
     if tipo not in REPORTE_TIPOS:
         raise err(400, "TIPO_INVALIDO",
                   f"Tipo debe ser uno de: {', '.join(REPORTE_TIPOS)}")
-    if tipo not in TIPOS_PERSISTIBLES:
+    if tipo != TIPO_MATRIZ and tipo not in TIPOS_PERSISTIBLES:
         raise err(400, "TIPO_NO_SOPORTADO",
-                  f"El enum reporte_tipo de la base no admite '{tipo}' todavía; "
-                  "expórtelo con POST /exportaciones (recurso='matriz')")
+                  f"El tipo de reporte '{tipo}' aún no está implementado")
     return tipo
+
+
+def _tipo_interno(tipo: str) -> str:
+    return TIPO_MATRIZ_INTERNO if tipo == TIPO_MATRIZ else tipo
+
+
+def _params_reporte(tipo: str, formato: str, params: dict | None) -> dict:
+    salida = dict(params or {})
+    if tipo == TIPO_MATRIZ:
+        salida["tipo_solicitado"] = TIPO_MATRIZ
+        salida["recurso"] = "matriz"
+    elif salida.get("tipo_solicitado") == TIPO_MATRIZ:
+        salida.pop("tipo_solicitado", None)
+        if salida.get("recurso") == "matriz":
+            salida.pop("recurso", None)
+
+    if formato == "csv":
+        salida["formato_export"] = "csv"
+    else:
+        salida.pop("formato_export", None)
+    return salida
+
+
+def _formato_publico(formato: str, params: dict | None) -> str:
+    formato_export = (params or {}).get("formato_export")
+    return formato_export if formato_export in ("csv", "pdf") else formato
 
 
 def _valida_formato(formato: str, permitidos: tuple[str, ...]) -> str:
@@ -940,9 +1000,12 @@ def _generador_out(uid, nombre, email) -> dict:
 
 
 def _out(r: Reporte, nombre=None, email=None) -> dict:
+    params = r.params or {}
     return {
-        "id": str(r.id), "nombre": r.nombre, "tipo": r.tipo,
-        "formato": r.formato, "status": r.status, "params": r.params or {},
+        "id": str(r.id), "nombre": r.nombre,
+        "tipo": params.get("tipo_solicitado", r.tipo),
+        "formato": _formato_publico(r.formato, params),
+        "status": r.status, "params": params,
         "descargable": bool(r.status == "done" and r.blob_path),
         "generado_por": _generador_out(r.generado_por, nombre, email),
         "created_at": r.created_at.isoformat(),
@@ -951,9 +1014,11 @@ def _out(r: Reporte, nombre=None, email=None) -> dict:
 
 
 def _out_programado(p: ReporteProgramado) -> dict:
+    params = p.params or {}
     return {
-        "id": str(p.id), "nombre": p.nombre, "tipo": p.tipo,
-        "formato": p.formato, "params": p.params or {},
+        "id": str(p.id), "nombre": p.nombre,
+        "tipo": params.get("tipo_solicitado", p.tipo),
+        "formato": _formato_publico(p.formato, params), "params": params,
         "cron_expr": p.cron_expr, "activo": p.activo,
         "ultimo_run_at": _fecha_hora(p.ultimo_run_at) or None,
         "created_at": p.created_at.isoformat(),
@@ -1012,9 +1077,21 @@ def listar(tipo: str | None = Query(None), formato: str | None = Query(None),
          .outerjoin(User, User.id == Reporte.generado_por)
          .where(Reporte.company_id == cid))
     if tipo:
-        q = q.where(Reporte.tipo == tipo)
+        if tipo == TIPO_MATRIZ:
+            q = q.where(
+                Reporte.tipo == TIPO_MATRIZ_INTERNO,
+                Reporte.params["tipo_solicitado"].astext == TIPO_MATRIZ,
+            )
+        else:
+            q = q.where(Reporte.tipo == tipo)
     if formato:
-        q = q.where(Reporte.formato == formato)
+        if formato == "csv":
+            q = q.where(
+                Reporte.formato == "excel",
+                Reporte.params["formato_export"].astext == "csv",
+            )
+        else:
+            q = q.where(Reporte.formato == formato)
     if status:
         q = q.where(Reporte.status == status)
     if desde:
@@ -1038,9 +1115,9 @@ def crear(body: ReporteIn, db: Session = Depends(get_db),
           user: User = Depends(require_company)):
     """Encola la generación de un reporte.
 
-    Siempre asíncrono, incluso cuando el volumen es pequeño: el PDF y el Excel
-    los produce el worker y así el tiempo de respuesta no depende del tamaño de
-    la empresa. El resultado se consulta con `GET /reportes/{id}` y se baja con
+    Siempre asíncrono, incluso cuando el volumen es pequeño: el PDF o CSV los
+    produce el worker y así el tiempo de respuesta no depende del tamaño de la
+    empresa. El resultado se consulta con `GET /reportes/{id}` y se baja con
     `GET /reportes/{id}/download-url`.
     """
     _solo_empresa(user)
@@ -1048,8 +1125,10 @@ def crear(body: ReporteIn, db: Session = Depends(get_db),
     formato = _valida_formato(body.formato, FORMATOS_REPORTE)
 
     rep = Reporte(company_id=cid, nombre=(body.nombre or "").strip()
-                  or _nombre_defecto(tipo), tipo=tipo, formato=formato,
-                  status="queued", params=body.params or {},
+                  or _nombre_defecto(tipo), tipo=_tipo_interno(tipo),
+                  formato="excel" if formato == "csv" else formato,
+                  status="queued", params=_params_reporte(
+                      tipo, formato, body.params),
                   generado_por=user.id)
     db.add(rep)
     db.flush()
@@ -1081,7 +1160,16 @@ def listar_programados(activo: bool | None = Query(None),
     if activo is not None:
         q = q.where(ReporteProgramado.activo.is_(activo))
     if tipo:
-        q = q.where(ReporteProgramado.tipo == tipo)
+        if tipo not in REPORTE_TIPOS:
+            raise err(400, "TIPO_INVALIDO",
+                      f"Tipo debe ser uno de: {', '.join(REPORTE_TIPOS)}")
+        if tipo == TIPO_MATRIZ:
+            q = q.where(
+                ReporteProgramado.tipo == TIPO_MATRIZ_INTERNO,
+                ReporteProgramado.params["tipo_solicitado"].astext == TIPO_MATRIZ,
+            )
+        else:
+            q = q.where(ReporteProgramado.tipo == tipo)
     if p.search:
         q = q.where(ReporteProgramado.nombre.ilike(f"%{p.search}%"))
     total = db.scalar(select(func.count()).select_from(q.subquery())) or 0
@@ -1108,8 +1196,10 @@ def crear_programado(body: ProgramadoIn, db: Session = Depends(get_db),
     formato = _valida_formato(body.formato, FORMATOS_REPORTE)
     cron = valida_cron(body.cron_expr)
 
-    p = ReporteProgramado(company_id=cid, nombre=body.nombre.strip(), tipo=tipo,
-                          formato=formato, params=body.params or {},
+    p = ReporteProgramado(
+        company_id=cid, nombre=body.nombre.strip(), tipo=_tipo_interno(tipo),
+        formato="excel" if formato == "csv" else formato,
+        params=_params_reporte(tipo, formato, body.params),
                           cron_expr=cron, activo=body.activo)
     db.add(p)
     db.flush()
@@ -1137,12 +1227,23 @@ def editar_programado(programado_id: uuid.UUID, body: ProgramadoPatch,
         if not (data["nombre"] or "").strip():
             raise err(400, "NOMBRE_REQUERIDO", "El nombre no puede estar vacío")
         p.nombre = data["nombre"].strip()
+    tipo_logico = (p.params or {}).get("tipo_solicitado", p.tipo)
+    formato_logico = _formato_publico(p.formato, p.params)
+    params_logicos = p.params or {}
     if "tipo" in data and data["tipo"] is not None:
-        p.tipo = _valida_tipo(data["tipo"])
+        nuevo_tipo = _valida_tipo(data["tipo"])
+        p.tipo = _tipo_interno(nuevo_tipo)
+        tipo_logico = nuevo_tipo
     if "formato" in data and data["formato"] is not None:
-        p.formato = _valida_formato(data["formato"], FORMATOS_REPORTE)
+        nuevo_formato = _valida_formato(data["formato"], FORMATOS_REPORTE)
+        p.formato = "excel" if nuevo_formato == "csv" else nuevo_formato
+        formato_logico = nuevo_formato
     if "params" in data and data["params"] is not None:
-        p.params = data["params"]
+        params_logicos = data["params"]
+    if "tipo" in data or "formato" in data or "params" in data:
+        p.params = _params_reporte(
+            tipo_logico, formato_logico, params_logicos,
+        )
     if "cron_expr" in data and data["cron_expr"] is not None:
         p.cron_expr = valida_cron(data["cron_expr"])
     if "activo" in data and data["activo"] is not None:
@@ -1205,7 +1306,8 @@ def download_url(reporte_id: uuid.UUID, db: Session = Depends(get_db),
                   f"El reporte está en estado '{r.status}'; "
                   "espere a que termine para descargarlo")
     ext = (r.blob_path.rsplit(".", 1)[-1] or "bin").lower()
-    filename = nombre_archivo(r.nombre, r.formato, ext)
+    filename = nombre_archivo(
+        r.nombre, _formato_publico(r.formato, r.params), ext)
     dl = get_storage().download_url(r.blob_path, filename)
     actividad.log(db, cid, "visualizacion", "reportes",
                   f"Descarga del reporte '{r.nombre}' ({r.formato})",
@@ -1223,16 +1325,13 @@ def download_url(reporte_id: uuid.UUID, db: Session = Depends(get_db),
 def exportar(body: ExportacionIn, db: Session = Depends(get_db),
              cid: uuid.UUID = Depends(get_company_id),
              user: User = Depends(require_company)):
-    """Exporta la tabla en pantalla a Excel o CSV.
+    """Exporta la tabla en pantalla a PDF o CSV.
 
     Se cuentan primero las filas: hasta `EXPORT_FILAS_MAX` el archivo se genera
     en el propio request y se responde 200 con la URL de descarga; por encima se
     crea un `Reporte` equivalente, se encola y se responde 202. El umbral protege
-    al worker de la API, que quedaría bloqueado escribiendo un XLSX de decenas de
-    miles de filas mientras el navegador espera.
-
-    Si `openpyxl` no está instalado el Excel degrada a CSV y el nombre del archivo
-    lo dice (`...-excel-no-disponible.csv`), en vez de fallar la exportación.
+    al worker de la API, que quedaría bloqueado escribiendo un archivo de decenas
+    de miles de filas mientras el navegador espera.
     """
     _solo_empresa(user)
     recurso = body.recurso
@@ -1277,7 +1376,14 @@ def exportar(body: ExportacionIn, db: Session = Depends(get_db),
         })
 
     cabeceras, filas = filas_de_recurso(db, cid, recurso, filtros, scope)
-    data, ext = serializar(formato, cabeceras, filas, titulo)
+    if formato == "pdf":
+        data = generar_pdf(
+            titulo, cabeceras, filas,
+            metadatos_pdf(db, cid, filtros, len(filas)),
+        )
+        ext = "pdf"
+    else:
+        data, ext = serializar(formato, cabeceras, filas, titulo)
     filename = nombre_archivo(titulo, formato, ext)
     # Blob temporal: las exportaciones se purgan a las 24 horas (§10).
     blob_path = make_tmp_path(cid, f"export-{recurso}", filename)

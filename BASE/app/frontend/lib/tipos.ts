@@ -1083,7 +1083,8 @@ export type Reporte = {
   id: string;
   nombre: string;
   tipo: TipoReporte;
-  formato: "pdf" | "excel";
+  /** `excel` se conserva solo para trabajos anteriores a la salida CSV/PDF. */
+  formato: "pdf" | "csv" | "excel";
   status: EstadoJob;
   params: Record<string, unknown>;
   created_at: string | null;
@@ -1096,7 +1097,8 @@ export type ReporteProgramado = {
   id: string;
   nombre: string;
   tipo: TipoReporte;
-  formato: "pdf" | "excel";
+  /** `excel` se conserva solo para programaciones anteriores a la salida CSV/PDF. */
+  formato: "pdf" | "csv" | "excel";
   params: Record<string, unknown>;
   cron_expr: string;
   activo: boolean;

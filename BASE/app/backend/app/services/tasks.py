@@ -44,6 +44,7 @@ from .checklist import (calc_estado_doc, calc_estado_sujeto,
                         vencimiento_por_plantilla)
 from .ia import get_reviewer
 from .jobs import tarea
+from .pdf import generar_pdf
 from .storage import get_storage
 
 logger = logging.getLogger("acredittia.tasks")
@@ -733,116 +734,6 @@ def extraer_carpeta_arranque(review_id: str, company_id: str, contrato_id: str,
 # ============================================================================
 # §15.3 — Generación de reportes
 # ============================================================================
-def _texto_pdf(s: str) -> bytes:
-    """Escapa un literal de cadena PDF y lo lleva a latin-1 (fuente Type1)."""
-    limpio = (str(s).replace("\\", r"\\").replace("(", r"\(").replace(")", r"\)"))
-    return limpio.encode("latin-1", "replace")
-
-
-def pdf_simple(titulo: str, lineas: list[str]) -> bytes:
-    """PDF A4 horizontal de texto monoespaciado, sin dependencias externas.
-
-    La especificación prevé WeasyPrint o ReportLab (§15.3) y ninguno está en
-    `requirements.txt`. Se intenta ReportLab por si el despliegue lo trae y, si
-    no, se emite este PDF mínimo: válido y legible, pero sin tablas ni estilos.
-    Se prefiere generar un PDF pobre a fallar el job, porque el formato lo eligió
-    el usuario y el enum `reporte_formato` no admite degradar a CSV.
-    """
-    try:
-        from reportlab.lib.pagesizes import landscape, A4      # import perezoso
-        from reportlab.pdfgen import canvas
-    except ImportError:
-        return _pdf_minimo(titulo, lineas)
-
-    buf = io.BytesIO()
-    ancho, alto = landscape(A4)
-    c = canvas.Canvas(buf, pagesize=(ancho, alto))
-    y = alto - 40
-    c.setFont("Helvetica-Bold", 12)
-    c.drawString(40, y, titulo)
-    y -= 20
-    c.setFont("Courier", 8)
-    for linea in lineas:
-        if y < 40:
-            c.showPage()
-            c.setFont("Courier", 8)
-            y = alto - 40
-        c.drawString(40, y, linea[:150])
-        y -= 11
-    c.save()
-    return buf.getvalue()
-
-
-def _pdf_minimo(titulo: str, lineas: list[str], *, ancho: int = 842,
-                alto: int = 595, por_pagina: int = 44) -> bytes:
-    """Escritor PDF 1.4 de una sola fuente Courier. Suficiente para un listado."""
-    cuerpo = [titulo, ""] + list(lineas)
-    paginas = [cuerpo[i:i + por_pagina]
-               for i in range(0, len(cuerpo), por_pagina)] or [[]]
-    n = len(paginas)
-
-    objetos: list[bytes] = [
-        b"<< /Type /Catalog /Pages 2 0 R >>",
-        ("<< /Type /Pages /Kids [%s] /Count %d >>"
-         % (" ".join(f"{4 + 2 * i} 0 R" for i in range(n)), n)).encode(),
-        b"<< /Type /Font /Subtype /Type1 /BaseFont /Courier >>",
-    ]
-    for i, pagina in enumerate(paginas):
-        objetos.append((
-            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 %d %d] "
-            "/Resources << /Font << /F1 3 0 R >> >> /Contents %d 0 R >>"
-            % (ancho, alto, 5 + 2 * i)).encode())
-        partes = [b"BT /F1 9 Tf 11 TL 36 ", str(alto - 40).encode(), b" Td\n"]
-        for linea in pagina:
-            partes += [b"(", _texto_pdf(linea[:150]), b") Tj T*\n"]
-        partes.append(b"ET")
-        flujo = b"".join(partes)
-        objetos.append(b"<< /Length %d >>\nstream\n%s\nendstream"
-                       % (len(flujo), flujo))
-
-    salida = bytearray(b"%PDF-1.4\n")
-    offsets: list[int] = []
-    for i, obj in enumerate(objetos, start=1):
-        offsets.append(len(salida))
-        salida += b"%d 0 obj\n%s\nendobj\n" % (i, obj)
-    inicio_xref = len(salida)
-    salida += b"xref\n0 %d\n0000000000 65535 f \n" % (len(objetos) + 1)
-    for off in offsets:
-        salida += b"%010d 00000 n \n" % off
-    salida += (b"trailer\n<< /Size %d /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n"
-               % (len(objetos) + 1, inicio_xref))
-    return bytes(salida)
-
-
-def _lineas_tabla(cabeceras: list[str], filas: list[list],
-                  ancho_max: int = 148) -> list[str]:
-    """Renderiza la tabla como texto de ancho fijo para el PDF."""
-    cols = len(cabeceras)
-    if not cols:
-        return []
-    anchos = [len(str(c)) for c in cabeceras]
-    for fila in filas[:2000]:
-        for i in range(cols):
-            valor = "" if i >= len(fila) or fila[i] is None else str(fila[i])
-            anchos[i] = max(anchos[i], min(len(valor), 28))
-    # Reparto proporcional si la suma excede el ancho de página.
-    total = sum(anchos) + 3 * (cols - 1)
-    if total > ancho_max:
-        factor = (ancho_max - 3 * (cols - 1)) / max(sum(anchos), 1)
-        anchos = [max(6, int(a * factor)) for a in anchos]
-
-    def linea(valores) -> str:
-        celdas = []
-        for i in range(cols):
-            v = "" if i >= len(valores) or valores[i] is None else str(valores[i])
-            celdas.append(v[:anchos[i]].ljust(anchos[i]))
-        return " | ".join(celdas)
-
-    salida = [linea(cabeceras), "-" * min(total, ancho_max)]
-    salida += [linea(f) for f in filas]
-    return salida
-
-
 @tarea("generar_reporte")
 def generar_reporte(reporte_id: str, company_id: str) -> None:
     """Materializa un `Reporte` encolado y lo deja disponible para descarga.
@@ -868,7 +759,9 @@ def generar_reporte(reporte_id: str, company_id: str) -> None:
         db.commit()
 
         try:
-            from ..routers.reportes import filas_de_recurso, serializar
+            from ..routers.reportes import (
+                filas_de_recurso, metadatos_pdf, serializar,
+            )
 
             params = dict(rep.params or {})
             recurso = params.get("recurso") or RECURSO_POR_TIPO.get(rep.tipo)
@@ -878,7 +771,9 @@ def generar_reporte(reporte_id: str, company_id: str) -> None:
             if not isinstance(filtros, dict):
                 # Los params de /reportes son planos ({dias, contrato_id, ...}).
                 filtros = {k: v for k, v in params.items()
-                           if k not in ("recurso", "formato_export")}
+                           if k not in (
+                               "recurso", "formato_export", "tipo_solicitado",
+                           )}
             scope = filtros.get("contrato_id")
             scope_contrato = uuid.UUID(str(scope)) if scope else None
 
@@ -887,7 +782,10 @@ def generar_reporte(reporte_id: str, company_id: str) -> None:
 
             formato = params.get("formato_export") or rep.formato
             if formato == "pdf":
-                data = pdf_simple(rep.nombre, _lineas_tabla(cabeceras, filas))
+                data = generar_pdf(
+                    rep.nombre, cabeceras, filas,
+                    metadatos_pdf(db, cid, filtros, len(filas)),
+                )
                 ext = "pdf"
             else:
                 data, ext = serializar(formato, cabeceras, filas, rep.nombre)

@@ -1,4 +1,30 @@
-# Validación funcional — actualizado al 13 de octubre de 2026
+# Validación funcional — actualizado al 14 de octubre de 2026
+
+## Reportes en el portal de empresa — 14 de octubre de 2026
+
+Se agregó `/reportes` y su entrada al menú del portal de empresa, usando las
+APIs existentes de reportes, exportaciones y programaciones. La interfaz
+incluye generación con filtro de contrato/período, historial paginado con
+actualización de estados, descarga de reportes listos y gestión de reportes
+programados. Los seis tipos disponibles, incluida la matriz de cumplimiento,
+ofrecen PDF y CSV en generación, exportación y programación. Los PDF incluyen
+marca, metadatos de empresa/contrato/período, recuento de registros, tabla
+multipágina con encabezados repetidos y pie con número de página. Para
+compatibilidad con el enum de base de datos, CSV se guarda usando el valor
+histórico `excel` y se distingue con un parámetro; la API lo devuelve como CSV.
+La entrada no se muestra a `contract_admin`, y la API también deniega el acceso
+a sus reportes consolidados.
+
+**Validación ejecutada:** `npm run build` en `BASE/app/frontend`, correcto;
+Next.js generó la ruta `/reportes` y completó el chequeo de tipos. No se hizo
+recorrido visual ni se probaron generación, descarga o programación contra una
+API/worker/storage activos. La ejecución más reciente de las pruebas backend
+no llegó a recolectar casos: `tests/conftest.py` requiere `pgserver`, que no
+está instalado en el entorno. La generación PDF no se probó en runtime local
+porque falta ReportLab; la dependencia sí está declarada en
+`BASE/app/backend/requirements.txt`. No se instalaron dependencias para esta
+validación. La implementación de interfaz no cierra por sí sola las brechas
+generales de autorización, auditoría o minimización de exportaciones.
 
 ## Revisión de cumplimiento ADMIN — 13 de octubre de 2026
 

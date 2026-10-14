@@ -654,7 +654,7 @@ export const reportes = {
 
   /** Siempre asíncrono: se consulta con `detalle()` y se baja con `urlDescarga()`. */
   crear: (body: {
-    tipo: TipoReporte; formato: "pdf" | "excel";
+    tipo: TipoReporte; formato: "pdf" | "csv";
     params?: Record<string, unknown>; nombre?: string;
   }) => api<{ id: string; status: string }>("/reportes", { body }),
 
@@ -667,12 +667,12 @@ export const reportes = {
     api<Pagina<ReporteProgramado>>("/reportes/programados", { query: q(params) }),
 
   crearProgramado: (body: {
-    nombre: string; tipo: TipoReporte; formato: "pdf" | "excel";
+    nombre: string; tipo: TipoReporte; formato: "pdf" | "csv";
     cron_expr: string; params?: Record<string, unknown>; activo?: boolean;
   }) => api<ReporteProgramado>("/reportes/programados", { body }),
 
   editarProgramado: (id: string, cambios: Partial<{
-    nombre: string; tipo: TipoReporte; formato: "pdf" | "excel";
+    nombre: string; tipo: TipoReporte; formato: "pdf" | "csv";
     params: Record<string, unknown>; cron_expr: string; activo: boolean;
   }>) => patch<ReporteProgramado>(`/reportes/programados/${id}`, cambios),
 
@@ -687,7 +687,7 @@ export const exportaciones = {
    */
   crear: (body: {
     recurso: RecursoExport; filtros?: Record<string, unknown>;
-    formato?: "excel" | "csv";
+    formato?: "pdf" | "csv";
   }) => api<Exportacion>("/exportaciones", { body }),
 };
 

@@ -1,7 +1,7 @@
 # Resumen de requisitos ADMIN
 
-**Corte:** 13 de octubre de 2026  
-**Base documental:** SRS versión 0.54 y `VALIDACION_ACTUAL.md`, actualizados al 13 de octubre de 2026.  
+**Corte ADMIN:** 13 de octubre de 2026  
+**Base documental:** SRS versión 0.56 y `VALIDACION_ACTUAL.md`, actualizados al 14 de octubre de 2026.  
 **Propósito:** resumir el estado técnico de las ocho prioridades ADMIN, distinguir lo implementado de lo validado y proponer criterios concretos para revisar su cierre.
 
 Este documento es una guía de revisión, no una aceptación contractual ni una certificación de producción. Los estados reflejan los requisitos y la evidencia descritos en el [SRS](SRS.md) y en [VALIDACION_ACTUAL.md](VALIDACION_ACTUAL.md). `IV` significa implementado y validado dentro del alcance probado; `ISV`, implementado sin validación completa; `PAR`, parcial; `COR`, requiere corrección; y `PEN`, pendiente. Los porcentajes estimados del SRS no equivalen a porcentaje de cumplimiento validado.
@@ -10,6 +10,9 @@ La actualización del 13-10-2026 registra mejoras de interfaz y auditoría
 descritas abajo y una revisión de código/documentación de las ocho prioridades.
 No se elevan los estados a IV sin completar las pruebas y criterios de
 aceptación pendientes.
+
+La ampliación de Reportes del portal documentada el 14-10-2026 no forma parte
+de la estimación de las prioridades ADMIN ni modifica su 67%.
 
 ## Resumen ejecutivo
 
