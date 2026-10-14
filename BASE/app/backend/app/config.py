@@ -37,7 +37,7 @@ class Settings(BaseSettings):
     db_rls_enabled: bool = True             # fija app.company_id/is_admin/user_id por request
 
     # --- Autenticación -----------------------------------------------------
-    jwt_secret: str = "dev-secret-cambiar-en-produccion"
+    jwt_secret: str = "dev-secret-cambiar-en-produccion-32bytes-abc123"
     access_ttl_min: int = 30
     refresh_ttl_days: int = 30
     reset_ttl_min: int = 60

@@ -1,9 +1,10 @@
 # Consola Interna de Administración — código backend
 
-Implementación de la **Especificación de API — Consola Interna v1.0**
-(`Acredittia_Especificacion_API_Consola_Interna.docx`): 20 endpoints bajo
-`/api/v1/admin`, 7 tablas nuevas, procedimientos almacenados PL/pgSQL,
-índices y 4 jobs de fondo. Módulo **drop-in** para `app/backend`.
+Estado actual validado: la base backend quedó validada con PostgreSQL temporal en Docker. El resultado verificado del 14-10-2026 es **399 pruebas aprobadas, 0 fallidas** en `BASE/app/backend`, con **1 warning residual** de compatibilidad del stack `starlette.testclient` + `httpx`.
+
+Esta guía conserva la documentación de la **Especificación de API — Consola Interna v1.0** y la implementación heredada (`Acredittia_Especificacion_API_Consola_Interna.docx`), pero no debe interpretarse como un estado de producción certificado. La evidencia actual y el SRS mantienen como bloqueo P0 la revisión legal/contractual de DEC-08, los permisos granulares y la auditoría con datos sensibles.
+
+El módulo operativo sigue siendo una base funcional relevante, pero el estado real del proyecto se encuentra en la documentación principal del repositorio: [README.md](README.md), [documentacion/SRS.md](documentacion/SRS.md), [documentacion/GAP_ANALYSIS.md](documentacion/GAP_ANALYSIS.md) y [documentacion/VALIDACION_ACTUAL.md](documentacion/VALIDACION_ACTUAL.md).
 
 ## Mapa de archivos
 

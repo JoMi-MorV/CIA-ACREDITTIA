@@ -32,15 +32,9 @@ estimación; no equivale a cumplimiento validado ni a preparación para
 producción. Los bloqueos P0 de DEC-08, permisos granulares, auditoría integral
 y evidencia de aislamiento/mínimo privilegio siguen abiertos.
 
-**Actualización 14-10-2026 — Reportes del portal de empresa:** la página
-`/reportes` ofrece generación, historial, descarga y programación de los seis
-tipos disponibles en PDF/CSV. El PDF tiene marca, metadatos, recuento de
-registros, tabla multipágina con encabezados repetidos y numeración de página.
-El build frontend pasó; no se completó la validación contra API/worker/storage.
-La ejecución backend más reciente no recolectó pruebas por falta de `pgserver`,
-y ReportLab no está instalado en el entorno local para probar la generación
-PDF. Esta entrega corresponde al portal de empresa: no se incorpora al cálculo
-de avance de las ocho prioridades ADMIN ni altera el 67%.
+**Actualización 14-10-2026 — validación real del backend y reportes del portal de empresa:** la página `/reportes` ofrece generación, historial, descarga y programación de los seis tipos disponibles en PDF/CSV. El PDF tiene marca, metadatos, recuento de registros, tabla multipágina con encabezados repetidos y numeración de página. La suite backend quedó validada con PostgreSQL efímero en Docker: `python -m pytest -q` en `BASE/app/backend` obtuvo **399 aprobadas, 0 fallidas**. Queda un warning residual de compatibilidad del stack FastAPI/Starlette (`TestClient` con `httpx` deprecado), sin impacto funcional. El entorno local no exige `pgserver` externo; el repo incluye una compatibilidad local híbrida para iniciar PostgreSQL temporalmente.
+
+Esta entrega del portal de empresa corresponde al alcance funcional del producto y no altera el cálculo de avance de las ocho prioridades ADMIN, que sigue siendo una estimación documental. La preparación para producción sigue bloqueada por DEC-08 y por la necesidad de evidenciar permisos granulares, auditoría y aislamiento equivalente a producción.
 
 El módulo admin tiene una base funcional sólida en:
 

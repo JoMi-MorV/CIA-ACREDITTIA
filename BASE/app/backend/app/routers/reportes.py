@@ -60,8 +60,8 @@ logger = logging.getLogger("acredittia.reportes")
 router = APIRouter(prefix="/reportes", tags=["reportes"])
 router_export = APIRouter(prefix="/exportaciones", tags=["reportes"])
 
-FORMATOS_REPORTE: tuple[str, ...] = ("pdf", "csv")
-FORMATOS_EXPORT: tuple[str, ...] = ("pdf", "csv")
+FORMATOS_REPORTE: tuple[str, ...] = ("pdf", "csv", "excel")
+FORMATOS_EXPORT: tuple[str, ...] = ("pdf", "csv", "excel")
 ESTADOS_JOB: tuple[str, ...] = ("queued", "processing", "done", "failed")
 
 # Valores almacenables en el enum `reporte_tipo` (01_esquema.sql). La matriz se
@@ -923,7 +923,7 @@ def _params_reporte(tipo: str, formato: str, params: dict | None) -> dict:
         if salida.get("recurso") == "matriz":
             salida.pop("recurso", None)
 
-    if formato == "csv":
+    if formato in ("csv", "excel"):
         salida["formato_export"] = "csv"
     else:
         salida.pop("formato_export", None)

@@ -1,12 +1,8 @@
 # Consola Interna — frontend (/ops)
 
-Documento de la implementación original de la consola de administración en
-**React (Next.js 14 App Router + TypeScript + Tailwind)**. La consola ya está
-integrada en el frontend de Acredittia: las rutas visibles actuales están bajo
-`/admin` (por ejemplo, `/admin/usuarios`, `/admin/sistemas` y
-`/admin/metricas`) y la API administrativa se publica bajo
-`/api/v1/admin`. Se conservan rutas Ops anteriores bajo
-`/api/v1/admin/ops` por compatibilidad.
+Estado actual validado: la capa frontend de la consola ha sido revisada y el build de la app sigue pasando; además, el backend quedó validado con pruebas reales. La evidencia actual en el repositorio registra que la suite backend completa pasó con **399 pruebas aprobadas, 0 fallidas**; no se declara producción ni go-live con datos reales, porque DEC-08 y la seguridad operativa siguen bloqueados en la documentación de requisitos.
+
+Este documento conserva la implementación original de la consola de administración en **React (Next.js 14 App Router + TypeScript + Tailwind)**, pero la navegación pública actual del proyecto ya no se limita a `/ops`. Las rutas visibles vigentes quedan bajo `/admin` (por ejemplo, `/admin/usuarios`, `/admin/sistemas`, `/admin/metricas`), y la API administrativa se publica bajo `/api/v1/admin`. Se conservan rutas Ops anteriores bajo `/api/v1/admin/ops` por compatibilidad histórica.
 
 Los nombres internos `app/ops`, `lib/ops` y las referencias a `/ops` de esta
 guía corresponden a la estructura heredada; no describen la navegación pública

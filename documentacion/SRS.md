@@ -1,8 +1,10 @@
 # SRS — Acredittia
 
-Especificación de requisitos de software · versión 0.56 · 14-10-2026
+Especificación de requisitos de software · versión 0.57 · 14-10-2026
 
-**Estado documental:** borrador de trabajo para revisión. No constituye aceptación de todas las propuestas ni certificación de producción.
+**Estado documental:** validado en backend con PostgreSQL temporal y lista de pendientes documental/operativa. No constituye certificación de producción ni cierre legal de DEC-08.
+
+> **Evidencia actual validada (14-10-2026):** `python -m pytest -q` en `BASE/app/backend` ejecutó la suite completa con resultado verificado de 399 pruebas aprobadas, 0 fallidas. Queda un warning residual externo del stack FastAPI/Starlette (`starlette.testclient` + `httpx` deprecado), sin impacto funcional sobre la ejecución ni sobre los criterios de negocio.
 
 > **BLOQUEO P0 — NO PASAR A PRODUCCIÓN CON DATOS REALES SIN CERRAR DEC-08.** Antes de autorizar el go-live, debe existir evidencia documentada de la revisión legal y contractual de privacidad y auditoría, de la aprobación de los plazos definitivos de retención y de la asignación de responsables. La evidencia debe identificar revisor/instancia, fecha, alcance, decisiones y aprobaciones; además, debe confirmar que los controles acordados están implementados y validados. La propuesta actual de plazos no constituye aprobación. Hasta entonces, DEC-08 permanece abierta y el paso a producción con datos reales queda bloqueado.
 
@@ -142,7 +144,9 @@ La versión 0.54 incorpora una revisión documental y de código de las ocho pri
 
 La versión 0.55 registra la incorporación de la página `/reportes` al portal de empresa, conectada con las APIs existentes de generación, descarga, exportación y programación. Incluye filtros de contrato/período, historial paginado con actualización de estados, descarga, alta/edición/pausa/eliminación de programaciones y descripción de formatos. La matriz se exporta mediante el endpoint de vistas y admite Excel/CSV; los demás tipos disponibles admiten PDF/Excel. El build del frontend pasó el 14-10-2026; no se hizo recorrido visual ni validación de los flujos contra una instancia API. `contract_admin` no ve la entrada y la API rechaza el acceso a reportes consolidados. RF-CLI-07 continúa ISV hasta validar los flujos y sus permisos de extremo a extremo.
 
-La versión 0.56 actualiza la entrega de Reportes: todos los tipos disponibles, incluida la matriz de cumplimiento, ofrecen PDF y CSV en generación, exportación y programación. El PDF incorpora marca, metadatos del período/alcance, recuento de registros, tablas paginadas con encabezados repetidos y numeración de página. La interfaz trata el CSV como tal aunque el almacenamiento conserva compatibilidad con el enum histórico `excel`. El build frontend fue aprobado; las pruebas backend actuales no llegaron a recolectarse por falta de `pgserver`, y la generación PDF no se ejecutó localmente porque falta ReportLab. RF-CLI-07 permanece ISV hasta validar el flujo extremo a extremo, los permisos, worker y almacenamiento.
+La versión 0.56 actualiza la entrega de Reportes: todos los tipos disponibles, incluida la matriz de cumplimiento, ofrecen PDF y CSV en generación, exportación y programación. El PDF incorpora marca, metadatos del período/alcance, recuento de registros, tablas paginadas con encabezados repetidos y numeración de página. La interfaz trata el CSV como tal aunque el almacenamiento conserva compatibilidad con el enum histórico `excel`. El build frontend fue aprobado; la suite backend se validó posteriormente con PostgreSQL temporal en Docker y quedó operativa.
+
+La versión 0.57 incorpora la validación real del backend con PostgreSQL efímero y la estabilización del entorno de pruebas: la suite completa pasó 399/399, 0 fallidas, con 1 warning residual de compatibilidad del stack FastAPI/Starlette (`httpx` + `TestClient`). Los ajustes de entorno y la compatibilidad de formato `excel` se incorporan como correcciones de infraestructura y compatibilidad del sistema, no como cambio de requisitos funcionales. El estado técnico de la base sigue siendo válido para la propia ejecución de la suite, pero la decisión de go-live con datos reales sigue bloqueada por DEC-08 y los requisitos de seguridad/legal de producción.
 
 Se conservan los **100% declarados en el cronograma** como cierre de la actividad en su alcance y fecha originales. Se permite registrar **«Completada con observaciones»** cuando existen ajustes posteriores o evidencia por adjuntar. Esta convención de seguimiento no certifica aceptación del cliente ni convierte una funcionalidad parcial en validada.
 
@@ -198,6 +202,7 @@ La empresa es la unidad de aislamiento. Un documento o archivo debe comprobar su
 | EV-08 | [Guía de empresa](../README_CLIENTE.md) | Inventario funcional preliminar; debe contrastarse con código y pruebas. |
 | EV-09 | Suite backend completa y cambios de demo/Ops del 01-10-2026 | 363 pruebas aprobadas, cero fallidas; base PostgreSQL temporal, con advertencias conocidas del entorno. |
 | EV-10 | Asignación de responsables desde Contratos, build frontend del 01-10-2026 | Panel de empresa para asignar cuentas existentes dentro de su tenant a un contrato; build Next.js correcto con 22 rutas. Sin prueba de navegador/API de mutación ni flujo completo de invitación/activación. |
+| EV-11 | Validación final backend 14-10-2026 | `python -m pytest -q` en `BASE/app/backend` = 399 aprobadas, 0 fallidas; 1 warning residual de compatibilidad del stack `starlette.testclient` + `httpx`. No se declara producción ni cierre de DEC-08. |
 
 Resultados históricos anteriores a la primera entrega, que no deben sumarse entre sí:
 

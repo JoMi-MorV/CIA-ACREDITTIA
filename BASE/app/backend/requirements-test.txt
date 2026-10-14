@@ -2,5 +2,7 @@
 
 # --- Pruebas -----------------------------------------------------------
 pytest>=8.2
-httpx>=0.27
-pgserver>=0.1.4     # PostgreSQL efímero para la suite (esquema real, no SQLite)
+httpx>=0.27,<0.28
+# PostgreSQL efímero para la suite: se levanta con Docker si no hay un server
+# local disponible. La dependencia `pgserver` no existe en PyPI; se proporciona
+# mediante compatibilidad local dentro del repo.

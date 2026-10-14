@@ -54,6 +54,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import urllib.parse
 import uuid
 from datetime import date, timedelta
 
@@ -78,7 +79,7 @@ SQL_DIR = os.path.join(_TMP, "sql")
 KEYS_DIR = os.path.join(_TMP, "keys")
 STORAGE_DIR = os.path.join(_TMP, "uploads")
 
-PSQL = os.path.join(os.path.dirname(pgserver.__file__), "pginstall", "bin", "psql")
+PSQL = [sys.executable, os.path.join(os.path.dirname(pgserver.__file__), "pginstall", "bin", "psql")]
 
 # Catálogos globales sembrados al arrancar: NO se vacían entre pruebas.
 CATALOGOS = {"app_schema_migrations", "faenas", "faena_plataformas", "doc_ejemplos", "requisito_templates",
@@ -111,7 +112,7 @@ def _parchear_scripts() -> str:
 
 
 def _psql(uri: str, *args: str) -> None:
-    r = subprocess.run([PSQL, uri, "-v", "ON_ERROR_STOP=1", "-q", *args],
+    r = subprocess.run([*PSQL, uri, "-v", "ON_ERROR_STOP=1", "-q", *args],
                        capture_output=True, text=True)
     if r.returncode:
         raise RuntimeError(f"psql falló ({args}):\n{r.stdout[-3000:]}\n{r.stderr[-6000:]}")
@@ -132,14 +133,20 @@ def _arrancar() -> tuple[object, str]:
     # El rol de aplicación existe tras 04_rls.sql; el socket local admite
     # conexión sin contraseña, así que la API se conecta como acredittia_app y
     # RLS se aplica de verdad.
-    socket = uri_super.split("host=", 1)[1]
-    return servidor, f"postgresql+psycopg://acredittia_app@/postgres?host={socket}"
+    parsed = urllib.parse.urlparse(uri_super)
+    host = parsed.hostname or "localhost"
+    port = parsed.port or 5432
+    uri_app = f"postgresql+psycopg://acredittia_app:CAMBIAR_EN_KEY_VAULT@{host}:{port}/postgres"
+    return servidor, uri_app
 
 
 # Referencia global: pgserver apaga el servidor cuando se recolecta.
 SERVIDOR, URI_APP = _arrancar()
 URI_SUPER = SERVIDOR.get_uri()
-URI_SUPER_SA = "postgresql+psycopg://postgres@/postgres?host=" + URI_SUPER.split("host=", 1)[1]
+parsed_super = urllib.parse.urlparse(URI_SUPER)
+URI_SUPER_SA = (
+    f"postgresql+psycopg://postgres:postgres@{parsed_super.hostname}:{parsed_super.port}/postgres"
+)
 
 # ============================================================================
 # 2. Entorno de la aplicación (antes de importar app.*)
@@ -156,7 +163,7 @@ os.environ.update({
     "KEYS_DIR": KEYS_DIR,
     "STORAGE_BACKEND": "local",
     "STORAGE_DIR": STORAGE_DIR,
-    "JWT_SECRET": "dev-test",
+    "JWT_SECRET": "dev-test-secret-32-bytes-long-abc123456789",
     "APP_ENV": "test",
     "SEED_DEMO_ENABLED": "true",
     "AUTH_DEV_RESET_TOKEN_ENABLED": "true",

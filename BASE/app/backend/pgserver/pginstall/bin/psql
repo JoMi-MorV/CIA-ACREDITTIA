@@ -1,0 +1,50 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import os
+import subprocess
+import sys
+from urllib.parse import parse_qs, urlparse, urlunparse
+
+
+container = os.environ.get("PGSERVER_CONTAINER")
+if not container:
+    raise SystemExit("PGSERVER_CONTAINER no está definido; no se pudo ubicar el contenedor PostgreSQL")
+
+if len(sys.argv) < 2:
+    raise SystemExit("Uso: psql <uri> [args...]")
+
+uri = sys.argv[1]
+parsed = urlparse(uri)
+user = parsed.username or "postgres"
+password = parsed.password or os.environ.get("PGPASSWORD", "postgres")
+qs = parse_qs(parsed.query, keep_blank_values=True)
+# El contenedor usa PostgreSQL en el mismo host local, así que el comando debe
+# apuntar a 127.0.0.1:5432 dentro del contenedor, no a la URL externa publicada.
+netloc = f"{user}:{password}@localhost:5432"
+new_uri = urlunparse(parsed._replace(netloc=netloc, query=""))
+
+args = list(sys.argv[2:])
+processed: list[str] = []
+idx = 0
+while idx < len(args):
+    arg = args[idx]
+    if arg == "-f" and idx + 1 < len(args):
+        host_path = args[idx + 1]
+        if os.path.exists(host_path):
+            filename = os.path.basename(host_path)
+            dest = f"/tmp/{filename}"
+            cp = subprocess.run(["docker", "cp", host_path, f"{container}:{dest}"], check=False)
+            if cp.returncode != 0:
+                raise SystemExit(cp.returncode)
+            processed.extend(["-f", dest])
+            idx += 2
+            continue
+    processed.append(arg)
+    idx += 1
+
+cmd = ["docker", "exec", "-i", container, "psql", new_uri, *processed]
+env = os.environ.copy()
+env["PGPASSWORD"] = password
+result = subprocess.run(cmd, env=env, check=False)
+raise SystemExit(result.returncode)

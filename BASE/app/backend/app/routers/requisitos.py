@@ -20,7 +20,7 @@ import logging
 import uuid
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import distinct, func, or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from ..deps import (Page, aplicar_orden, contrato_scope, err, get_company_id,
@@ -53,7 +53,7 @@ _PESO_ESTADO = {"venc": 0, "porvenc": 1, "falta": 2, "ok": 3}
 # ------------------------------------------------------------------- helpers
 def _faenas_visibles(cid: uuid.UUID, scope: uuid.UUID | None):
     """Subconsulta con las faenas donde la empresa tiene contratos."""
-    q = select(distinct(Contrato.faena_id)).where(Contrato.company_id == cid)
+    q = select(Contrato.faena_id).where(Contrato.company_id == cid).distinct()
     if scope:
         q = q.where(Contrato.id == scope)
     return q

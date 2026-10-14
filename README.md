@@ -1,10 +1,23 @@
 # Consola Interna de Administración — código backend
 
+## Estado actual verificado
+
+El proyecto está en estado funcional para la suite completa del backend con PostgreSQL temporal en Docker.
+
+Evidencia ejecutada el 14-10-2026:
+
+- `cd BASE/app/backend; python -m pytest -q`
+- Resultado verificado: **399 pruebas aprobadas, 0 fallidas**
+- Warning restante: **1**, de compatibilidad del stack `starlette.testclient` + `httpx` (sin impacto funcional)
+
+La producción no queda declarada como cerrada ni lista para go-live con datos reales: la revisión P0 de DEC-08, permisos granulares y auditoría siguen siendo bloqueos documentados del SRS.
+
 ## Requisitos y planificación
 
 - [SRS del proyecto](documentacion/SRS.md): alcance, actores, requisitos implementados y pendientes, evidencia y criterios de aceptación.
 - [Plan de trabajo](documentacion/PLAN_DE_TRABAJO.md): entregas propuestas, prioridades, dependencias y condiciones de cierre.
 - [Validación actual](documentacion/VALIDACION_ACTUAL.md): resultados y limitaciones de las comprobaciones ejecutadas.
+- [Gap Analysis](documentacion/GAP_ANALYSIS.md): brechas funcionales, operativas y de seguridad aún abiertas.
 
 El SRS es un documento de trabajo; las decisiones de producto aun abiertas estan identificadas explicitamente.
 

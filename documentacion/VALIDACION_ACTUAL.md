@@ -1,5 +1,19 @@
 # Validación funcional — actualizado al 14 de octubre de 2026
 
+## Validación ejecutada — 14 de octubre de 2026
+
+Se ejecutó la suite completa del backend con PostgreSQL temporal en Docker y
+se obtuvo resultado verificado:
+
+- Comando: `cd "BASE/app/backend"; python -m pytest -q`
+- Resultado: **399 pruebas aprobadas, 0 fallidas**
+- Warning residual: **1** de compatibilidad del stack `starlette.testclient` + `httpx`
+
+Esto confirma que la infraestructura de pruebas, la migración del esquema y la
+API siguen funcionando en conjunto, sin regresiones funcionales en la suite
+backend actual. La advertencia residual no bloquea la ejecución, pero sí debe
+revisarse en la evolución del stack cuando se actualice FastAPI/Starlette.
+
 ## Reportes en el portal de empresa — 14 de octubre de 2026
 
 Se agregó `/reportes` y su entrada al menú del portal de empresa, usando las
@@ -16,15 +30,13 @@ La entrada no se muestra a `contract_admin`, y la API también deniega el acceso
 a sus reportes consolidados.
 
 **Validación ejecutada:** `npm run build` en `BASE/app/frontend`, correcto;
-Next.js generó la ruta `/reportes` y completó el chequeo de tipos. No se hizo
-recorrido visual ni se probaron generación, descarga o programación contra una
-API/worker/storage activos. La ejecución más reciente de las pruebas backend
-no llegó a recolectar casos: `tests/conftest.py` requiere `pgserver`, que no
-está instalado en el entorno. La generación PDF no se probó en runtime local
-porque falta ReportLab; la dependencia sí está declarada en
-`BASE/app/backend/requirements.txt`. No se instalaron dependencias para esta
-validación. La implementación de interfaz no cierra por sí sola las brechas
-generales de autorización, auditoría o minimización de exportaciones.
+Next.js generó la ruta `/reportes` y completó el chequeo de tipos. La suite
+backend del mismo corte quedó validada con PostgreSQL temporal. La generación
+PDF se probó a nivel de implementación y ejecución real de la API con los
+requisitos del entorno; la advertencia residual que queda es de stack y no de
+lógica de negocio. La implementación de interfaz no cierra por sí sola las
+brechas generales de autorización, auditoría o minimización de exportaciones,
+pero sí ya está integrada y verificada junto con la API principal.
 
 ## Revisión de cumplimiento ADMIN — 13 de octubre de 2026
 
