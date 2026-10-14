@@ -7,7 +7,7 @@ from ..models import Actividad
 
 
 def log(
-    db: Session, company_id: uuid.UUID, tipo: str, modulo: str, descripcion: str,
+    db: Session, company_id: uuid.UUID | None, tipo: str, modulo: str, descripcion: str,
     user_id: uuid.UUID | None = None, entidad_tipo: str | None = None,
     entidad_id: uuid.UUID | None = None, plataforma: str | None = None,
     metadata: dict[str, Any] | None = None,

@@ -630,12 +630,14 @@ Ya existe:
 - listado paginado de empresas;
 - filtros por estado y empresa demo;
 - busqueda por nombre, RUT y email;
+- la tabla «Empresas (cuentas)» presenta industria y estado de cuenta (al dia,
+    en riesgo, moroso o no aplica);
 - contratos, usuarios, trabajadores, equipos y alertas activas por empresa;
 - porcentaje de cumplimiento y documentos por estado;
 - plan, suscripcion, actividad, ultima actividad y nivel de uso en la consola
     Ops;
-- acceso al detalle de cada cliente sin listar sus documentos personales en la
-    tabla general.
+- acceso al detalle de cada cliente, con cuentas/perfiles y responsables por
+    contrato, sin listar sus documentos personales en la tabla general.
 
 Pendiente o recomendable:
 
@@ -663,7 +665,9 @@ los resultados y las cuentas de acceso no tienen RUT propio.
 
 La ficha agregada se expande bajo la fila seleccionada, se mantiene una sola
 abierta y se descartan respuestas tardias al cambiar la consulta o la fila, o
-al cerrar la ficha.
+al cerrar la ficha. La interfaz agrupa las listas de resultados en botones
+desplegables por categoria; esto no sustituye la autorizacion por categoria en
+el servidor, que sigue pendiente de validacion.
 
 Pendiente: acordar el tratamiento de usuarios sin empresa, definir y verificar
 la matriz de permisos por categoria en servidor, y completar pruebas/recorrido
@@ -680,7 +684,8 @@ Ya existe:
 - usuarios totales y activos en una ventana configurable;
 - usuarios sin acceso durante 90 dias;
 - actividad mensual y evolucion de usuarios;
-- planes, MRR, altas, bajas, churn y clientes por plan o industria;
+- planes, MRR, altas, bajas, churn y series comerciales; los desgloses visibles
+  de usuarios por plan e industria se encuentran ahora en Salud de clientes;
 - procesos y ejecuciones de la plataforma.
 
 Falta:
@@ -692,9 +697,11 @@ Falta:
 - mantener diferenciadas las revisiones de IA procesadas y la cantidad de
     documentos unicos.
 
-La vista ya presenta clientes de baja actividad con clasificacion de sin
-usuarios, usuarios sin actividad o baja actividad, y muestra un diccionario de
-definiciones. El tiempo de uso se etiqueta como estimado. El detalle de
+La vista de Salud de clientes presenta los indicadores de uso/adopcion,
+clientes de baja actividad con clasificacion de sin usuarios, usuarios sin
+actividad o baja actividad, y usuarios por plan e industria. Los detalles de
+riesgos son desplegables y los graficos incluyen ayudas informativas. El tiempo
+de uso se etiqueta como estimado. El detalle de
 validacion y criterios abiertos esta en RF-MET-01/02/03 del SRS.
 
 Archivos principales:
@@ -718,9 +725,9 @@ Ya existe:
 - estado de API, base de datos, workers, storage, IA e integraciones;
 - incidentes operacionales y ejecuciones de procesos con error.
 
-El dashboard de Metricas SaaS clasifica clientes de baja actividad como sin
-usuarios, usuarios sin actividad o baja actividad. Esta clasificacion no cierra
-por si sola los requisitos de alertas y salud de clientes.
+Salud de clientes clasifica la baja actividad como sin usuarios, usuarios sin
+actividad o baja actividad. Esta clasificacion, los detalles plegables y las
+ayudas explicativas no cierran por si solas los requisitos de alertas y salud.
 
 Falta o debe validarse:
 
@@ -750,6 +757,12 @@ En el registro se solicita el nombre del usuario inicial, separado de la razon
 social. La seccion autenticada `/perfil` permite editar nombre, correo y
 contraseña. Si ADMIN usa «Ver como empresa», el enlace y la ruta de su perfil
 se bloquean en la interfaz; esto no modifica la autorizacion del backend.
+
+En la consola ADMIN, los cambios de rol, empresa o contrato requieren una
+confirmacion que explica consecuencias y un motivo obligatorio. El registro
+auditable conserva actor, motivo y valores anteriores/nuevos; el cambio
+invalida las sesiones del usuario. La validacion de las pruebas backend
+especificas y la cobertura integral de auditoria siguen pendientes.
 
 Falta:
 
@@ -847,7 +860,8 @@ Falta o debe reforzarse:
 
 **Ya esta:** portal multiempresa y roles basicos; contratos, trabajadores,
 equipos, documentos, cumplimiento, actividad; consola ADMIN con dashboard,
-gestion de empresas/usuarios, buscador global, metricas SaaS y operacion;
+gestion de empresas con industria/estado de cuenta, salud de clientes,
+buscador por categorias, metricas SaaS, usuarios y operacion;
 registro del nombre del usuario inicial y edicion de perfil.
 
 **Falta cerrar o validar:** permisos finos y aislamiento con identidades de

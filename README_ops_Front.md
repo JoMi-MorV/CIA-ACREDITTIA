@@ -45,9 +45,10 @@ indicadores, con:
 |---|---|
 | `app/ops/layout.tsx` | Providers (tema, i18n), guardia de sesión admin, sidebar y topbar |
 | `app/ops/ops.css` | Tokens de marca claro/oscuro y clases base de la consola |
-| `app/ops/page.tsx` | Redirección `/ops` → `/ops/usuarios` |
+| `app/ops/page.tsx` | Redirección de la ruta histórica `/ops` → `/admin/dashboard` |
 | `app/ops/login/page.tsx` | Login JWT (solo admin) |
-| `app/ops/usuarios/page.tsx` | Vista Usuarios: KPIs, por plan/industria, actividad, tabla con filtros |
+| `app/ops/salud/page.tsx` | Salud de clientes: uso/adopción, usuarios por plan/industria y riesgos desplegables con ayudas informativas |
+| `app/ops/accesos/page.tsx` | Vista Usuarios: roles, empresa/contrato, revocación/reactivación y cambios confirmados con motivo |
 | `app/ops/sistemas/page.tsx` | Vista Sistemas: banner, componentes, uptime 90d, incidentes (resolver), procesos (ejecutar/pausar) |
 | `app/ops/indicadores/page.tsx` | Vista Indicadores: KPIs confidenciales, MRR 6/12/24M, flujo, churn vs. objetivo, desglose por plan |
 | `lib/ops/auth.ts` | Sesión JWT (access en memoria + refresh en localStorage) |

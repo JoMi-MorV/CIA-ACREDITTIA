@@ -784,6 +784,8 @@ export type Empresa = {
   id: string;
   nombre: string;
   status: EstadoEmpresa;
+  industria: "mineria" | "construccion" | "energia" | "industrial" | "otras";
+  estado_cuenta: "al_dia" | "en_riesgo" | "moroso" | null;
   es_demo: boolean;
   rejection_reason: string | null;
   approved_at: string | null;
@@ -809,6 +811,15 @@ export type EmpresaDetalle = Empresa & {
     entidad_tipo: string | null;
     actor: string;
   } | null;
+  cuentas: UsuarioEmpresa[];
+  contratos?: {
+    id: string;
+    nombre: string;
+    codigo: string | null;
+    estado: EstadoContrato;
+    ciclo_estado: "activo" | "desactivado" | "finalizado";
+    responsables?: UsuarioEmpresa[];
+  }[];
   stats: {
     usuarios: number;
     usuarios_activos: number;

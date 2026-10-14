@@ -92,6 +92,8 @@ export default function SistemasPage() {
       )}
 
       {/* ------- tarjetas de componentes ------- */}
+      <CardHead titulo="Estado de componentes"
+        info="Estado y métricas disponibles para cada componente técnico. El estado global resume los estados informados, pero no atribuye automáticamente una falla a una empresa." />
       <Estado cargando={estado.cargando} error={estado.error} reintentar={estado.recargar}>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
           {(estado.data?.componentes ?? []).map((comp: any) => (
@@ -127,6 +129,7 @@ export default function SistemasPage() {
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         <Card>
           <CardHead titulo={t("sistemas.dispo")} sub={t("sistemas.dispo_sub")}
+            info="Cada segmento representa un día de los últimos 90 días para el componente. El porcentaje resume la disponibilidad informada en ese período; al pasar el cursor se ve estado y porcentaje diario. Los días sin datos no prueban que el servicio haya estado disponible."
             right={<Legend items={[
               { color: "var(--ops-ok-fill)", label: t("estado.operativo") },
               { color: "var(--ops-warn-fill)", label: t("estado.degradado") },
@@ -139,7 +142,8 @@ export default function SistemasPage() {
           ))}
         </Card>
         <Card>
-          <CardHead titulo={t("sistemas.incidentes")} sub={t("sistemas.incidentes_sub")} />
+          <CardHead titulo={t("sistemas.incidentes")} sub={t("sistemas.incidentes_sub")}
+            info="Lista incidentes recientes y su estado de seguimiento. La severidad ayuda a priorizar; resolver un incidente registra la resolución, no borra el evento del historial." />
           <Estado cargando={incidentes.cargando} error={incidentes.error}
             reintentar={incidentes.recargar}>
             {(incidentes.data?.items ?? []).map((inc: any) => (
@@ -173,7 +177,8 @@ export default function SistemasPage() {
 
       {/* ------- procesos ------- */}
       <Card>
-        <CardHead titulo={t("sistemas.procesos")} sub={t("sistemas.procesos_sub")} />
+        <CardHead titulo={t("sistemas.procesos")} sub={t("sistemas.procesos_sub")}
+          info="Cada fila describe un proceso y muestra su programación y última ejecución registrada, incluido estado y duración cuando existen. Esta tabla no es el historial completo de ejecuciones; estados en cola o en ejecución todavía no son resultados finales." />
         <Estado cargando={procesos.cargando} error={procesos.error} reintentar={procesos.recargar}>
           <div className="overflow-x-auto">
             <table className="ops-table">

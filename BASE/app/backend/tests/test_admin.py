@@ -85,6 +85,33 @@ def test_sin_token(app_cliente):
     assert r.status_code == 401
 
 
+def test_ficha_empresa_separa_conteo_de_cuentas(
+        app_cliente, admin, empresa_a):
+    respuesta = app_cliente.get(
+        f"{API}/admin/companies/{empresa_a['company_id']}",
+        headers=admin["headers"])
+
+    assert respuesta.status_code == 200, respuesta.text
+    ficha = respuesta.json()
+    assert isinstance(ficha["usuarios"], int)
+    assert ficha["usuarios"] == len(ficha["cuentas"])
+    assert all(isinstance(cuenta, dict) for cuenta in ficha["cuentas"])
+
+
+def test_listado_empresas_incluye_industria_y_estado_cuenta(
+        app_cliente, admin, empresa_a):
+    respuesta = app_cliente.get(
+        f"{API}/admin/companies?page_size=100", headers=admin["headers"])
+
+    assert respuesta.status_code == 200, respuesta.text
+    empresa = next(
+        item for item in respuesta.json()["items"]
+        if item["id"] == empresa_a["company_id"])
+    assert empresa["industria"] in {
+        "mineria", "construccion", "energia", "industrial", "otras"}
+    assert empresa["estado_cuenta"] in {"al_dia", "en_riesgo", "moroso"}
+
+
 # ============================================================================
 # §5 — Usuarios
 # ============================================================================

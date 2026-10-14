@@ -1,6 +1,6 @@
 "use client";
 /** Piezas de interfaz de la consola: tarjetas, KPI, pills, controles. */
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { useI18n, LANGS } from "@/lib/ops/i18n";
 import { useTema } from "@/lib/ops/theme";
 
@@ -9,36 +9,68 @@ export function Card({ children, className = "" }:
   return <div className={`ops-card p-4 ${className}`}>{children}</div>;
 }
 
-export function CardHead({ titulo, sub, right }:
-  { titulo: string; sub?: string; right?: React.ReactNode }) {
+export function InfoButton({ titulo, descripcion }: { titulo: string; descripcion: string }) {
+  const [abierto, setAbierto] = useState(false);
+  const id = useId();
   return (
-    <div className="mb-3 flex flex-wrap items-baseline gap-2">
+    <span className="group relative inline-flex shrink-0">
+      <button type="button" aria-label={`Información: ${titulo}`}
+        aria-expanded={abierto} aria-describedby={id}
+        onClick={() => setAbierto((valor) => !valor)}
+        onKeyDown={(event) => {
+          if (event.key === "Escape") setAbierto(false);
+        }}
+        className="grid h-5 w-5 place-items-center rounded-full border text-xs font-bold leading-none transition-colors"
+        style={{ borderColor: "var(--ops-line)", color: "var(--ops-accent)", background: "var(--ops-card)" }}>
+        !
+      </button>
+      <span id={id} role="tooltip"
+        className={`absolute right-0 top-7 z-30 w-72 max-w-[calc(100vw-2rem)] rounded-lg border p-3 text-left text-xs font-normal leading-relaxed shadow-lg group-hover:block group-focus-within:block ${abierto ? "block" : "hidden"}`}
+        style={{ borderColor: "var(--ops-line)", color: "var(--ops-ink)", background: "var(--ops-card)" }}>
+        {descripcion}
+      </span>
+    </span>
+  );
+}
+
+export function CardHead({ titulo, sub, right, info }:
+  { titulo: string; sub?: string; right?: React.ReactNode; info?: string }) {
+  return (
+    <div className="mb-3 flex flex-wrap items-start gap-2">
       <div>
         <h2 className="ops-title">{titulo}</h2>
         {sub && <div className="ops-sub">{sub}</div>}
       </div>
-      {right && <div className="ml-auto flex items-center gap-2">{right}</div>}
+      {(info || right) && (
+        <div className="ml-auto flex items-start gap-2">
+          {info && <InfoButton titulo={titulo} descripcion={info} />}
+          {right}
+        </div>
+      )}
     </div>
   );
 }
 
-export function Kpi({ label, valor, unidad, delta, tono = "flat", chip, extra }: {
+export function Kpi({ label, valor, unidad, delta, tono = "flat", chip, extra, info }: {
   label: string; valor: string; unidad?: string;
   delta?: string; tono?: "up" | "down" | "flat"; chip?: string;
-  extra?: React.ReactNode;
+  extra?: React.ReactNode; info?: string;
 }) {
   const color = tono === "up" ? "var(--ops-ok)"
     : tono === "down" ? "var(--ops-crit)" : "var(--ops-mut)";
   return (
     <Card>
-      <div className="ops-lbl flex items-center gap-2">
-        {label}
-        {chip && (
-          <span className="rounded px-1.5 py-px text-[9.5px] font-semibold uppercase tracking-wider"
-            style={{ background: "var(--ops-warn-soft)", color: "var(--ops-warn)" }}>
-            {chip}
-          </span>
-        )}
+      <div className="flex items-center justify-between gap-2">
+        <div className="ops-lbl flex items-center gap-2">
+          {label}
+          {chip && (
+            <span className="rounded px-1.5 py-px text-[9.5px] font-semibold uppercase tracking-wider"
+              style={{ background: "var(--ops-warn-soft)", color: "var(--ops-warn)" }}>
+              {chip}
+            </span>
+          )}
+        </div>
+        {info && <InfoButton titulo={label} descripcion={info} />}
       </div>
       <div className="mt-1.5 text-[26px] font-bold leading-tight tracking-tight"
         style={{ fontVariantNumeric: "tabular-nums" }}>

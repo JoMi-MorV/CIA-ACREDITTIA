@@ -56,14 +56,14 @@ export default function Sidebar() {
           <button className="ml-2 underline" onClick={() => {
             sessionStorage.removeItem("impersonar");
             sessionStorage.removeItem("impersonar_nombre");
-            router.push("/admin/metricas");
-          }}>Volver a métricas SaaS</button>
+            router.push("/admin/dashboard");
+          }}>Volver a consola interna</button>
         </div>
       )}
       <nav className="ml-auto flex gap-1 px-2 md:ml-0 md:flex-1 md:flex-col md:gap-1 md:px-0">
-        {esAdmin && (
+        {esAdmin && !viendoEmpresa && (
           <Link href="/admin/dashboard" className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm ${path.startsWith("/admin") ? "bg-accent font-semibold" : "hover:bg-white/10"}`}>
-            <span className="grid h-5 w-5 place-items-center border border-current/60 text-xs">+</span><span className="hidden md:inline">{viendoEmpresa ? "Volver a Ops" : "Panel admin"}</span>
+            <span className="grid h-5 w-5 place-items-center border border-current/60 text-xs">+</span><span className="hidden md:inline">Panel admin</span>
           </Link>
         )}
         {(!esAdmin || viendoEmpresa) && ITEMS

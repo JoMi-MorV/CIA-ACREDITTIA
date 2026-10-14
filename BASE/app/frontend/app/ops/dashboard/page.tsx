@@ -17,15 +17,20 @@ export default function DashboardGlobalPage() {
   const riesgos = data.salud_clientes;
   return <div className="space-y-4">
     <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-      <Kpi label="Empresas" valor={fmt(data.empresas_total)} delta={`${fmt(data.aprobadas)} aprobadas`} tono="up" />
+      <Kpi label="Empresas" valor={fmt(data.empresas_total)} delta={`${fmt(data.aprobadas)} aprobadas`} tono="up"
+        info="Total de empresas registradas en la plataforma. La cifra secundaria indica cuántas tienen estado aprobado." />
       <Kpi label="Contratos activos" valor={fmt(data.contratos_total)}
-        delta={`${fmt(data.contratos_historicos)} en histórico`} />
-      <Kpi label="Trabajadores" valor={fmt(data.personal.total)} delta={`${fmt(data.personal.acreditados)} acreditados`} tono="up" />
-      <Kpi label="Usuarios" valor={fmt(data.usuarios_total)} delta={`${fmt(data.usuarios_activos)} cuentas habilitadas`} />
+        delta={`${fmt(data.contratos_historicos)} en histórico`}
+        info="Contratos vigentes registrados para las empresas. La cifra secundaria corresponde a contratos históricos, no activos." />
+      <Kpi label="Trabajadores" valor={fmt(data.personal.total)} delta={`${fmt(data.personal.acreditados)} acreditados`} tono="up"
+        info="Personas registradas como trabajadores; el valor secundario cuenta las que tienen acreditación vigente según sus documentos." />
+      <Kpi label="Usuarios" valor={fmt(data.usuarios_total)} delta={`${fmt(data.usuarios_activos)} cuentas habilitadas`}
+        info="Cuentas de usuario no administrativas. La cifra secundaria cuenta las cuentas habilitadas, no necesariamente las que tuvieron actividad reciente." />
     </div>
     <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.4fr_1fr]">
       <Card>
-        <CardHead titulo="Acreditación global" sub="Documentos obligatorios de empresas aprobadas" />
+        <CardHead titulo="Acreditación global" sub="Documentos obligatorios de empresas aprobadas"
+          info="Porcentaje de documentos obligatorios correctos respecto del total evaluado en empresas aprobadas. Pendientes, por vencer y vencidos se muestran aparte; sirven para identificar dónde priorizar seguimiento." />
         <div className="flex items-end gap-4">
           <div className="text-4xl font-bold" style={{ color: "var(--ops-accent)" }}>{data.cumplimiento_global_pct}%</div>
           <div className="ops-sub pb-1">{fmt(data.documentos_ok)} de {fmt(data.documentos_total)} documentos correctos</div>
@@ -37,7 +42,8 @@ export default function DashboardGlobalPage() {
         </div>
       </Card>
       <Card>
-        <CardHead titulo="Alertas de cartera" sub="Riesgos que requieren seguimiento" />
+        <CardHead titulo="Alertas de cartera" sub="Riesgos que requieren seguimiento"
+          info="Cada valor cuenta las empresas o contratos que aparecen en la categoría de riesgo correspondiente. Son listas operativas para priorizar revisión, no una puntuación única ni el total de incidentes técnicos." />
         <div className="grid grid-cols-2 gap-3">
           <EstadoMini label="Baja acreditación" value={riesgos.empresas_baja_acreditacion.length} tono="crit" />
           <EstadoMini label="Contratos críticos" value={riesgos.contratos_con_pendientes.length} tono="warn" />
@@ -48,7 +54,8 @@ export default function DashboardGlobalPage() {
       </Card>
     </div>
     <Card>
-      <CardHead titulo="Actividad de la plataforma" sub={`${fmt(data.actividad_global.total)} eventos históricos · ${fmt(data.actividad_global.ultimos_30_dias)} durante los últimos 30 días`} />
+      <CardHead titulo="Actividad de la plataforma" sub={`${fmt(data.actividad_global.total)} eventos históricos · ${fmt(data.actividad_global.ultimos_30_dias)} durante los últimos 30 días`}
+        info="Serie mensual del número de eventos registrados en la plataforma. Un evento representa una acción auditada; no equivale a una persona activa ni a tiempo de uso. La bajada incluye conteos históricos y de los últimos 30 días." />
       <LineChart alto={220} labels={data.actividad_global.evolucion_mensual.map((item) => item.mes)}
         series={[{ name: "Eventos", data: data.actividad_global.evolucion_mensual.map((item) => item.eventos), color: "var(--ops-accent)", area: "var(--ops-accent-soft)" }]}
         fmtY={(value) => fmt(Math.round(value))} fmtTip={(value) => fmt(Math.round(value))} />

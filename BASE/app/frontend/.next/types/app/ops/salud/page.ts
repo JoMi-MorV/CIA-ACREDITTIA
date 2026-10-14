@@ -1,4 +1,4 @@
-// File: C:\Users\Amaru\Desktop\ultima acredittia\CIA-ACREDITTIA-main\BASE\app\frontend\app\ops\salud\page.tsx
+// File: C:\Users\Amaru\Desktop\ultima acredittia\CIA-ACREDITTIA-main - copia\BASE\app\frontend\app\ops\salud\page.tsx
 import * as entry from '../../../../../app/ops/salud/page.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 

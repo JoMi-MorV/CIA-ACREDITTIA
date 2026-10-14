@@ -18,18 +18,18 @@ import "./ops.css";
 const NAV = [
   { href: "/admin/dashboard", clave: "nav.dashboard", icono:
     <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"><rect x="1.5" y="1.5" width="5" height="5" rx="1" /><rect x="9.5" y="1.5" width="5" height="5" rx="1" /><rect x="1.5" y="9.5" width="5" height="5" rx="1" /><rect x="9.5" y="9.5" width="5" height="5" rx="1" /></svg> },
-  { href: "/admin/empresas", clave: "nav.empresas", icono:
-    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M2 14V3h8v11M10 7h4v7M4 5h2M4 8h2M4 11h2M11.5 9h1M11.5 12h1" /></svg> },
-  { href: "/admin/busqueda", clave: "nav.busqueda", icono:
-    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="6.8" cy="6.8" r="4.8" /><path d="m10.4 10.4 4 4" /></svg> },
-  { href: "/admin/metricas", clave: "nav.indicadores", icono:
-    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M2 13.5V9M6 13.5V5.5M10 13.5V8M14 13.5V3" /></svg> },
-  { href: "/admin/salud", clave: "nav.salud", icono:
-    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M1.5 8h3l1.5-4 3 8 1.5-4h4" /></svg> },
-  { href: "/admin/usuarios", clave: "nav.usuarios", icono:
-    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="6" cy="5" r="2.6" /><path d="M1.5 14c.6-2.8 2.4-4.2 4.5-4.2s3.9 1.4 4.5 4.2" /><path d="M11 3.2a2.4 2.4 0 0 1 0 4.4M12.6 10.2c1.2.6 1.9 1.9 2.2 3.6" /></svg> },
   { href: "/admin/sistemas", clave: "nav.sistemas", icono:
     <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M1.5 8h3l1.5-4 3 8 1.5-4h4" /></svg> },
+  { href: "/admin/metricas", clave: "nav.indicadores", icono:
+    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M2 13.5V9M6 13.5V5.5M10 13.5V8M14 13.5V3" /></svg> },
+  { href: "/admin/empresas", clave: "nav.empresas", icono:
+    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M2 14V3h8v11M10 7h4v7M4 5h2M4 8h2M4 11h2M11.5 9h1M11.5 12h1" /></svg> },
+  { href: "/admin/usuarios", clave: "nav.usuarios", icono:
+    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="6" cy="5" r="2.6" /><path d="M1.5 14c.6-2.8 2.4-4.2 4.5-4.2s3.9 1.4 4.5 4.2" /><path d="M11 3.2a2.4 2.4 0 0 1 0 4.4M12.6 10.2c1.2.6 1.9 1.9 2.2 3.6" /></svg> },
+  { href: "/admin/salud", clave: "nav.salud", icono:
+    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M1.5 8h3l1.5-4 3 8 1.5-4h4" /></svg> },
+  { href: "/admin/busqueda", clave: "nav.busqueda", icono:
+    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="6.8" cy="6.8" r="4.8" /><path d="m10.4 10.4 4 4" /></svg> },
   { href: "/admin/auditoria", clave: "nav.auditoria", icono:
     <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M3 2h8l2 2v10H3zM5 7h6M5 10h6M5 13h3" /></svg> },
 ];

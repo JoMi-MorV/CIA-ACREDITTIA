@@ -643,12 +643,18 @@ con enlaces previos. Las rutas Ops antiguas de Plataforma, Usuarios e
 Indicadores también redirigen a sus destinos Admin. `/admin` y la entrada Ops
 abren ahora el Dashboard global.
 
-## Cambios a la fecha — 08-10-2026
+## Cambios a la fecha — 13-10-2026
 
-El documento funcional vigente es el [SRS v0.51](documentacion/SRS.md). Esta
+El documento funcional vigente es el [SRS v0.54](documentacion/SRS.md). Esta
 sección resume los cambios relevantes y el estado conocido a la fecha; no
 sustituye los criterios, pendientes ni evidencias detallados en el SRS y la
 [validación actual](documentacion/VALIDACION_ACTUAL.md).
+
+**Resumen de esta sesión:** se actualizaron Empresas (cuentas), Salud de
+clientes, el buscador y la confirmación/auditoría de cambios de permisos. El
+análisis documental/código estima 67% de avance funcional ADMIN, sin que esto
+equivalga a cumplimiento validado ni preparación para producción. El detalle y
+las limitaciones están en SRS, GAP y Validación actual.
 
 ### Funcionalidad y cambios recientes
 
@@ -754,9 +760,10 @@ sustituye los criterios, pendientes ni evidencias detallados en el SRS y la
   ADMIN; al aprobarlo, la empresa y el usuario inicial quedan aprobados y el
   usuario conserva el rol `company`. La verificación manual cubrió la
   aprobación; rechazo y transiciones repetidas requieren validación separada.
-- El esquema está versionado hasta la versión 9 e incluye invalidación de sesiones
-  al cambiar el estado de acceso. La validación de seguridad de conexiones de
-  producción no configura por sí sola los roles reales de la base de datos.
+- El esquema vigente requerido por la API es v11. La migración v9 incorporó
+  invalidación de sesiones al cambiar el estado de acceso; la validación de
+  seguridad de conexiones de producción no configura por sí sola los roles
+  reales de la base de datos.
 
 ### Validación y límites conocidos
 

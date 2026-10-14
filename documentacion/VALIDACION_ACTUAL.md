@@ -1,4 +1,53 @@
-# Validación funcional — actualizado al 8 de octubre de 2026
+# Validación funcional — actualizado al 13 de octubre de 2026
+
+## Revisión de cumplimiento ADMIN — 13 de octubre de 2026
+
+Se revisaron la documentación y el código de las ocho prioridades ADMIN. La
+estimación de avance funcional resultante es **67%**, como promedio simple y
+con igual peso por prioridad: Dashboard global 75%; Gestión global de empresas
+90%; Buscador global 55%; Métricas SaaS 60%; Alertas y salud de clientes 70%;
+Usuarios, roles y permisos 70%; Auditoría y trazabilidad 50%; Seguridad y
+aislamiento 62%.
+
+Esta cifra es una estimación de cobertura funcional, no un porcentaje de
+pruebas aprobadas, cumplimiento validado ni preparación para producción. No se
+ejecutaron pruebas automatizadas, build ni recorrido visual como parte de esta
+revisión. No se asigna porcentaje de preparación productiva: continúan abiertos
+los bloqueos P0 de DEC-08, permisos granulares por categoría/recurso,
+auditoría integral y demostración de aislamiento/mínimo privilegio en un
+entorno equivalente a producción. El fundamento y los criterios pendientes se
+detallan en `RESUMEN_REQUISITOS_ADMIN.md` y `GAP_ANALYSIS.md`.
+
+## Mejoras de consola ADMIN — 13 de octubre de 2026
+
+Se registran los siguientes cambios implementados desde el corte anterior:
+
+- Empresas (cuentas) muestra industria y estado de cuenta (al día, en riesgo,
+  moroso o no aplica); el detalle permite consultar perfiles y responsables de
+  contrato.
+- Salud de clientes reúne indicadores de uso/adopción, usuarios por plan e
+  industria y riesgos en secciones plegables con explicación contextual.
+- El buscador despliega sus resultados mediante un botón por categoría; se
+  conservan filtros seleccionables y fichas.
+- Los gráficos/indicadores tienen ayudas explicativas sobre cálculo y
+  significado.
+- Los cambios ADMIN de rol, empresa o contrato presentan consecuencias y
+  requieren motivo; la auditoría registra actor, motivo y valores
+  anteriores/nuevos, e invalida las sesiones del usuario.
+- Durante la impersonación, la navegación ofrece «Volver a consola interna».
+  No se implementó una sección general de Ajustes para precios o métricas
+  financieras.
+
+**Validación disponible:** el build del frontend pasó durante el cambio de
+permisos; después de reconstruir los contenedores API/web, `/health` y
+`/ops/accesos` respondieron HTTP 200. Esas comprobaciones acreditan compilación
+y disponibilidad de las rutas, no la aceptación de todos los recorridos o
+datos. Se añadieron pruebas backend para los cambios de identidad/permisos,
+pero no se pudieron ejecutar entonces porque `pytest` no estaba disponible en
+el entorno; por tanto, la auditoría y la invalidación deben verificarse con
+esas pruebas antes de dar el flujo por cerrado. La regresión 247/247 descrita
+abajo corresponde a contratos/esquema/documentos y no cubre por sí sola estas
+mejoras recientes.
 
 ## Incidente — error de renderizado en Alertas — 8 de octubre de 2026
 
@@ -429,9 +478,11 @@ despliegue productivo ni de recorrido distribuido Celery.
 lint y generación de 22 rutas completados. No se realizó recorrido manual de
 navegador en esta validación.
 
-Compose local continúa en modo demostración, esquema 9. Esta ejecución de pruebas
-usó una base temporal aislada y no aplicó migraciones ni modificaciones a la base
-habitual. Estados de requisitos relacionados permanecen PAR/ISV cuando sus
+Al corte de esta validación (01-10-2026), Compose local estaba en modo
+demostración y esquema 9. Esta ejecución de pruebas usó una base temporal
+aislada y no aplicó migraciones ni modificaciones a la base habitual. El esquema
+requerido por la API actual es v11; la anotación anterior no describe el estado
+actual de cada entorno. Estados de requisitos relacionados permanecen PAR/ISV cuando sus
 criterios integrales siguen pendientes; ver SRS v0.15.
 
 ## Registros anteriores

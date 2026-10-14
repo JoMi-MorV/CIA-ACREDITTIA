@@ -1,4 +1,4 @@
-// File: C:\Users\Amaru\Desktop\ultima acredittia\CIA-ACREDITTIA-main\BASE\app\frontend\app\ops\dashboard\page.tsx
+// File: C:\Users\Amaru\Desktop\ultima acredittia\CIA-ACREDITTIA-main - copia\BASE\app\frontend\app\ops\dashboard\page.tsx
 import * as entry from '../../../../../app/ops/dashboard/page.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 

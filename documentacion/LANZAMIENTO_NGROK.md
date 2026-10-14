@@ -161,6 +161,19 @@ Construye y levanta los servicios en segundo plano:
 docker compose -f docker-compose.yml -f docker-compose.ngrok.yml up --build -d
 ```
 
+Para construir y levantar los servicios en primer plano, dejando visibles en
+esa terminal los mensajes de inicio de la migración, la API, el frontend y
+ngrok, usa este comando en lugar del anterior:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.ngrok.yml up --build
+```
+
+Espera a que los servicios indiquen que están listos y revisa especialmente
+los mensajes de `migrate`, `api` y `ngrok`. Mantén abierta la terminal para
+seguir viendo los registros. Al pulsar `Ctrl+C`, Compose detendrá los servicios;
+para iniciarlos nuevamente en segundo plano, usa el comando con `-d`.
+
 Revisa el estado:
 
 ```bash

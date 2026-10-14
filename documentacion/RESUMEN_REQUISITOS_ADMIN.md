@@ -1,23 +1,46 @@
 # Resumen de requisitos ADMIN
 
-**Corte:** 8 de octubre de 2026  
-**Base documental:** SRS versión 0.51 y `VALIDACION_ACTUAL.md`, actualizados al 8 de octubre de 2026.  
+**Corte:** 13 de octubre de 2026  
+**Base documental:** SRS versión 0.54 y `VALIDACION_ACTUAL.md`, actualizados al 13 de octubre de 2026.  
 **Propósito:** resumir el estado técnico de las ocho prioridades ADMIN, distinguir lo implementado de lo validado y proponer criterios concretos para revisar su cierre.
 
 Este documento es una guía de revisión, no una aceptación contractual ni una certificación de producción. Los estados reflejan los requisitos y la evidencia descritos en el [SRS](SRS.md) y en [VALIDACION_ACTUAL.md](VALIDACION_ACTUAL.md). `IV` significa implementado y validado dentro del alcance probado; `ISV`, implementado sin validación completa; `PAR`, parcial; `COR`, requiere corrección; y `PEN`, pendiente. Los porcentajes estimados del SRS no equivalen a porcentaje de cumplimiento validado.
 
+La actualización del 13-10-2026 registra mejoras de interfaz y auditoría
+descritas abajo y una revisión de código/documentación de las ocho prioridades.
+No se elevan los estados a IV sin completar las pruebas y criterios de
+aceptación pendientes.
+
 ## Resumen ejecutivo
 
-| # | Prioridad | Estado actual | En síntesis |
-|---|---|---|---|
-| 1 | Dashboard global | **PAR** — RF-DAS-01/02 | Muestra contadores, acreditación, estados documentales y actividad por eventos. DEC-03 separa solicitudes, aprobación y clientes activos; define DAU/WAU con actividad humana de usuarios de empresas en America/Santiago, excluyendo ADMIN de plataforma y automatismos. `past_due` y otros estados no activos/trial se muestran aparte y no cuentan como clientes activos. Falta aplicar y validar las definiciones y cálculos. |
-| 2 | Gestión global de empresas | **IV en alcance verificado; rechazo/casos límite pendientes** — RF-EMP-01/02 | Listado y ficha agregada validados; flujo normal de registro y aprobación ADMIN, incluido su evento de auditoría, verificado manualmente. Falta validar rechazo, transiciones repetidas y auditoría de otros resultados. |
-| 3 | Buscador global | **PAR** — RF-BUS-01/02 | Búsqueda parcial multi-término y explorador de referencias activables/desactivables implementados; falta validación visual integral y autorización efectiva por categoría/detalle en servidor. |
-| 4 | Métricas SaaS | **PAR** — RF-MET-01/02/03 | Hay series e indicadores; DEC-03 define separaciones y población de DAU/WAU, y DEC-05 acuerda período seleccionable para tiempo activo y suma de sesiones simultáneas. Faltan aplicación/validación, telemetría y metadatos/casos de conversión UF. |
-| 5 | Alertas y salud de clientes | **Mixto:** RF-SAL-01 **PAR**; RF-SAL-02 **COR**; RF-SAL-03 **ISV** | DEC-04 acuerda umbrales iniciales (<70%, 3+ documentos por contrato, 30 días sin actividad humana) y estados sin usuarios/sin datos; falta implementar y validar casos límite. También siguen pendientes sondas operacionales, totales/paginación y recorrido distribuido. |
-| 6 | Usuarios, roles y permisos | **PAR** — RF-USU-01/02 | En ADMIN existen listado, cambios de estado y reactivación; faltan altas completas, paginación/recorrido visual y validación integral del alcance. Registro con nombre y Mi perfil son mejoras del portal de empresa, no altas ni gestión global de usuarios ADMIN. |
-| 7 | Auditoría y trazabilidad | **PAR** — RF-AUD-01/02/03 | Hay registro parcial y ciertos accesos con motivo; falta cobertura de operaciones, historial de autenticación y controles uniformes para acceso sensible/exportaciones. |
-| 8 | Seguridad y aislamiento | **PAR** — RF-SEG-01/02/03, RNF-SEG-01 | Hay controles de aplicación y políticas definidas, pero falta demostrar aislamiento y mínimo privilegio con configuración equivalente a producción y cerrar el acceso excepcional. |
+| # | Prioridad | Avance estimado | Estado actual | En síntesis |
+|---|---|---:|---|---|
+| 1 | Dashboard global | **75%** | **PAR** — RF-DAS-01/02 | Muestra contadores, acreditación, estados documentales y actividad por eventos. Falta aplicar y validar universos, denominadores y crecimiento de empresas/usuarios. |
+| 2 | Gestión global de empresas | **90%** | **IV en alcance verificado; rechazo/casos límite pendientes** — RF-EMP-01/02 | Tabla «Empresas (cuentas)» con industria y estado de cuenta; detalle de perfiles y responsables por contrato. Flujo normal de registro/aprobación verificado; falta validar rechazo y transiciones repetidas. |
+| 3 | Buscador global | **55%** | **PAR** — RF-BUS-01/02 | Botones despliegan listas por categoría; el backend exige ADMIN, pero no aplica permisos independientes por categoría/detalle. La autorización granular y la validación visual integral siguen pendientes. |
+| 4 | Métricas SaaS | **60%** | **PAR** — RF-MET-01/02/03 | Hay métricas de clientes/usuarios, sesiones y series mensuales; baja actividad y uso/adopción aparecen en Salud. El tiempo de uso sigue siendo estimado y las revisiones de IA no equivalen necesariamente a documentos únicos. |
+| 5 | Alertas y salud de clientes | **70%** | **Mixto:** RF-SAL-01 **PAR**; RF-SAL-02 **COR**; RF-SAL-03 **ISV** | Salud agrupa indicadores y detalle desplegable con explicaciones; falta validar umbrales y casos límite, totales/paginación y sondas operacionales que detecten fallos reales. |
+| 6 | Usuarios, roles y permisos | **70%** | **PAR** — RF-USU-01/02 | Se administran roles y alcances empresa/contrato; cambios invalidan sesiones. Siguen pendientes altas/invitaciones, navegación sobre 100 usuarios, historial completo de acceso y validación integral de cambios auditados. |
+| 7 | Auditoría y trazabilidad | **50%** | **PAR** — RF-AUD-01/02/03 | Se auditan cambios seleccionados y la emisión de URL documental requiere motivo. Falta cobertura uniforme de autenticación, lecturas sensibles, operaciones y exportaciones; una URL emitida no prueba transferencia efectiva. |
+| 8 | Seguridad y aislamiento | **62%** | **PAR** — RF-SEG-01/02/03, RNF-SEG-01 | Hay controles de autorización, RLS y pruebas de aislamiento multiempresa. Falta demostrar mínimo privilegio en configuración equivalente a producción, cerrar el acceso excepcional y validar el alcance contractual, aplicado mayormente en API. |
+
+### Estimación global del corte
+
+**Avance funcional ADMIN estimado: 67%**, promedio simple de las ocho
+estimaciones anteriores: `(75 + 90 + 55 + 60 + 70 + 70 + 50 + 62) / 8 =
+66,5%`, redondeado al entero más cercano. Cada prioridad pesa igual; no hay
+ponderaciones acordadas por criticidad o esfuerzo. No es un porcentaje de
+pruebas aprobadas, aceptación contractual ni preparación para producción.
+
+El 67% describe cobertura funcional estimada. No se asigna un porcentaje de
+«listo para producción con datos sensibles»: los bloqueos P0 siguen abiertos,
+incluidos DEC-08, permisos por categoría/recurso, auditoría integral y evidencia
+de aislamiento/mínimo privilegio en un entorno equivalente a producción.
+
+La cifra procede de revisión de código y documentación del 13-10-2026; en esa
+revisión no se ejecutaron pruebas ni recorrido visual. Los porcentajes
+anteriores del GAP (75–80% general y 55–65% para producción) son históricos y
+no deben presentarse como estimación actual.
 
 ## 1. Dashboard global
 
@@ -48,11 +71,11 @@ Este documento es una guía de revisión, no una aceptación contractual ni una 
 
 **Lo que hace hoy**
 
-- El listado recupera las páginas de empresas y presenta estado, contratos, trabajadores, actividad y un acceso a la ficha agregada.
+- El listado recupera las páginas de empresas y presenta industria, estado de cuenta, estado operacional, contratos, trabajadores, actividad y acceso a la ficha agregada.
 - Los trabajadores dados de baja no cuentan; el conteo de contratos no filtra por estado.
 - El nivel de uso se calcula como cuentas con actividad registrada en los últimos 30 días dividido por las cuentas de la empresa. No representa duración ni necesariamente la proporción de cuentas habilitadas.
 - La última actividad es el evento más reciente registrado y puede ser automático, no solo una acción humana.
-- La ficha operativa presenta datos agregados y último evento/actor. No muestra RUT, email ni contenido documental en la vista revisada.
+- La ficha operativa presenta datos agregados, cuentas/perfiles, responsables por contrato y último evento/actor. No muestra RUT, email ni contenido documental en la vista revisada.
 - La respuesta de detalle incluye `rejection_reason`, que la pantalla no utiliza; su necesidad para esta vista merece revisión.
 - El registro crea empresa y primer usuario en estado pendiente; la aprobación manual de ADMIN cambia la empresa y el usuario a estado aprobado y mantiene el rol `company`. Se confirmó manualmente el 07-10-2026 que la aprobación genera una actualización auditada con la descripción `Cuenta approved por administrador , verificado por mi parte`. El endpoint de rechazo está implementado, pero no se informó una prueba manual de ese recorrido; transiciones repetidas y la validación de auditoría para otros resultados siguen pendientes.
 
@@ -77,7 +100,7 @@ Este documento es una guía de revisión, no una aceptación contractual ni una 
 
 - Busca empresas, contratos, trabajadores/personas, equipos y usuarios. Cada término parcial separado por espacios debe coincidir con datos del mismo resultado o su empresa asociada.
 - Incluye búsqueda por RUT para empresas y sujetos; no asigna RUT propio a las cuentas de acceso ni devuelve el RUT en los resultados.
-- El panel plegable de referencias permite activar/desactivar empresas, cargos, contratos, tipos y marcas de equipo; los valores activos se muestran como chips removibles en la barra y se combinan con texto libre. Limita a 100 los valores dinámicos por categoría e indica si hay más; no muestra datos personales.
+- Los botones por categoría despliegan las listas de resultados; el panel de referencias permite activar/desactivar empresas, cargos, contratos, tipos y marcas de equipo. Los filtros activos se muestran como chips removibles y se combinan con texto libre. El catálogo limita a 100 los valores dinámicos por categoría e indica si hay más; no muestra datos personales.
 - La ficha agregada se abre debajo de la fila concreta elegida; solo se mantiene una abierta y se descartan respuestas tardías al cambiar búsqueda/fila o cerrar.
 - El alcance de DEC-02 ya está acordado: cinco categorías, sin administradores de plataforma ni usuarios sin empresa, y fichas sin documentos. Sigue pendiente aplicar y validar permisos efectivos por categoría/detalle en el servidor.
 
@@ -101,15 +124,17 @@ Este documento es una guía de revisión, no una aceptación contractual ni una 
 - Se cuentan sesiones vigentes usando refresh tokens.
 - No existe aún una medición plenamente observada: el tiempo de uso actual es una estimación derivada de eventos/tokens. Se acordó telemetría real y como métrica principal minutos activos por usuario único con actividad (no duración promedio por sesión), bajo sesión autenticada, pestaña visible e interacción reciente; pausa tras cinco minutos inactivo y heartbeat cada 60 segundos.
 - Hay documentos procesados y series mensuales, pero debe conservarse la distinción entre revisiones/intentos y documentos únicos.
-- La vista de Métricas SaaS muestra clientes de baja actividad clasificados como sin usuarios, usuarios sin actividad o baja actividad.
+- Salud de clientes presenta uso/adopción, usuarios por plan e industria y la clasificación de clientes sin usuarios, sin actividad o con baja actividad; sus riesgos se pueden desplegar por categoría.
 - La conversión UF tiene un caso mensual probado, pero la respuesta aún requiere identificar fecha/fuente de UF y completar cobertura de períodos/monedas.
 
-**Actualización al 07-10-2026:** la vista de indicadores muestra clientes de
-baja actividad clasificados como sin usuarios, usuarios sin actividad o baja
-actividad; el endpoint global entrega un diccionario de definiciones. El panel
-etiqueta la duración como estimada y denomina “revisiones IA procesadas” a la
-métrica documental, sin presentarla como cantidad de documentos únicos. Se
-retira el pendiente de visibilidad/clasificación de esta sección. DEC-03 define
+**Actualización al 13-10-2026:** los indicadores de uso/adopción, usuarios por
+plan/industria y clientes de baja actividad se encuentran en Salud de clientes,
+con secciones de detalle plegables y ayudas informativas. El tiempo de uso
+sigue siendo estimado y la telemetría acordada no está implementada. El
+endpoint global entrega un diccionario de definiciones. El panel etiqueta la
+duración como estimada y denomina “revisiones IA procesadas” a la métrica
+documental, sin presentarla como cantidad de documentos únicos. La
+clasificación sigue visible en la consola, ahora dentro de Salud. DEC-03 define
 DAU/WAU como usuarios únicos de empresas con actividad humana, sin ADMIN de
 plataforma ni eventos automáticos, usando `America/Santiago`. `past_due` se
 muestra aparte como pago atrasado y otros estados no activos/trial como «otro
@@ -128,7 +153,7 @@ denominador es usuarios únicos con actividad en el período.
 2. Diferenciar “cuentas habilitadas”, “usuarios con actividad”, DAU/WAU y “sesiones vigentes”; no usarlos como equivalentes.
 3. Mantener la etiqueta “estimado” en tiempo/duración hasta que exista telemetría de sesión lógica acordada.
 4. Definir si documentos procesados cuenta revisiones, resultados completados o documentos únicos; mostrar estados fallidos/en proceso por separado cuando corresponda.
-5. Mostrar clientes de baja actividad y especificar umbral, ventana temporal y casos sin usuarios/sin actividad.
+5. Validar que Salud presente clientes de baja actividad con umbral, ventana temporal y casos sin usuarios/sin actividad.
 6. Identificar fecha y fuente del valor UF; probar períodos mensual/anual, monedas admitidas, suscripción ausente y acceso denegado.
 
 **Para considerar el punto validado:** diccionario aprobado, cifras contrastadas con fixtures, ausencia de datos diferenciada de cero y etiquetas/unidades/ventanas visibles y coherentes.
@@ -141,14 +166,14 @@ denominador es usuarios únicos con actividad en el período.
 
 - Calcula empresas con acreditación bajo el umbral existente, contratos con al menos tres documentos faltantes/vencidos, vencidos por empresa, morosidad y alertas activas.
 - Hay límites en las listas de contratos (25) y alertas (50); la cantidad visible no siempre representa el total global.
-- La vista de Métricas SaaS ya distingue clientes sin usuarios, con usuarios sin actividad y con baja actividad. No equivale al cierre de la prioridad de salud: faltan confirmar cobertura de esa clasificación en el flujo de alertas, además de umbrales y tratamiento de listas limitadas.
+- Salud de clientes presenta uso/adopción, distribución de usuarios por plan e industria y clientes con baja actividad; los detalles de riesgos se despliegan por categoría. No equivale al cierre de la prioridad: faltan validar clasificación, umbrales y tratamiento de listas limitadas.
 - Existen panel y heartbeats operacionales, pero las sondas actuales no acreditan por sí solas disponibilidad real de API/workers.
 - Procesos e incidentes tienen catálogo y acciones; ejecución manual inproc fue corregida/probada, pero falta recorrido distribuido Celery y trazabilidad correlacionable para investigar origen, operación y resultado de incidentes.
 
 **Sugerencias y criterios a considerar**
 
 1. Acordar umbrales y ventanas para baja acreditación, “muchos pendientes”, inactividad y expiración de heartbeat.
-2. Verificar en las vistas de salud que se distingan empresa sin usuarios, empresa con usuarios sin eventos, empresa sin documentos y empresa saludable, manteniendo coherencia con la clasificación ya mostrada en Métricas SaaS.
+2. Verificar en las vistas de salud que se distingan empresa sin usuarios, empresa con usuarios sin eventos, empresa sin documentos y empresa saludable, manteniendo coherencia con la clasificación de actividad presentada allí.
 3. Mostrar total real, límite y mecanismo para recuperar el resto; no llamar “total” a la longitud de una muestra.
 4. Probar casos justo por debajo, en y por encima de cada umbral y con más registros que el límite.
 5. Comprobar que la API se detecta caída aunque el worker siga activo, y que cola vacía no se interpreta como worker disponible.
@@ -165,10 +190,11 @@ denominador es usuarios únicos con actividad en el período.
 - Existen roles `admin`, `company` y `contract_admin`, alcance por empresa/contrato, listado y cambios administrativos de estado.
 - El esquema actual vincula cada usuario a un único `company_id` y un único `contrato_id`; no permite membresías multiempresa ni varios contratos por cuenta `contract_admin`.
 - En el portal de empresa, el registro solicita el nombre del usuario inicial y «Mi perfil» permite editar nombre, correo y contraseña; estas funciones se validaron con 34 pruebas de autenticación y build frontend, pero no completan el ciclo administrativo de altas/invitaciones de RF-USU-01. Durante «Ver como empresa», ADMIN no puede abrir su perfil; es una restricción de interfaz, no un cambio de autorización backend.
-- La reactivación de cuentas e invalidación de sesiones anteriores está implementada y probada en pruebas aisladas; el SRS registra pendiente aplicar migración al entorno habitual.
+- La reactivación de cuentas e invalidación de sesiones anteriores está implementada y probada en pruebas aisladas. La migración v9 añadió `auth_version`; el esquema que exige actualmente la API es v11. No se afirma que cada entorno destino esté ya migrado.
 - Listado de usuarios solicita hasta 100 y no presenta navegación completa para universos mayores.
 - Backend valida que el contrato pertenezca a la empresa; la interfaz puede enviar combinaciones inválidas que backend rechaza.
 - El último acceso se conserva en `last_login_at`, pero no sustituye un historial de autenticación.
+- Desde la consola ADMIN, cualquier cambio de rol, empresa o contrato requiere confirmación contextual y motivo de al menos 12 caracteres. El backend audita actor, motivo y valores anteriores/nuevos e invalida sesiones; las pruebas específicas añadidas para este flujo están pendientes de ejecución.
 
 **Sugerencias y criterios a considerar**
 
@@ -176,7 +202,7 @@ denominador es usuarios únicos con actividad en el período.
 2. Probar que cambiar cuerpo, URL o identificadores nunca permita acceder a otra empresa/contrato.
 3. Asegurar que rol, empresa y contrato se guarden como una combinación coherente, sin cambios parciales cuando hay error.
 4. Completar altas/invitaciones y paginación o navegación por encima de 100 usuarios.
-5. Validar en navegador crear/editar/revocar/reactivar, errores, confirmaciones e identidad del destinatario.
+5. Validar en navegador crear/editar/revocar/reactivar y cambiar rol/empresa/contrato; comprobar consecuencias, motivo obligatorio, auditoría, errores e identidad del destinatario.
 6. Aplicar y validar la migración pendiente en el entorno destino antes de considerar operativo el flujo allí.
 7. DEC-13 es una propuesta pendiente de aprobación del cliente: solicitud justificada por `company` o `contract_admin`; primero acepta el titular y luego ADMIN revisa. Ambas etapas deben completarse dentro de 14 días desde el envío; rechazo/expiración no cambian empresa/permisos. La alternativa recomendada es transferir la cuenta: retirar acceso de origen y asignar explícitamente el acceso de destino, sin heredar contratos. No implementar antes de la aprobación y validar aislamiento.
 
@@ -189,7 +215,7 @@ denominador es usuarios únicos con actividad en el período.
 **Lo que hace hoy**
 
 - Hay eventos de actividad y auditoría para operaciones seleccionadas; la creación global de faenas es consultable.
-- Ciertos cambios de usuario y solicitudes de URL documental registran actor/fecha; la emisión de URL requiere motivo.
+- La consola de cambios de permisos registra actor, motivo y valores anteriores/nuevos para rol/empresa/contrato; la emisión de URL documental requiere motivo. La cobertura de otras operaciones sigue parcial.
 - `last_login_at` y refresh tokens existen, pero no hay historial completo consultable de ingreso, fallo, cierre y revocación.
 - La cobertura de catálogos y eliminaciones es incompleta; algunos borrados se registran con semántica de actualización.
 - Reportes/exportaciones no tienen justificación uniforme, y lecturas de metadatos sensibles no se auditan de manera integral en todos los handlers revisados.

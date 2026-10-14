@@ -41,6 +41,9 @@ export default function AuditoriaPage() {
       </div>
     </Card>
     <Card>
+      <CardHead titulo="Eventos de auditoría"
+        sub="Hasta 100 registros según los filtros aplicados"
+        info="Cada fila representa una acción registrada con fecha, actor, empresa, tipo, módulo y entidad cuando están disponibles. Los filtros se aplican en el servidor. Esta vista permite rastrear acciones; no debe interpretarse como telemetría completa de uso." />
       <Estado cargando={auditoria.cargando} error={auditoria.error} reintentar={auditoria.recargar}>
         <div className="overflow-x-auto"><table className="ops-table"><thead><tr>
           <th>Fecha</th><th>Actor</th><th>Empresa</th><th>Acción</th>

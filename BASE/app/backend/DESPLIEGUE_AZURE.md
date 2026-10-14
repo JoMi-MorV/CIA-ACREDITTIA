@@ -1,5 +1,9 @@
 # Despliegue en Azure
 
+Guía operativa para la versión actual del backend. La API requiere el esquema
+**v11** (`SCHEMA_VERSION_ESPERADA=11`); aplica y verifica las migraciones antes
+de desplegar API, worker y beat con la misma imagen.
+
 Cuatro procesos, **una sola imagen**, diferenciados por el `command`. Así un
 despliegue no puede dejar la API y el worker en versiones distintas del código.
 
@@ -41,7 +45,7 @@ de configuración más fácil de cometer y el más difícil de notar.
 DATABASE_URL      postgresql+psycopg://acredittia_app:<pwd>@<host>:5432/acredittia?sslmode=require
 DB_RLS_ENABLED    true
 DB_APPLY_SCHEMA_ON_START  false      # lo hace el job de migración
-SCHEMA_VERSION_ESPERADA   6
+SCHEMA_VERSION_ESPERADA   11
 JWT_SECRET        <secreto de Key Vault>
 CORS_ORIGINS      https://app.acredittia.cl
 PUBLIC_BASE_URL   https://api.acredittia.cl
@@ -138,6 +142,10 @@ no a mitad de un request.
 snapshots de cumplimiento, expiración de credenciales. A las 04:00 purga los
 blobs temporales de extracción IA. Cada hora, al minuto 5, dispara los reportes
 programados que toquen.
+
+El beat de operaciones registra además la comprobación de disponibilidad
+diaria a las 00:05, la toma de métricas a las 02:10 y la tarea semanal de
+retención los domingos a las 03:30 (zona horaria `America/Santiago`).
 
 Con `QUEUE_BACKEND=inproc` el cron corre dentro del proceso de la API vía
 APScheduler; sirve para desarrollo y **no** para producción con más de una

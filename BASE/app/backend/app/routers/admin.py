@@ -23,8 +23,8 @@ import uuid
 from datetime import date, datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, Query
-from pydantic import BaseModel
-from sqlalchemy import String, and_, cast, delete, func, or_, select, update
+from pydantic import BaseModel, Field
+from sqlalchemy import String, and_, cast, delete, func, or_, select, text, update
 from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.orm import Session
 
@@ -141,6 +141,7 @@ class AdminUserPatch(BaseModel):
     company_id: uuid.UUID | None = None
     contrato_id: uuid.UUID | None = None
     activo: bool | None = None
+    motivo: str | None = Field(default=None, max_length=1000)
 
 
 class AdminUserRevoke(BaseModel):
@@ -255,12 +256,18 @@ def _company_out(db: Session, c: Company, contratos: int | None = None) -> dict:
     plan = db.scalar(select(Plan.nombre).join(
         Suscripcion, Suscripcion.plan_id == Plan.id).where(
             Suscripcion.company_id == c.id))
+    estado_cuenta = (db.execute(
+        text("SELECT ops_estado_cuenta(:company_id)"),
+        {"company_id": c.id},
+    ).scalar_one() if c.status == "approved" else None)
     sujetos = _sujetos_por_tipo(db, c.id)
     return {
         # RUT y email no forman parte del contrato operativo del listado ni
         # del detalle global; se mantienen fuera de esta respuesta.
         "id": str(c.id), "nombre": c.nombre,
         "status": c.status, "es_demo": c.es_demo,
+        "industria": c.industria,
+        "estado_cuenta": estado_cuenta,
         "rejection_reason": c.rejection_reason,
         "approved_at": _iso(c.approved_at),
         "created_at": _iso(c.created_at),
@@ -618,9 +625,15 @@ def _admin_user_out(db: Session, user: User) -> dict:
         "id": str(user.id), "nombre": user.nombre, "email": user.email,
         "role": user.role, "activo": user.activo, "status": user.status,
         "company_id": str(user.company_id) if user.company_id else None,
-        "company": company.nombre if company else None,
+        "company": {
+            "id": str(company.id), "nombre": company.nombre,
+        } if company else None,
         "contrato_id": str(user.contrato_id) if user.contrato_id else None,
-        "contrato": contrato.nombre if contrato else None,
+        "contrato": {
+            "id": str(contrato.id),
+            "nombre": contrato.nombre,
+            "codigo": contrato.codigo,
+        } if contrato else None,
         "last_login_at": _iso(user.last_login_at),
         "created_at": _iso(user.created_at),
     }
@@ -665,6 +678,8 @@ def admin_users_audit(p: Page = Depends(paginacion),
     return sobre([{
         "id": int(a.id), "usuario_id": str(a.entidad_id) if a.entidad_id else None,
         "accion": a.tipo, "descripcion": a.descripcion,
+        "motivo": (a.meta or {}).get("motivo"),
+        "cambios": (a.meta or {}).get("cambios", {}),
         "actor": actor_nombre or actor_email or "Sistema",
         "created_at": a.created_at.isoformat(),
     } for a, actor_nombre, actor_email in filas], total, p)
@@ -724,26 +739,63 @@ def editar_admin_user(user_id: uuid.UUID, body: AdminUserPatch,
         if not contrato or contrato.company_id != company_id:
             raise err(400, "CONTRATO_INVALIDO",
                       "El contrato no pertenece a la empresa indicada")
-    cambios = []
+
+    cambios_permisos = {
+        campo: {"antes": str(getattr(user, campo)) if getattr(user, campo) else None,
+                "despues": str(valor) if valor else None}
+        for campo, valor in (("role", role), ("company_id", company_id),
+                             ("contrato_id", contrato_id))
+        if getattr(user, campo) != valor
+    }
+    motivo = (data.get("motivo") or "").strip()
+    if cambios_permisos and len(motivo) < 12:
+        raise err(400, "MOTIVO_REQUERIDO",
+                  "Indique un motivo de al menos 12 caracteres para cambiar rol o alcance")
+
+    company_id_anterior = user.company_id
+    antes = {
+        "role": user.role,
+        "company_id": str(user.company_id) if user.company_id else None,
+        "contrato_id": str(user.contrato_id) if user.contrato_id else None,
+        "activo": user.activo,
+    }
+    cambios = list(cambios_permisos)
+    sesiones_invalidada = False
     for campo, valor in (("role", role), ("company_id", company_id),
                          ("contrato_id", contrato_id)):
-        anterior = getattr(user, campo)
-        if anterior != valor:
+        if campo in cambios_permisos:
             setattr(user, campo, valor)
-            cambios.append(campo)
+    if cambios_permisos:
+        _invalidar_sesiones(db, user)
+        sesiones_invalidada = True
     if "activo" in data and user.activo != data["activo"]:
         if user.id == admin.id and not data["activo"]:
             raise err(400, "AUTO_REVOCACION", "No puede desactivar su propia cuenta")
         user.activo = data["activo"]
-        _invalidar_sesiones(db, user)
+        if not sesiones_invalidada:
+            _invalidar_sesiones(db, user)
         cambios.append("activo")
     if not cambios:
         return _admin_user_out(db, user)
 
-    if user.company_id:
-        actividad.log(db, user.company_id, "actualizacion", "usuarios",
-                      f"Permisos de usuario modificados: {', '.join(cambios)}",
-                      user_id=admin.id, entidad_tipo="usuario", entidad_id=user.id)
+    despues = {
+        "role": user.role,
+        "company_id": str(user.company_id) if user.company_id else None,
+        "contrato_id": str(user.contrato_id) if user.contrato_id else None,
+        "activo": user.activo,
+    }
+    actividad.log(
+        db, company_id_anterior or user.company_id, "actualizacion", "usuarios",
+        f"Permisos de usuario modificados: {', '.join(cambios)}",
+        user_id=admin.id, entidad_tipo="usuario", entidad_id=user.id,
+        metadata={
+            "motivo": motivo or None,
+            "cambios": {
+                campo: {"antes": antes[campo], "despues": despues[campo]}
+                for campo in cambios
+            },
+        },
+    )
     db.commit()
     db.refresh(user)
     return _admin_user_out(db, user)
@@ -826,6 +878,37 @@ def detalle_company(company_id: uuid.UUID, db: Session = Depends(get_db)):
                   (f"Usuario {str(ultimo_evento.Actividad.user_id)[:8]}"
                    if ultimo_evento.Actividad.user_id else "Sistema")),
     } if ultimo_evento else None)
+    out["cuentas"] = [
+        _admin_user_out(db, user)
+        for user in db.scalars(
+            select(User)
+            .where(User.company_id == c.id)
+            .order_by(User.last_login_at.desc().nulls_last(), User.created_at.desc())
+        ).all()
+    ]
+    out["contratos"] = [{
+        "id": str(contrato.id),
+        "nombre": contrato.nombre,
+        "codigo": contrato.codigo,
+        "estado": contrato.estado,
+        "ciclo_estado": contrato.ciclo_estado,
+        "responsables": [
+            _admin_user_out(db, user)
+            for user in db.scalars(
+                select(User)
+                .where(
+                    User.company_id == c.id,
+                    User.role == "contract_admin",
+                    User.contrato_id == contrato.id,
+                )
+                .order_by(User.last_login_at.desc().nulls_last(), User.created_at.desc())
+            ).all()
+        ],
+    } for contrato in db.scalars(
+        select(Contrato)
+        .where(Contrato.company_id == c.id)
+        .order_by(Contrato.nombre, Contrato.id)
+    ).all()]
     out["stats"] = {
         "usuarios": _cuenta(db, User, User.company_id == c.id),
         "usuarios_activos": _cuenta(db, User, User.company_id == c.id,

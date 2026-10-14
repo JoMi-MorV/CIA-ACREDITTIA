@@ -19,6 +19,7 @@ const catalogosVacios: CatalogosBusquedaGlobal = {
 export default function BusquedaGlobalPage() {
   const [query, setQuery] = useState("");
   const [referencias, setReferencias] = useState<ReferenciaSeleccionada[]>([]);
+  const [categoriaAbierta, setCategoriaAbierta] = useState<CategoriaReferencia | null>(null);
   const [catalogos, setCatalogos] = useState(catalogosVacios);
   const [resultado, setResultado] = useState<BusquedaGlobal | null>(null);
   const items = resultado?.items ?? [];
@@ -122,7 +123,8 @@ export default function BusquedaGlobalPage() {
   };
   return <div className="space-y-4">
     <Card>
-      <CardHead titulo="Buscador global" sub="Busca por nombre, RUT, patente, marca, modelo u otros datos." />
+      <CardHead titulo="Buscador global" sub="Busca por nombre, RUT, patente, marca, modelo u otros datos."
+        info="Busca registros en las categorías disponibles. Los términos se combinan como criterios que deben coincidir con el mismo resultado; los filtros de referencia restringen la búsqueda. Los resultados se limitan por categoría y la interfaz avisa si hay más coincidencias." />
       <div className="ops-input flex min-h-11 min-w-[240px] flex-wrap items-center gap-2">
         {referencias.map((referencia) => <span key={`${referencia.categoria}:${referencia.valor}`}
           className="inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs"
@@ -146,19 +148,32 @@ export default function BusquedaGlobalPage() {
           ? `${referencias.length} referencia(s) seleccionada(s); cada término se aplicará a la búsqueda.`
           : "Cada término debe coincidir con el mismo resultado. Puedes combinar referencias y texto libre."}
       </p>
-      <details className="mt-4 rounded-lg border p-3" style={{ borderColor: "var(--ops-line)" }}>
-        <summary className="cursor-pointer text-sm font-semibold">
-          Explorar y seleccionar datos para buscar
-        </summary>
+      <div className="mt-4 rounded-lg border p-3" style={{ borderColor: "var(--ops-line)" }}>
         <p className="ops-sub mt-2">
           Selecciona o deselecciona valores para agregarlos o quitarlos de la búsqueda.
           Todos los criterios seleccionados se aplican a la vez.
         </p>
-        <div className="mt-3 space-y-4">
-          {gruposCatalogo.map((grupo) => <section key={grupo.clave}>
+        <div className="mt-3 flex flex-wrap gap-2" role="group" aria-label="Categorías de búsqueda">
+          {gruposCatalogo.map((grupo) => {
+            const seleccionadas = referencias.filter(
+              (referencia) => referencia.categoria === grupo.clave).length;
+            const abierta = categoriaAbierta === grupo.clave;
+            return <button key={grupo.clave} type="button"
+              className={`ops-btn ${abierta ? "ops-btn-primary" : "ops-btn-ghost"}`}
+              aria-expanded={abierta}
+              aria-controls={`catalogo-${grupo.clave}`}
+              onClick={() => setCategoriaAbierta(abierta ? null : grupo.clave)}>
+              {grupo.titulo}{seleccionadas > 0 ? ` (${seleccionadas})` : ""}
+            </button>;
+          })}
+        </div>
+        {gruposCatalogo.map((grupo) => categoriaAbierta === grupo.clave && (
+          <section key={grupo.clave} id={`catalogo-${grupo.clave}`}
+            className="mt-3 border-t pt-3" style={{ borderColor: "var(--ops-line-soft)" }}
+            aria-label={grupo.titulo}>
             <h3 className="ops-lbl mb-2">{grupo.titulo}</h3>
             {grupo.valores.length
-              ? <div className="flex max-h-28 flex-wrap gap-2 overflow-y-auto">
+              ? <div className="flex max-h-40 flex-wrap gap-2 overflow-y-auto">
                 {grupo.valores.map((valor) => <button key={valor} type="button"
                   className={`ops-btn text-xs ${referencias.some((referencia) =>
                     referencia.categoria === grupo.clave && referencia.valor === valor)
@@ -171,9 +186,9 @@ export default function BusquedaGlobalPage() {
             {grupo.mas && <p className="ops-sub mt-1 text-xs">
               Hay más valores de esta categoría; usa la barra para buscar otros.
             </p>}
-          </section>)}
-        </div>
-      </details>
+          </section>
+        ))}
+      </div>
       {consultaCompleta.length < 2 && <p className="ops-sub mt-2">
         Escribe al menos 2 caracteres o selecciona una referencia para iniciar la búsqueda.
       </p>}
@@ -181,7 +196,8 @@ export default function BusquedaGlobalPage() {
       {error && <p className="mt-3 text-sm" style={{ color: "var(--ops-crit)" }}>{error}</p>}
     </Card>
     {items.length > 0 && <Card>
-      <CardHead titulo={`Resultados mostrados (${items.length})`} sub={`Búsqueda: ${resultado?.query}. Hasta ${resultado?.limite_por_categoria} resultados por categoría.`} />
+      <CardHead titulo={`Resultados mostrados (${items.length})`} sub={`Búsqueda: ${resultado?.query}. Hasta ${resultado?.limite_por_categoria} resultados por categoría.`}
+        info="Cada fila es una coincidencia encontrada e indica su tipo, título y empresa asociada. La cantidad está limitada por categoría; si el aviso de más resultados aparece, refina los términos para acotar la lista." />
       {resultado?.hay_mas && <p className="ops-sub mb-3" role="status">Hay más coincidencias que las mostradas. Refina la búsqueda para encontrar el resultado que necesitas.</p>}
       <div className="overflow-x-auto"><table className="ops-table"><thead><tr><th>Tipo</th><th>Resultado</th><th>Empresa</th><th /></tr></thead><tbody>
         {items.map((item) => {
