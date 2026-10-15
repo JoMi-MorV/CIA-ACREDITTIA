@@ -1,7 +1,7 @@
 # Resumen de requisitos ADMIN
 
 **Corte ADMIN:** 13 de octubre de 2026  
-**Base documental:** SRS versión 0.58 y `VALIDACION_ACTUAL.md`, actualizados al 15 de octubre de 2026.
+**Base documental:** SRS versión 0.60 y `VALIDACION_ACTUAL.md`, actualizados al 15 de octubre de 2026.
 **Propósito:** resumir el estado técnico de las ocho prioridades ADMIN, distinguir lo implementado de lo validado y proponer criterios concretos para revisar su cierre.
 
 Este documento es una guía de revisión, no una aceptación contractual ni una certificación de producción. Los estados reflejan los requisitos y la evidencia descritos en el [SRS](SRS.md) y en [VALIDACION_ACTUAL.md](VALIDACION_ACTUAL.md). `IV` significa implementado y validado dentro del alcance probado; `ISV`, implementado sin validación completa; `PAR`, parcial; `COR`, requiere corrección; y `PEN`, pendiente. Los porcentajes estimados del SRS no equivalen a porcentaje de cumplimiento validado.
@@ -16,11 +16,11 @@ de la estimación de las prioridades ADMIN ni modifica su 67%.
 
 La actualización del 15-10-2026 registra cambios del portal de empresa:
 `/gestion-cuentas`, perfil de empresa y responsables visibles para ADMIN en
-«Ver como empresa», y bloqueo de la conversión `company` → `contract_admin` en
-la gestión de empresa. Estos cambios no modifican el 67% histórico del corte
-ADMIN del 13-10. La invitación/aceptación de cuentas existentes y la validación
-visual del filtro final siguen pendientes; evidencia en
-`VALIDACION_ACTUAL.md`.
+«Ver como empresa». La conversión `company` → `contract_admin` está permitida
+si queda otro `company` activo; la protección del último administrador se
+mantiene. Estos cambios no modifican el 67% histórico del corte ADMIN del
+13-10. La invitación/aceptación de cuentas existentes y la validación visual
+final siguen pendientes; evidencia en `VALIDACION_ACTUAL.md`.
 
 ## Resumen ejecutivo
 
@@ -31,7 +31,7 @@ visual del filtro final siguen pendientes; evidencia en
 | 3 | Buscador global | **55%** | **PAR** — RF-BUS-01/02 | Botones despliegan listas por categoría; el backend exige ADMIN, pero no aplica permisos independientes por categoría/detalle. La autorización granular y la validación visual integral siguen pendientes. |
 | 4 | Métricas SaaS | **60%** | **PAR** — RF-MET-01/02/03 | Hay métricas de clientes/usuarios, sesiones y series mensuales; baja actividad y uso/adopción aparecen en Salud. El tiempo de uso sigue siendo estimado y las revisiones de IA no equivalen necesariamente a documentos únicos. |
 | 5 | Alertas y salud de clientes | **70%** | **Mixto:** RF-SAL-01 **PAR**; RF-SAL-02 **COR**; RF-SAL-03 **ISV** | Salud agrupa indicadores y detalle desplegable con explicaciones; falta validar umbrales y casos límite, totales/paginación y sondas operacionales que detecten fallos reales. |
-| 6 | Usuarios, roles y permisos | **70%** | **PAR** — RF-USU-01/02 | El listado ADMIN pagina usuarios y los cambios de alcance invalidan sesiones. El portal administra cuentas asociadas y bloquea degradar `company` a `contract_admin`; siguen pendientes invitación/aceptación de cuentas existentes, historial completo de acceso y validación integral. El porcentaje es el estimado histórico del 13-10. |
+| 6 | Usuarios, roles y permisos | **70%** | **PAR** — RF-USU-01/02 | El listado ADMIN pagina usuarios y los cambios de alcance invalidan sesiones. El portal permite convertir `company` en `contract_admin` si queda otro `company` activo; siguen pendientes invitación/aceptación de cuentas existentes, historial completo de acceso y validación integral. El porcentaje es el estimado histórico del 13-10. |
 | 7 | Auditoría y trazabilidad | **50%** | **PAR** — RF-AUD-01/02/03 | Se auditan cambios seleccionados y la emisión de URL documental requiere motivo. Falta cobertura uniforme de autenticación, lecturas sensibles, operaciones y exportaciones; una URL emitida no prueba transferencia efectiva. |
 | 8 | Seguridad y aislamiento | **62%** | **PAR** — RF-SEG-01/02/03, RNF-SEG-01 | Hay controles de autorización, RLS y pruebas de aislamiento multiempresa. Falta demostrar mínimo privilegio en configuración equivalente a producción, cerrar el acceso excepcional y validar el alcance contractual, aplicado mayormente en API. |
 
@@ -201,7 +201,7 @@ denominador es usuarios únicos con actividad en el período.
 - Existen roles `admin`, `company` y `contract_admin`, alcance por empresa/contrato, listado y cambios administrativos de estado.
 - El esquema actual vincula cada usuario a un único `company_id` y un único `contrato_id`; no permite membresías multiempresa ni varios contratos por cuenta `contract_admin`.
 - En el portal, el registro solicita el nombre del usuario inicial y el perfil personal permite editar nombre, correo y contraseña. En «Ver como empresa», `/perfil` muestra el perfil de la empresa (nombre/correo editables; RUT/estado de solo lectura), no la identidad personal de ADMIN.
-- `/gestion-cuentas` lista, busca, pagina y administra cuentas del tenant. En `/contratos`, ADMIN impersonando puede ver y gestionar responsables. La UI solo permite elegir cuentas `contract_admin`; el API rechaza convertir una cuenta `company` de acceso general con `ADMIN_EMPRESA_NO_CONVERTIBLE`. Cuentas `contract_admin` existentes pueden reasignarse entre contratos.
+- `/gestion-cuentas` lista, busca, pagina y administra cuentas del tenant. En `/contratos`, ADMIN impersonando puede ver y gestionar responsables. Se puede asignar una cuenta `company` a un contrato con confirmación doble; el API conserva `ULTIMO_ADMINISTRADOR` si sería el último usuario `company` activo. Cuentas `contract_admin` existentes pueden reasignarse entre contratos.
 - La regresión `tests/test_auth.py` + `tests/test_tenants.py` pasó 71/71 el 15-10-2026. La invitación/aceptación de una cuenta existente sigue pendiente; `/company/usuarios` crea usuarios nuevos y todavía no entrega el token de activación por email.
 - La reactivación de cuentas e invalidación de sesiones anteriores está implementada y probada en pruebas aisladas. La migración v9 añadió `auth_version`; el esquema que exige actualmente la API es v11. No se afirma que cada entorno destino esté ya migrado.
 - El listado administrativo de usuarios pagina los resultados; la navegación para universos mayores de 100 ya no es una brecha identificada.

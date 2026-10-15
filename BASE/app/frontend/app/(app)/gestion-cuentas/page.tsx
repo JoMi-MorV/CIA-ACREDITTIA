@@ -257,11 +257,9 @@ export default function GestionCuentasPage() {
                 if (nuevoRol === "company") setContratoId("");
               }}>
               <option value="company">Acceso a toda la empresa</option>
-              {editando.role === "contract_admin" && (
-                <option value="contract_admin" disabled={contratos.length === 0}>
-                  Acceso a un contrato
-                </option>
-              )}
+              <option value="contract_admin" disabled={contratos.length === 0}>
+                Acceso a un contrato
+              </option>
             </select>
           </label>
           {rol === "contract_admin" && <label className="block text-sm font-medium text-slate-700">
@@ -278,10 +276,8 @@ export default function GestionCuentasPage() {
             </select>
           </label>}
           <p className="rounded-md bg-slate-50 px-3 py-2 text-xs text-slate-600">
-            {editando.role === "company"
-              ? "Las cuentas con acceso a toda la empresa no se pueden limitar a un contrato. Para asignar un responsable, usa una cuenta contract_admin."
-              : rol === "company"
-                ? "Este rol permite acceder a la información y gestión de toda la empresa."
+            {rol === "company"
+              ? "Este rol permite acceder a la información y gestión de toda la empresa."
               : "Este rol limita el acceso al contrato seleccionado."}
           </p>
           {errorModal && <p role="alert" className="text-sm text-red-700">{errorModal}</p>}

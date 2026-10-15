@@ -88,22 +88,37 @@ def test_registro_rechaza_password_debil(app_cliente, clave, motivo):
     assert r.json()["error"]["code"] == "PASSWORD_DEBIL"
 
 
-def test_cuenta_company_no_se_puede_limitar_a_contract_admin(
+def test_cuenta_company_puede_limitarse_si_queda_otro_company_activo(
         app_cliente, empresa_a, contrato_a):
-    invitado = app_cliente.post(
-        f"{API}/company/usuarios", headers=empresa_a["headers"], json={
-            "email": "administrador.empresa@empresa.cl",
-            "nombre": "Administrador de empresa", "role": "company",
+    ruta = f"{API}/company/usuarios/{empresa_a['user_id']}"
+    sin_respaldo = app_cliente.patch(
+        ruta, headers=empresa_a["headers"], json={
+            "role": "contract_admin", "contrato_id": contrato_a["id"],
         })
-    assert invitado.status_code == 201, invitado.text
+    assert sin_respaldo.status_code == 400
+    assert sin_respaldo.json()["error"]["code"] == "ULTIMO_ADMINISTRADOR"
+
+    respaldo = app_cliente.post(
+        f"{API}/company/usuarios", headers=empresa_a["headers"], json={
+            "email": "admin.respaldo@empresa.cl",
+            "nombre": "Administrador de respaldo", "role": "company",
+        })
+    assert respaldo.status_code == 201, respaldo.text
 
     respuesta = app_cliente.patch(
-        f"{API}/company/usuarios/{invitado.json()['id']}",
+        ruta,
         headers=empresa_a["headers"], json={
             "role": "contract_admin", "contrato_id": contrato_a["id"],
         })
-    assert respuesta.status_code == 400
-    assert respuesta.json()["error"]["code"] == "ADMIN_EMPRESA_NO_CONVERTIBLE"
+    assert respuesta.status_code == 200, respuesta.text
+    assert respuesta.json()["role"] == "contract_admin"
+    assert respuesta.json()["contrato_id"] == contrato_a["id"]
+
+    from app.database import worker_session
+    from app.models import User
+    with worker_session(is_admin=True) as db:
+        cuenta_respaldo = db.get(User, uuid.UUID(respaldo.json()["id"]))
+        assert cuenta_respaldo.role == "company"
 
 
 def test_login_y_me(app_cliente, empresa_a):

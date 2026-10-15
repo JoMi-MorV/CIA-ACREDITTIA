@@ -1,6 +1,6 @@
 # Plan de trabajo — Acredittia
 
-Versión 4.0 · 15-10-2026 · propuesta de ejecución vinculada a [SRS.md](SRS.md) versión 0.58.
+Versión 4.1 · 15-10-2026 · propuesta de ejecución vinculada a [SRS.md](SRS.md) versión 0.60.
 
 **Actualización al 08-10-2026:** los avances de PT-05, PT-06, PT-07 y PT-08
 incorporan cambios posteriores a la versión 0.5, incluida la implementación
@@ -39,6 +39,18 @@ regresión de autenticación/tenant pasaron (71/71). La invitación/aceptación 
 cuentas existentes y la notificación por email siguen pendientes; la
 verificación visual del selector tras el último filtro no se completó. Ver
 [VALIDACION_ACTUAL.md](VALIDACION_ACTUAL.md) y RF-CLI-08 en [SRS.md](SRS.md).
+
+**Corrección al 15-10-2026, 13:52:46 -03:00:** se restaura la conversión de
+cualquier cuenta `company` a `contract_admin`, incluida la cuenta inicial,
+cuando queda otro `company` activo. Se conserva `ULTIMO_ADMINISTRADOR` si sería
+el último. La regresión de autenticación/tenant pasó 71/71 y el build frontend
+pasó; la invitación de cuentas existentes sigue pendiente.
+
+**Corrección al 15-10-2026, 13:52:46 -03:00:** se restaura la conversión de
+cualquier cuenta `company` a `contract_admin`, incluida la cuenta inicial,
+cuando queda otro `company` activo. Se conserva `ULTIMO_ADMINISTRADOR` si sería
+el último. La regresión de autenticación/tenant pasó 71/71 y el build frontend
+pasó; la invitación de cuentas existentes sigue pendiente.
 
 **DEC-09 cerrada (07-10-2026):** se conserva por compatibilidad la validación vigente del motivo documental: HTTP 422 para parámetro ausente o longitud original fuera de rango, y HTTP 400/`MOTIVO_REQUERIDO` cuando el valor pasa longitud inicial pero queda bajo el mínimo después de quitar espacios. No requiere cambios de API; cualquier unificación futura requiere decisión nueva y pruebas de compatibilidad.
 

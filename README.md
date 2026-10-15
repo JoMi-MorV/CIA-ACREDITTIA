@@ -678,9 +678,9 @@ su build pasó, pero los flujos aún requieren validación operativa.
 - Portal de empresa para gestionar contratos, personal, equipos, documentos,
   requisitos, alertas, calendario, reportes, cuentas asociadas y responsables
   de contrato. `/gestion-cuentas` administra roles y estados de cuentas del
-  tenant. El panel de responsables asigna cuentas `contract_admin` existentes;
-  una cuenta `company` no se puede limitar a un contrato desde la gestión de
-  empresa.
+    tenant. El panel de responsables permite asignar cuentas `company` y
+    `contract_admin`; una cuenta `company` pasa a alcance de contrato con
+    confirmación doble y siempre debe quedar otro `company` activo.
 - Consola ADMIN bajo `/admin` para empresas, buscador global, métricas, usuarios,
   auditoría, sistemas, procesos e incidentes. La API administrativa actual usa
   `/api/v1/admin`; mantiene rutas Ops anteriores por compatibilidad.

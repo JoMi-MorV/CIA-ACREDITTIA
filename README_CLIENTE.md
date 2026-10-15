@@ -762,12 +762,13 @@ impersonacion para operar sobre la empresa seleccionada.
 
 `/gestion-cuentas` lista, busca, pagina y administra las cuentas del tenant.
 `/contratos` muestra Responsables de contrato a `company` y a ADMIN con empresa
-impersonada. Solo se ofrecen cuentas `contract_admin` para asignacion y el API
-rechaza convertir una cuenta `company` de alcance general a `contract_admin`
-(`ADMIN_EMPRESA_NO_CONVERTIBLE`). Las cuentas `contract_admin` existentes se
-pueden reasignar entre contratos. La invitacion/aceptacion de cuentas ya
-existentes no esta implementada; `POST /company/usuarios` crea usuarios nuevos
-y el envio/canje del token de activacion por email sigue pendiente.
+impersonada. Se puede asignar una cuenta `company` como `contract_admin` con
+confirmacion doble; el backend impide dejar a la empresa sin otro usuario
+`company` activo (`ULTIMO_ADMINISTRADOR`). Las cuentas `contract_admin`
+existentes se pueden reasignar entre contratos. La invitacion/aceptacion de
+cuentas ya existentes no esta implementada; `POST /company/usuarios` crea
+usuarios nuevos y el envio/canje del token de activacion por email sigue
+pendiente.
 
 En la consola ADMIN, los cambios de rol, empresa o contrato requieren una
 confirmacion que explica consecuencias y un motivo obligatorio. El registro

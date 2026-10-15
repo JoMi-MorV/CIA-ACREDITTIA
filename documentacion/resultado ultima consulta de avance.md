@@ -1,6 +1,6 @@
-Resultado de consulta de avance ADMIN — corte original 13-10-2026; actualizado al 15-10-2026 13:23:03 -03:00
+Resultado de consulta de avance ADMIN — corte original 13-10-2026; actualizado al 15-10-2026 13:55:03 -03:00
 
-## Actualización al 15-10-2026 13:23:03 -03:00
+## Actualización al 15-10-2026 13:55:03 -03:00
 
 El avance ADMIN estimado permanece en **67%**, correspondiente a la revisión
 documental/código del 13-10 y calculado como promedio simple de ocho
@@ -11,16 +11,18 @@ Desde el corte original se incorporó al portal `/gestion-cuentas` para listar,
 buscar, paginar y administrar cuentas asociadas. En «Ver como empresa», ADMIN
 puede consultar/editar el perfil de la empresa (razón social y correo; RUT y
 estado son de solo lectura) y usar el panel de responsables de contrato.
-La gestión de empresa no permite convertir una cuenta `company` con acceso
-general en `contract_admin`: el selector la excluye y el API rechaza el cambio
-con `ADMIN_EMPRESA_NO_CONVERTIBLE`. Cuentas `contract_admin` existentes pueden
-reasignarse entre contratos. La gestión global de usuarios de ADMIN es una vía
-separada.
+Se restaura la conversión de una cuenta `company`, incluida la inicial, a
+`contract_admin` si queda al menos otro usuario `company` activo. El bloqueo de
+`ULTIMO_ADMINISTRADOR` se conserva si sería el último. Las cuentas
+`contract_admin` existentes también pueden reasignarse entre contratos. La
+gestión global de usuarios de ADMIN es una vía separada.
 
 **Evidencia reciente:** `npm run build` pasó y generó 25 rutas; la regresión
 `python -m pytest tests/test_auth.py tests/test_tenants.py -q` pasó **71/71**
-en PostgreSQL temporal, con 1 warning residual de `starlette.testclient` y
-`httpx`. Se reconstruyeron API y web con Docker Compose. El navegador confirmó
+en PostgreSQL temporal, incluido el caso de conversión con administrador de
+respaldo y el bloqueo si sería el último; queda 1 warning residual de
+`starlette.testclient` y `httpx`. Se reconstruyeron API y web con Docker Compose.
+El navegador confirmó
 la visibilidad del panel de responsables y el perfil de empresa durante
 impersonación antes del último filtro de elegibilidad; no se completó una
 comprobación visual del filtro final.

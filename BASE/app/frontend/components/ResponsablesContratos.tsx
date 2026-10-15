@@ -50,15 +50,22 @@ export default function ResponsablesContratos() {
 
   const cuentasElegibles = useMemo(() => (usuarios ?? []).filter((usuario) =>
     usuario.id !== usuarioActual?.id &&
-    usuario.role === "contract_admin"),
+    (usuario.role === "company" || usuario.role === "contract_admin")),
   [usuarios, usuarioActual?.id]);
 
   const guardar = async (contrato: Contrato) => {
     if (!usuarios) return;
     const userId = seleccion[contrato.id] ?? "";
     const elegido = cuentasElegibles.find((usuario) => usuario.id === userId);
-    if (!elegido || elegido.role !== "contract_admin") return;
+    if (!elegido) return;
 
+    if (elegido.role === "company" && !await dialog.confirm({
+      title: "Limitar acceso a un contrato",
+      message: `${elegido.nombre || elegido.email} dejará de tener acceso general de empresa y quedará limitado a este contrato.`,
+      confirmLabel: "Continuar",
+      doubleConfirm: true,
+      danger: true,
+    })) return;
     if (elegido.role === "contract_admin" && elegido.contrato_id !== contrato.id) {
       const contratoAnterior = contratos?.find((item) => item.id === elegido.contrato_id);
       if (!await dialog.confirm({

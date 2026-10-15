@@ -1,6 +1,6 @@
-# Validación funcional — actualizado al 15 de octubre de 2026, 13:14:45 -03:00
+# Validación funcional — actualizado al 15 de octubre de 2026, 13:55:03 -03:00
 
-## Gestión de cuentas e impersonación ADMIN — 15 de octubre de 2026, 13:14:45 -03:00
+## Gestión de cuentas e impersonación ADMIN — 15 de octubre de 2026, 13:55:03 -03:00
 
 Se añadió `/gestion-cuentas` al portal, con listado paginado de cuentas de la
 empresa, búsqueda, cambio de alcance permitido y activación/desactivación. La
@@ -11,20 +11,22 @@ token de activación.
 Durante «Ver como empresa», ADMIN vuelve a ver el panel de responsables de
 contrato y la entrada de perfil abre el perfil de la empresa, no el perfil
 personal de ADMIN. El perfil permite editar razón social y correo; RUT y estado
-son de solo lectura. Se impide convertir una cuenta `company` con acceso a toda
-la empresa en `contract_admin`: el selector de responsables muestra únicamente
-cuentas `contract_admin` y la API de empresa rechaza la conversión con
-`ADMIN_EMPRESA_NO_CONVERTIBLE`. Las cuentas `contract_admin` existentes siguen
-pudiendo reasignarse entre contratos.
+son de solo lectura. Se restaura la conversión de cualquier cuenta `company`,
+incluida la inicial, a `contract_admin` cuando queda al menos otro usuario
+`company` activo. Se conserva `ULTIMO_ADMINISTRADOR` para evitar dejar la
+empresa sin administrador. El selector ofrece cuentas `company` y
+`contract_admin`, con confirmación doble al reducir el alcance; los encargados
+existentes siguen pudiendo reasignarse entre contratos.
 
 **Validación:** `npm run build` pasó y generó 25 rutas. Comando de regresión:
 `python -m pytest tests/test_auth.py tests/test_tenants.py -q`; resultado
-**71/71** en PostgreSQL temporal, incluida la prueba de rechazo de conversión.
+**71/71** en PostgreSQL temporal, incluida la conversión de la cuenta inicial
+cuando queda otro administrador y el bloqueo cuando sería el último.
 API y web se reconstruyeron con Docker Compose. En navegador ADMIN impersonando
 se verificaron la
-visibilidad del panel de responsables y el perfil de empresa antes del último
-filtro de cuentas `company`; no se completó una comprobación visual posterior a
-ese filtro. La validación no acredita el flujo de invitación de cuentas
+visibilidad del panel de responsables y el perfil de empresa. No se completó
+una comprobación visual posterior a la restauración del filtro de candidatos.
+La validación no acredita el flujo de invitación de cuentas
 existentes ni cambia los requisitos legales/de seguridad de DEC-08. Persiste
 un warning externo de compatibilidad `starlette.testclient` + `httpx`.
 

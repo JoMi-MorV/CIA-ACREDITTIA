@@ -1,7 +1,7 @@
 # Gap Analysis — Acredittia
 
 Estado: borrador de revisión
-Fecha de referencia: 15-10-2026 13:14:45 -03:00
+Fecha de referencia: 15-10-2026 13:55:03 -03:00
 
 Este documento consolida la evidencia documental y técnica del proyecto a partir de la especificación funcional ([SRS.md](./SRS.md)) y la implementación actual en código. Este corte incorpora las pruebas/build y límites de validación registrados en [VALIDACION_ACTUAL.md](./VALIDACION_ACTUAL.md); el análisis de brechas no sustituye aceptación de producto ni certificación de producción.
 
@@ -36,7 +36,7 @@ y evidencia de aislamiento/mínimo privilegio siguen abiertos.
 
 Esta entrega del portal de empresa corresponde al alcance funcional del producto y no altera el cálculo de avance de las ocho prioridades ADMIN, que sigue siendo una estimación documental. La preparación para producción sigue bloqueada por DEC-08 y por la necesidad de evidenciar permisos granulares, auditoría y aislamiento equivalente a producción.
 
-**Actualización 15-10-2026 13:14:45 -03:00 — portal de empresa y alcance de usuarios:** `/gestion-cuentas` permite listar, buscar, paginar y administrar cuentas asociadas. Durante impersonación, ADMIN vuelve a ver Responsables de contrato y el perfil de empresa, no su perfil personal. En la gestión de empresa no se permite degradar una cuenta `company` (acceso general) a `contract_admin`; el selector muestra solo cuentas de este último rol y el API rechaza la conversión con `ADMIN_EMPRESA_NO_CONVERTIBLE`. Las cuentas `contract_admin` existentes sí se pueden reasignar entre contratos. La regresión de autenticación/tenant pasó 71/71 y el build frontend pasó. La verificación visual del filtro final no se completó. No existe todavía invitación/aceptación para vincular una cuenta existente; las invitaciones actuales crean usuarios nuevos y su entrega de token por correo sigue incompleta. Esta actualización no cambia el 67% histórico de avance ADMIN ni los bloqueos P0 de DEC-08, auditoría y aislamiento de producción.
+**Actualización 15-10-2026 13:55:03 -03:00 — portal de empresa y alcance de usuarios:** `/gestion-cuentas` permite listar, buscar, paginar y administrar cuentas asociadas. Durante impersonación, ADMIN ve Responsables de contrato y el perfil de empresa, no su perfil personal. Se restaura la conversión de una cuenta `company` a `contract_admin`, incluida la inicial, si queda otro `company` activo; solo se bloquea si sería el último (`ULTIMO_ADMINISTRADOR`). La interfaz confirma doblemente la reducción de alcance. La regresión de autenticación/tenant pasó 71/71 y el build frontend pasó. No existe todavía invitación/aceptación para vincular una cuenta existente; las invitaciones actuales crean usuarios nuevos y su entrega de token por correo sigue incompleta. Esta actualización no cambia el 67% histórico de avance ADMIN ni los bloqueos P0 de DEC-08, auditoría y aislamiento de producción.
 
 El módulo admin tiene una base funcional sólida en:
 
@@ -93,7 +93,7 @@ históricas y no deben utilizarse como estimaciones vigentes.
 | Buscador global | Parcial | 55% | Las categorías están implementadas, pero la autorización por categoría y detalle no se aplica como permiso granular en servidor. |
 | Métricas SaaS | Parcial | 60% | Existen métricas y series; tiempo de uso continúa estimado, y documentos procesados no equivale necesariamente a documentos únicos. Faltan definiciones y cálculos validados. |
 | Alertas y salud de clientes | Parcial | 70% | Hay indicadores y detalle plegable; faltan validar umbrales, casos límite, totales/paginación y sondas que acrediten disponibilidad real. |
-| Usuarios, roles y permisos | Parcial | 70% | La consola ya pagina usuarios y registra cambios de alcance; en portal se administran cuentas asociadas y se impide degradar `company` a `contract_admin`. Falta invitación/aceptación de cuentas existentes, correo de activación y validación integral de permisos. El 70% es la estimación histórica del 13-10, no recalculada en este corte. |
+| Usuarios, roles y permisos | Parcial | 70% | La consola pagina usuarios; el portal permite convertir `company` a `contract_admin` si queda otro `company` activo. Se conserva el bloqueo de último administrador. Falta invitación/aceptación de cuentas existentes, correo de activación y validación integral de permisos. El 70% es la estimación histórica del 13-10, no recalculada en este corte. |
 | Auditoría y trazabilidad | Parcial | 50% | Algunas operaciones y descargas quedan registradas; falta cobertura uniforme de autenticación, lecturas sensibles, operaciones y transferencias de exportación. |
 | Seguridad y aislamiento de datos | Parcial; bloqueo P0 | 62% | Hay autorización, RLS y pruebas multiempresa; falta demostrar mínimo privilegio y aislamiento contractual con configuración equivalente a producción, además de acceso excepcional auditado. |
 
@@ -232,7 +232,7 @@ Cumple parcialmente:
 Brechas:
 - no existe una invitación formal para vincular una cuenta existente a una empresa ni un flujo de aceptación de esa membresía; el endpoint actual crea usuarios nuevos, guarda un token de activación pero no lo entrega por email;
 - una cuenta no puede ser miembro de varias empresas salvo decisión explícita del cliente;
-- en gestión de empresa se bloquea la conversión de `company` a `contract_admin` para evitar reducir el alcance de una cuenta con acceso general; el filtro de interfaz y el API aplican la regla. La administración global de ADMIN es una vía distinta y conserva sus facultades;
+- la conversión de `company` a `contract_admin` se permite desde gestión de empresa, incluida la cuenta inicial, si queda otro `company` activo. API conserva `ULTIMO_ADMINISTRADOR` para no dejar a la empresa sin administrador; la administración global de ADMIN es una vía distinta;
 - no está cerrada la matriz de permisos de acceso excepcional y temporales;
 - no está totalmente validado el comportamiento con permisos cruzados. En la consola ADMIN los cambios de rol/empresa/contrato ya exigen confirmación contextual y motivo, se registran con valores anteriores/nuevos y revocan las sesiones del usuario; esto no constituye auditoría completa de todas las operaciones.
 
