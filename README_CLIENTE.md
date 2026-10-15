@@ -112,7 +112,8 @@ Ruta base: `BASE/app/frontend/`
 | `app/page.tsx` | `/` | Redirige a `/login`, `/admin` o `/dashboard`. |
 | `app/login/page.tsx` | `/login` | Login, registro de empresa y usuario inicial con nombre, y solicitud de recuperacion de contrasena. |
 | `app/(app)/layout.tsx` | Layout protegido | Verifica que exista una sesion y monta el sidebar. |
-| `app/(app)/perfil/page.tsx` | `/perfil` | Consulta y edicion del nombre, correo y contraseña del usuario autenticado. |
+| `app/(app)/perfil/page.tsx` | `/perfil` | Perfil personal; para ADMIN en «Ver como empresa», perfil de la empresa (nombre/correo editables; RUT/estado de solo lectura). |
+| `app/(app)/gestion-cuentas/page.tsx` | `/gestion-cuentas` | Listado paginado y administracion de roles/estado de cuentas asociadas; invitacion de cuentas existentes pendiente. |
 | `components/Sidebar.tsx` | Navegacion lateral | Enlaces, empresa actual, impersonacion y cierre de sesion. |
 | `components/ui.tsx` | Compartido | KPIs, tablas, modales, chips, spinner y paginacion. |
 
@@ -754,9 +755,19 @@ Ya existe:
 - bloqueo para que un usuario de una empresa no gestione usuarios de otra.
 
 En el registro se solicita el nombre del usuario inicial, separado de la razon
-social. La seccion autenticada `/perfil` permite editar nombre, correo y
-contraseña. Si ADMIN usa «Ver como empresa», el enlace y la ruta de su perfil
-se bloquean en la interfaz; esto no modifica la autorizacion del backend.
+social. `/perfil` edita el perfil personal; si ADMIN usa «Ver como empresa», la
+misma ruta muestra y permite editar el nombre/correo de la empresa, mientras
+RUT y estado son de solo lectura. La API usa el `X-Company-Id` de la
+impersonacion para operar sobre la empresa seleccionada.
+
+`/gestion-cuentas` lista, busca, pagina y administra las cuentas del tenant.
+`/contratos` muestra Responsables de contrato a `company` y a ADMIN con empresa
+impersonada. Solo se ofrecen cuentas `contract_admin` para asignacion y el API
+rechaza convertir una cuenta `company` de alcance general a `contract_admin`
+(`ADMIN_EMPRESA_NO_CONVERTIBLE`). Las cuentas `contract_admin` existentes se
+pueden reasignar entre contratos. La invitacion/aceptacion de cuentas ya
+existentes no esta implementada; `POST /company/usuarios` crea usuarios nuevos
+y el envio/canje del token de activacion por email sigue pendiente.
 
 En la consola ADMIN, los cambios de rol, empresa o contrato requieren una
 confirmacion que explica consecuencias y un motivo obligatorio. El registro

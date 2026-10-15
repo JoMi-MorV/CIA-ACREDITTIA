@@ -1,6 +1,6 @@
 # Plan de trabajo — Acredittia
 
-Versión 3.9 · 14-10-2026 · propuesta de ejecución vinculada a [SRS.md](SRS.md) versión 0.56.
+Versión 4.0 · 15-10-2026 · propuesta de ejecución vinculada a [SRS.md](SRS.md) versión 0.58.
 
 **Actualización al 08-10-2026:** los avances de PT-05, PT-06, PT-07 y PT-08
 incorporan cambios posteriores a la versión 0.5, incluida la implementación
@@ -29,6 +29,16 @@ build frontend pasó; la validación de API, worker, almacenamiento y generació
 PDF permanece pendiente por las limitaciones de entorno descritas en
 [VALIDACION_ACTUAL.md](VALIDACION_ACTUAL.md). Este avance de portal no modifica
 la estimación ADMIN del 67%.
+
+**Actualización al 15-10-2026, 13:14:45 -03:00:** se incorporó
+`/gestion-cuentas` para administrar cuentas asociadas, y ADMIN en «Ver como
+empresa» vuelve a ver responsables de contrato y el perfil de empresa. Una
+cuenta `company` no se puede convertir a `contract_admin` desde la gestión de
+empresa; la UI la excluye y el API rechaza la conversión. Build frontend y
+regresión de autenticación/tenant pasaron (71/71). La invitación/aceptación de
+cuentas existentes y la notificación por email siguen pendientes; la
+verificación visual del selector tras el último filtro no se completó. Ver
+[VALIDACION_ACTUAL.md](VALIDACION_ACTUAL.md) y RF-CLI-08 en [SRS.md](SRS.md).
 
 **DEC-09 cerrada (07-10-2026):** se conserva por compatibilidad la validación vigente del motivo documental: HTTP 422 para parámetro ausente o longitud original fuera de rango, y HTTP 400/`MOTIVO_REQUERIDO` cuando el valor pasa longitud inicial pero queda bajo el mínimo después de quitar espacios. No requiere cambios de API; cualquier unificación futura requiere decisión nueva y pruebas de compatibilidad.
 

@@ -1,4 +1,32 @@
-# Validación funcional — actualizado al 14 de octubre de 2026
+# Validación funcional — actualizado al 15 de octubre de 2026, 13:14:45 -03:00
+
+## Gestión de cuentas e impersonación ADMIN — 15 de octubre de 2026, 13:14:45 -03:00
+
+Se añadió `/gestion-cuentas` al portal, con listado paginado de cuentas de la
+empresa, búsqueda, cambio de alcance permitido y activación/desactivación. La
+invitación y aceptación de cuentas existentes no está implementada; el endpoint
+actual de invitación crea usuarios nuevos y todavía no entrega por email el
+token de activación.
+
+Durante «Ver como empresa», ADMIN vuelve a ver el panel de responsables de
+contrato y la entrada de perfil abre el perfil de la empresa, no el perfil
+personal de ADMIN. El perfil permite editar razón social y correo; RUT y estado
+son de solo lectura. Se impide convertir una cuenta `company` con acceso a toda
+la empresa en `contract_admin`: el selector de responsables muestra únicamente
+cuentas `contract_admin` y la API de empresa rechaza la conversión con
+`ADMIN_EMPRESA_NO_CONVERTIBLE`. Las cuentas `contract_admin` existentes siguen
+pudiendo reasignarse entre contratos.
+
+**Validación:** `npm run build` pasó y generó 25 rutas. Comando de regresión:
+`python -m pytest tests/test_auth.py tests/test_tenants.py -q`; resultado
+**71/71** en PostgreSQL temporal, incluida la prueba de rechazo de conversión.
+API y web se reconstruyeron con Docker Compose. En navegador ADMIN impersonando
+se verificaron la
+visibilidad del panel de responsables y el perfil de empresa antes del último
+filtro de cuentas `company`; no se completó una comprobación visual posterior a
+ese filtro. La validación no acredita el flujo de invitación de cuentas
+existentes ni cambia los requisitos legales/de seguridad de DEC-08. Persiste
+un warning externo de compatibilidad `starlette.testclient` + `httpx`.
 
 ## Validación ejecutada — 14 de octubre de 2026
 

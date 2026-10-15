@@ -322,6 +322,10 @@ def editar_usuario(uid: uuid.UUID, body: UsuarioPatch,
 
     role = data.get("role", u.role)
     contrato_id = data.get("contrato_id", u.contrato_id)
+    if u.role == "company" and role == "contract_admin":
+        raise err(400, "ADMIN_EMPRESA_NO_CONVERTIBLE",
+                  "Una cuenta con acceso a toda la empresa no se puede limitar "
+                  "a un contrato desde la gestión de responsables")
     if role == "company":
         contrato_id = None          # el ámbito empresa no se acota a contratos
     _valida_rol(role, contrato_id)

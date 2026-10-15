@@ -676,9 +676,11 @@ su build pasó, pero los flujos aún requieren validación operativa.
 - Plataforma web Next.js y API FastAPI con PostgreSQL, autenticación JWT/refresh,
   roles de ADMIN, empresa y administrador de contrato, y aislamiento multiempresa.
 - Portal de empresa para gestionar contratos, personal, equipos, documentos,
-  requisitos, alertas, calendario, reportes y responsables de contrato. Reportes
-  integra generación, historial, descarga y programación; el panel de
-  responsables asigna cuentas existentes de la misma empresa.
+  requisitos, alertas, calendario, reportes, cuentas asociadas y responsables
+  de contrato. `/gestion-cuentas` administra roles y estados de cuentas del
+  tenant. El panel de responsables asigna cuentas `contract_admin` existentes;
+  una cuenta `company` no se puede limitar a un contrato desde la gestión de
+  empresa.
 - Consola ADMIN bajo `/admin` para empresas, buscador global, métricas, usuarios,
   auditoría, sistemas, procesos e incidentes. La API administrativa actual usa
   `/api/v1/admin`; mantiene rutas Ops anteriores por compatibilidad.
@@ -689,9 +691,11 @@ su build pasó, pero los flujos aún requieren validación operativa.
   de su fila; solo queda una abierta y se descartan respuestas tardías al
   cambiar la búsqueda o selección.
 - El registro solicita el nombre del usuario inicial, separado de la razón
-  social. «Mi perfil» permite editar nombre, correo y contraseña. Al usar
-  «Ver como empresa», ADMIN no puede abrir ni modificar su perfil desde ese
-  contexto.
+    social. «Mi perfil» permite editar nombre, correo y contraseña. Al usar
+    «Ver como empresa», ADMIN ve el perfil de la empresa (nombre y correo
+    editables; RUT y estado solo lectura), no su perfil personal. También puede
+    gestionar responsables de contrato en el contexto seleccionado. La
+    invitación/aceptación de cuentas existentes sigue pendiente.
 - Se acordó incorporar telemetría real del tiempo activo para Métricas SaaS:
   sesión autenticada, pestaña visible e interacción reciente, con pausa tras
   cinco minutos sin actividad y heartbeat cada 60 segundos bajo esas

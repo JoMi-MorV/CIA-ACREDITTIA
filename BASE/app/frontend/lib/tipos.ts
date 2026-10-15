@@ -1018,6 +1018,7 @@ export type UsuarioEmpresa = {
   activo: boolean;
   status: EstadoEmpresa;
   contrato_id: string | null;
+  contrato_nombre?: string | null;
   contrato?: ContratoResumen | null;
   last_login_at: string | null;
   created_at: string | null;

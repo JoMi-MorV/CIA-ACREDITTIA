@@ -1,20 +1,29 @@
 "use client";
 import { FormEvent, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import * as Api from "@/lib/cliente";
 import type { Usuario } from "@/lib/tipos";
 import { Campo, Spinner } from "@/components/ui";
 
+type PerfilEmpresa = {
+  id: string;
+  nombre: string;
+  rut: string;
+  email: string;
+  status: string;
+};
+
 export default function PerfilPage() {
-  const router = useRouter();
   const [usuario, setUsuario] = useState<Usuario | null>(null);
+  const [viendoEmpresa, setViendoEmpresa] = useState(false);
+  const [perfilEmpresa, setPerfilEmpresa] = useState<PerfilEmpresa | null>(null);
+  const [nombreEmpresa, setNombreEmpresa] = useState("");
+  const [emailEmpresa, setEmailEmpresa] = useState("");
   const [nombre, setNombre] = useState("");
   const [email, setEmail] = useState("");
   const [passwordActual, setPasswordActual] = useState("");
   const [passwordNueva, setPasswordNueva] = useState("");
   const [passwordConfirmacion, setPasswordConfirmacion] = useState("");
   const [cargando, setCargando] = useState(true);
-  const [bloqueado, setBloqueado] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState("");
   const [aviso, setAviso] = useState("");
@@ -24,9 +33,21 @@ export default function PerfilPage() {
     const actual = Api.currentUser();
     const viendoComoEmpresa = Boolean(sessionStorage.getItem("impersonar"));
     if (actual?.role === "admin" && viendoComoEmpresa) {
-      setBloqueado(true);
-      setCargando(false);
-      router.replace("/dashboard");
+      setViendoEmpresa(true);
+      Api.empresa.perfil()
+        .then((respuesta) => {
+          if (cancelado) return;
+          const perfil = respuesta as unknown as PerfilEmpresa;
+          setPerfilEmpresa(perfil);
+          setNombreEmpresa(perfil.nombre);
+          setEmailEmpresa(perfil.email);
+        })
+        .catch((e) => {
+          if (!cancelado) setError(Api.mensajeError(e));
+        })
+        .finally(() => {
+          if (!cancelado) setCargando(false);
+        });
       return () => { cancelado = true; };
     }
 
@@ -45,7 +66,39 @@ export default function PerfilPage() {
         if (!cancelado) setCargando(false);
       });
     return () => { cancelado = true; };
-  }, [router]);
+    }, []);
+
+    const guardarPerfilEmpresa = async (event: FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+      setError("");
+      setAviso("");
+      const nombreLimpio = nombreEmpresa.trim();
+      const emailLimpio = emailEmpresa.trim();
+      if (!nombreLimpio || !emailLimpio) {
+        setError("Completa la razón social y el correo de contacto.");
+        return;
+      }
+      const cambios: { nombre?: string; email?: string } = {};
+      if (nombreLimpio !== perfilEmpresa?.nombre) cambios.nombre = nombreLimpio;
+      if (emailLimpio !== perfilEmpresa?.email) cambios.email = emailLimpio;
+      if (!Object.keys(cambios).length) {
+        setAviso("No hay cambios para guardar.");
+        return;
+      }
+
+      setGuardando(true);
+      try {
+        const actualizado = await Api.empresa.editar(cambios) as PerfilEmpresa;
+        setPerfilEmpresa(actualizado);
+        setNombreEmpresa(actualizado.nombre);
+        setEmailEmpresa(actualizado.email);
+        setAviso("El perfil de la empresa se actualizó correctamente.");
+      } catch (e) {
+        setError(Api.mensajeError(e));
+      } finally {
+        setGuardando(false);
+      }
+    };
 
   const guardar = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -106,12 +159,50 @@ export default function PerfilPage() {
     }
   };
 
-  if (bloqueado) {
-    return <p role="status" className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-      Mi perfil no está disponible mientras estás viendo como empresa.
-    </p>;
-  }
   if (cargando) return <Spinner />;
+  if (viendoEmpresa) {
+    if (!perfilEmpresa) {
+      return <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+        {error || "No se pudo cargar el perfil de la empresa."}
+      </div>;
+    }
+    return (
+      <div className="max-w-2xl space-y-5">
+        <div>
+          <h1 className="text-2xl font-extrabold text-brand">Perfil de empresa</h1>
+          <p className="mt-1 text-sm text-slate-500">
+            Estás editando los datos de contacto de {perfilEmpresa.nombre}, no tu perfil personal de ADMIN.
+          </p>
+        </div>
+        <form onSubmit={guardarPerfilEmpresa} className="space-y-5 rounded-lg border border-stone-300 bg-white p-5">
+          {error && <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+          {aviso && <p role="status" className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{aviso}</p>}
+          <section className="space-y-4">
+            <h2 className="font-bold text-brand">Datos de la empresa</h2>
+            <Campo etiqueta="Razón social">
+              <input className="input" maxLength={200} required value={nombreEmpresa}
+                onChange={(event) => setNombreEmpresa(event.target.value)} />
+            </Campo>
+            <Campo etiqueta="Correo de contacto">
+              <input className="input" type="email" required value={emailEmpresa}
+                onChange={(event) => setEmailEmpresa(event.target.value)} />
+            </Campo>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Campo etiqueta="RUT (no editable)">
+                <input className="input" value={perfilEmpresa.rut} readOnly />
+              </Campo>
+              <Campo etiqueta="Estado de la cuenta">
+                <input className="input" value={perfilEmpresa.status} readOnly />
+              </Campo>
+            </div>
+          </section>
+          <button className="btn-primary px-5 py-2.5" disabled={guardando}>
+            {guardando ? "Guardando…" : "Guardar cambios"}
+          </button>
+        </form>
+      </div>
+    );
+  }
   if (!usuario && error) {
     return <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div>;
   }

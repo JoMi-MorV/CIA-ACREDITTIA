@@ -1,4 +1,37 @@
-Resultado al 13-10-2026
+Resultado de consulta de avance ADMIN — corte original 13-10-2026; actualizado al 15-10-2026 13:23:03 -03:00
+
+## Actualización al 15-10-2026 13:23:03 -03:00
+
+El avance ADMIN estimado permanece en **67%**, correspondiente a la revisión
+documental/código del 13-10 y calculado como promedio simple de ocho
+prioridades. No se recalculó con estos cambios ni representa aceptación de
+producto o preparación para producción.
+
+Desde el corte original se incorporó al portal `/gestion-cuentas` para listar,
+buscar, paginar y administrar cuentas asociadas. En «Ver como empresa», ADMIN
+puede consultar/editar el perfil de la empresa (razón social y correo; RUT y
+estado son de solo lectura) y usar el panel de responsables de contrato.
+La gestión de empresa no permite convertir una cuenta `company` con acceso
+general en `contract_admin`: el selector la excluye y el API rechaza el cambio
+con `ADMIN_EMPRESA_NO_CONVERTIBLE`. Cuentas `contract_admin` existentes pueden
+reasignarse entre contratos. La gestión global de usuarios de ADMIN es una vía
+separada.
+
+**Evidencia reciente:** `npm run build` pasó y generó 25 rutas; la regresión
+`python -m pytest tests/test_auth.py tests/test_tenants.py -q` pasó **71/71**
+en PostgreSQL temporal, con 1 warning residual de `starlette.testclient` y
+`httpx`. Se reconstruyeron API y web con Docker Compose. El navegador confirmó
+la visibilidad del panel de responsables y el perfil de empresa durante
+impersonación antes del último filtro de elegibilidad; no se completó una
+comprobación visual del filtro final.
+
+**Pendiente:** no existe aún un flujo de invitación/aceptación de una cuenta ya
+existente a una empresa. El endpoint actual crea usuarios nuevos y el token de
+activación no se entrega por email. Siguen abiertos DEC-08 y los bloqueos P0 de
+seguridad/producción.
+
+## Resultado del corte original — 13-10-2026
+
 Avance estimado de ADMIN: 67% — promedio simple de las ocho prioridades, con el mismo peso para cada una. Es una estimación de cobertura funcional, no una certificación ni una medición objetiva de calidad. No lo interpretaría como “67% listo para producción”: hay brechas P0 de permisos, aislamiento y auditoría que bloquean declarar el módulo listo para operar con datos reales sensibles.
 
 #	Prioridad	Avance estimado	Evaluación
@@ -19,6 +52,6 @@ Permisos del buscador por categoría y detalle, aplicados y probados directament
 Mínimo privilegio para ADMIN y evidencia de aislamiento en configuración equivalente a producción. Las pruebas de tenants son relevantes, pero no sustituyen la validación del despliegue real.
 Auditoría completa de autenticación, acceso sensible, exportaciones y resultados de las operaciones.
 Validación de métricas y salud: definiciones, umbrales, universos, límites de listas y telemetría real de tiempo de uso.
-En el momento de redactar este análisis, el GAP conservaba una estimación global anterior de 75–80% que aún no había sido recalculada; por eso no se tomó como resultado actual. La revisión se apoyó en el resumen de requisitos ADMIN, el SRS, los routers de ADMIN y consola interna, los controles transversales de autorización y tenant y la configuración de Compose. El GAP se actualizó posteriormente con el corte estimado de 67%.
+En la consulta original del 13-10, el GAP conservaba una estimación global anterior de 75–80% que aún no había sido recalculada; por eso no se tomó como resultado de aquel corte. La revisión se apoyó en el resumen de requisitos ADMIN, el SRS, los routers de ADMIN y consola interna, los controles transversales de autorización y tenant y la configuración de Compose. El GAP se actualizó posteriormente con el corte estimado de 67%.
 
-No ejecuté pruebas ni recorrí la aplicación en navegador en esta revisión: contrasté código y documentación, que registra validaciones previas y sus límites. Por ello, el 67% refleja avance observado/documentado, no una nueva aceptación de extremo a extremo.
+En aquella revisión del 13-10 no se ejecutaron pruebas ni recorrido de navegador: se contrastaron código y documentación, que registraban validaciones previas y sus límites. Por ello, el 67% refleja avance observado/documentado, no una aceptación de extremo a extremo.

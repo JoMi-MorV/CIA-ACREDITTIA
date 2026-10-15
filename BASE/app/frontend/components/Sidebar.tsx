@@ -13,6 +13,7 @@ const ITEMS = [
   { href: "/reportes", icono: "▥", nombre: "Reportes" },
   { href: "/alertas", icono: "!", nombre: "Alertas" },
   { href: "/calendario", icono: "□", nombre: "Calendario" },
+  { href: "/gestion-cuentas", icono: "♙", nombre: "Gestión de cuentas" },
   { href: "/perfil", icono: "○", nombre: "Mi perfil" },
 ];
 
@@ -68,12 +69,12 @@ export default function Sidebar() {
           </Link>
         )}
         {(!esAdmin || viendoEmpresa) && ITEMS
-          .filter((i) => !(viendoEmpresa && i.href === "/perfil"))
           .filter((i) => !(user?.role === "contract_admin" && i.href === "/reportes"))
+          .filter((i) => !(user?.role === "contract_admin" && i.href === "/gestion-cuentas"))
           .map((i) => (
           <Link key={i.href} href={i.href}
             className={`flex shrink-0 items-center gap-3 rounded-md px-3 py-2 text-sm ${path.startsWith(i.href) ? "bg-accent font-semibold" : "hover:bg-white/10"}`}>
-            <span className="grid h-5 w-5 place-items-center border border-current/60 text-xs">{i.icono}</span><span className="hidden md:inline">{i.nombre}</span>
+            <span className="grid h-5 w-5 place-items-center border border-current/60 text-xs">{i.icono}</span><span className="hidden md:inline">{viendoEmpresa && i.href === "/perfil" ? "Perfil de empresa" : i.nombre}</span>
             {i.href === "/alertas" && noLeidas > 0 && (
               <span className="ml-auto hidden rounded-full bg-red-500 px-2 py-0.5 text-xs font-bold md:inline">{noLeidas}</span>
             )}

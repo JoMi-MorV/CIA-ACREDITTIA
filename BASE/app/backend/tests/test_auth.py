@@ -88,6 +88,24 @@ def test_registro_rechaza_password_debil(app_cliente, clave, motivo):
     assert r.json()["error"]["code"] == "PASSWORD_DEBIL"
 
 
+def test_cuenta_company_no_se_puede_limitar_a_contract_admin(
+        app_cliente, empresa_a, contrato_a):
+    invitado = app_cliente.post(
+        f"{API}/company/usuarios", headers=empresa_a["headers"], json={
+            "email": "administrador.empresa@empresa.cl",
+            "nombre": "Administrador de empresa", "role": "company",
+        })
+    assert invitado.status_code == 201, invitado.text
+
+    respuesta = app_cliente.patch(
+        f"{API}/company/usuarios/{invitado.json()['id']}",
+        headers=empresa_a["headers"], json={
+            "role": "contract_admin", "contrato_id": contrato_a["id"],
+        })
+    assert respuesta.status_code == 400
+    assert respuesta.json()["error"]["code"] == "ADMIN_EMPRESA_NO_CONVERTIBLE"
+
+
 def test_login_y_me(app_cliente, empresa_a):
     r = app_cliente.get(f"{API}/auth/me", headers=empresa_a["headers"])
     assert r.status_code == 200, r.text

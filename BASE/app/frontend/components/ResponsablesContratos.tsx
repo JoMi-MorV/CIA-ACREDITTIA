@@ -11,6 +11,7 @@ export default function ResponsablesContratos() {
   const [usuarios, setUsuarios] = useState<UsuarioEmpresa[] | null>(null);
   const [usuarioActual, setUsuarioActual] = useState<Usuario | null>(null);
   const [sesionLeida, setSesionLeida] = useState(false);
+  const [puedeGestionar, setPuedeGestionar] = useState(false);
   const [seleccion, setSeleccion] = useState<Record<string, string>>({});
   const [guardando, setGuardando] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -39,29 +40,25 @@ export default function ResponsablesContratos() {
 
   useEffect(() => {
     const user = currentUser();
+    const empresaImpersonada = sessionStorage.getItem("impersonar");
+    const adminViendoEmpresa = user?.role === "admin" && Boolean(empresaImpersonada);
     setUsuarioActual(user);
+    setPuedeGestionar(user?.role === "company" || adminViendoEmpresa);
     setSesionLeida(true);
-    if (user?.role === "company") void cargar();
+    if (user?.role === "company" || adminViendoEmpresa) void cargar();
   }, [cargar]);
 
   const cuentasElegibles = useMemo(() => (usuarios ?? []).filter((usuario) =>
     usuario.id !== usuarioActual?.id &&
-    (usuario.role === "company" || usuario.role === "contract_admin")),
+    usuario.role === "contract_admin"),
   [usuarios, usuarioActual?.id]);
 
   const guardar = async (contrato: Contrato) => {
     if (!usuarios) return;
     const userId = seleccion[contrato.id] ?? "";
     const elegido = cuentasElegibles.find((usuario) => usuario.id === userId);
-    if (!elegido) return;
+    if (!elegido || elegido.role !== "contract_admin") return;
 
-    if (elegido.role === "company" && !await dialog.confirm({
-      title: "Limitar acceso a un contrato",
-      message: `${elegido.nombre || elegido.email} dejará de tener acceso general de empresa y quedará limitado a este contrato.`,
-      confirmLabel: "Continuar",
-      doubleConfirm: true,
-      danger: true,
-    })) return;
     if (elegido.role === "contract_admin" && elegido.contrato_id !== contrato.id) {
       const contratoAnterior = contratos?.find((item) => item.id === elegido.contrato_id);
       if (!await dialog.confirm({
@@ -122,7 +119,7 @@ export default function ResponsablesContratos() {
     }
   };
 
-  if (!sesionLeida || usuarioActual?.role !== "company") return null;
+  if (!sesionLeida || !puedeGestionar) return null;
   if (!contratos || !usuarios) return error ? <MensajeError texto={error} /> : <Spinner />;
 
   return (
