@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { Children } from "react";
-import { HBars, HBarsStacked } from "@/components/ops/charts";
+import { HBars, HBarsStacked, LineChart } from "@/components/ops/charts";
 import { Card, CardHead, Estado, Pill, useOps } from "@/components/ops/ui";
 import { opsApi } from "@/lib/ops/api";
 import type { AdminStats } from "@/lib/tipos";
@@ -25,6 +25,15 @@ type UsuariosPorIndustria = {
   items: { industria: string; usuarios: number; pct: number }[];
 };
 
+type ActividadMensual = {
+  items: {
+    mes: string;
+    usuarios_activos: number;
+    usuarios_totales: number;
+    parcial: boolean;
+  }[];
+};
+
 const INDUSTRIAS = [
   ["mineria", "Minería"],
   ["construccion", "Construcción"],
@@ -43,6 +52,8 @@ export default function SaludClientesPage() {
   const porPlan = useOps<UsuariosPorPlan>(() => opsApi("/usuarios/por-plan"), []);
   const porIndustria = useOps<UsuariosPorIndustria>(
     () => opsApi("/usuarios/por-industria"), []);
+  const actividadMensual = useOps<ActividadMensual>(
+    () => opsApi("/usuarios/actividad-mensual"), []);
   if (stats.cargando) return <p className="ops-sub">Cargando salud de clientes...</p>;
   if (stats.error || !stats.data) return <Card><p style={{ color: "var(--ops-crit)" }}>{stats.error ?? "No se pudieron cargar los riesgos."}</p><button className="ops-btn ops-btn-ghost mt-3" onClick={stats.recargar}>Reintentar</button></Card>;
   const health = stats.data.salud_clientes;
@@ -121,6 +132,51 @@ export default function SaludClientesPage() {
           </Estado>
         </Card>
       </div>
+      <Card>
+        <CardHead titulo="Evolución mensual de usuarios"
+          sub="Usuarios totales y con actividad registrada"
+          info="Los meses cerrados usan snapshots mensuales. El mes en curso es parcial y calcula actividad con la ventana móvil configurada en la API (por defecto, 30 días); no es directamente comparable con un mes cerrado." />
+        <div className="mb-3 flex flex-wrap gap-4 text-xs">
+          <span className="inline-flex items-center gap-1.5">
+            <i className="h-2.5 w-2.5 rounded-sm" style={{ background: "var(--ops-ok-fill)" }} />
+            Usuarios totales
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <i className="h-2.5 w-2.5 rounded-sm" style={{ background: "var(--ops-accent)" }} />
+            Usuarios activos
+          </span>
+        </div>
+        <Estado cargando={actividadMensual.cargando}
+          error={actividadMensual.error} reintentar={actividadMensual.recargar}>
+          {actividadMensual.data?.items.length ? (
+            <LineChart
+              labels={actividadMensual.data.items.map((item) =>
+                `${item.mes.slice(5)}/${item.mes.slice(2, 4)}`)}
+              series={[
+                {
+                  name: "Usuarios totales",
+                  data: actividadMensual.data.items.map((item) => item.usuarios_totales),
+                  color: "var(--ops-ok-fill)",
+                },
+                {
+                  name: "Usuarios activos",
+                  data: actividadMensual.data.items.map((item) => item.usuarios_activos),
+                  color: "var(--ops-accent)",
+                  area: "var(--ops-accent-soft)",
+                },
+              ]}
+              alto={220}
+              fmtY={(value) => new Intl.NumberFormat("es-CL", {
+                maximumFractionDigits: 0,
+              }).format(value)}
+              fmtTip={(value) => new Intl.NumberFormat("es-CL").format(value)}
+              min={0} />
+          ) : <p className="ops-sub">No hay actividad mensual disponible.</p>}
+        </Estado>
+        {actividadMensual.data?.items.at(-1)?.parcial && (
+          <p className="ops-sub mt-2">El último mes aún está en curso.</p>
+        )}
+      </Card>
       <Card>
         <CardHead titulo="Uso y adopción" sub="Actividad de cuentas, sesiones y uso de la plataforma"
           info="DAU y WAU cuentan usuarios distintos con eventos registrados hoy y durante los últimos siete días. Sesiones vigentes se cuentan por refresh tokens válidos. La duración es una estimación basada en sesiones; revisiones IA cuentan procesos de revisión, no documentos únicos. Las variaciones mensuales son cambios absolutos." />

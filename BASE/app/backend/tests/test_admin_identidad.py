@@ -21,6 +21,22 @@ def test_identidad_administrativa_restringida(app_cliente, empresa_a):
     assert app_cliente.get(ruta).status_code == 401
 
 
+def test_listado_usuarios_paginado(app_cliente, admin, empresa_a, empresa_b):
+    ruta = f"{API}/admin/users"
+    pagina_1 = app_cliente.get(
+        ruta, headers=admin["headers"], params={"page": 1, "page_size": 1})
+    pagina_2 = app_cliente.get(
+        ruta, headers=admin["headers"], params={"page": 2, "page_size": 1})
+
+    assert pagina_1.status_code == pagina_2.status_code == 200
+    primera, segunda = pagina_1.json(), pagina_2.json()
+    assert primera["total"] == segunda["total"] >= 3
+    assert primera["total_pages"] == segunda["total_pages"] == primera["total"]
+    assert primera["page"] == 1 and segunda["page"] == 2
+    assert len(primera["items"]) == len(segunda["items"]) == 1
+    assert primera["items"][0]["id"] != segunda["items"][0]["id"]
+
+
 def test_cambio_de_alcance_exige_motivo(app_cliente, admin, empresa_a,
                                          contrato_a):
     respuesta = app_cliente.patch(

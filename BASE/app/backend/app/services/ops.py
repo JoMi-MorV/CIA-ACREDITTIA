@@ -273,6 +273,36 @@ def crear_run(db: Session, job: OpsJob, disparo: str = "cron",
     return run
 
 
+def cerrar_runs_atascados(db: Session, job: OpsJob,
+                          ahora: datetime | None = None) -> OpsJobRun | None:
+    """Cierra runs queued/running que superaron dos veces el timeout del job.
+
+    Devuelve un run todavía activo, si existe. El margen es el mismo usado por
+    la poda de telemetría; un run queued se mide desde `created_at`.
+    """
+    ahora = ahora or datetime.now(timezone.utc)
+    limite = timedelta(seconds=max(job.timeout_s, 1) * 2)
+    runs = db.scalars(select(OpsJobRun).where(
+        OpsJobRun.job_clave == job.clave,
+        OpsJobRun.status.in_(("queued", "running"))).order_by(
+            OpsJobRun.created_at).with_for_update()).all()
+    activo = None
+    modificados = False
+    for run in runs:
+        referencia = run.started_at if run.status == "running" else run.created_at
+        if referencia is not None and ahora - referencia > limite:
+            run.status = "timeout"
+            run.finished_at = ahora
+            run.mensaje = run.mensaje or (
+                "Run marcado timeout: el worker no inició o no cerró la ejecución")
+            modificados = True
+        elif activo is None:
+            activo = run
+    if modificados:
+        db.commit()
+    return activo
+
+
 def ejecutar_run(run_id: int) -> None:
     """Ejecuta el runner del job de un run 'queued' y cierra el run.
 
@@ -319,9 +349,7 @@ def disparar_por_cron(clave: str) -> int | None:
         job = db.get(OpsJob, clave)
         if job is None or not job.activo:
             return None
-        en_curso = db.scalars(select(OpsJobRun).where(
-            OpsJobRun.job_clave == clave,
-            OpsJobRun.status.in_(("queued", "running")))).first()
+        en_curso = cerrar_runs_atascados(db, job)
         if en_curso:
             log.warning("Job %s aún en ejecución (run %s); se omite el tick",
                         clave, en_curso.id)

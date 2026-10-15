@@ -3,9 +3,9 @@
  * Vista Sistemas: banner global, tarjetas por componente, disponibilidad 90d,
  * incidentes (con acción Resolver) y procesos (Ejecutar / Pausar con motivo).
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { UptimeStrip } from "@/components/ops/charts";
-import { Card, CardHead, Estado, Legend, Modal, Pill, useOps } from "@/components/ops/ui";
+import { Card, CardHead, Estado, InfoButton, Legend, Modal, Pill, useOps } from "@/components/ops/ui";
 import { opsApi } from "@/lib/ops/api";
 import { useI18n } from "@/lib/ops/i18n";
 
@@ -13,6 +13,17 @@ const TONO_ESTADO: Record<string, "ok" | "warn" | "crit"> = {
   operativo: "ok", degradado: "warn", caido: "crit",
 };
 const UPTIME_COMPS = ["api", "db", "workers", "storage"];
+const TAMANO_HISTORIAL = 5;
+const INFO_EJECUCION_MANUAL: Record<string, { titulo: string; descripcion: string }> = {
+  ia_revision: {
+    titulo: "Verificación IA pendiente de runner manual",
+    descripcion: "Las revisiones normales se procesan por documento con la tarea revisar_documento, pero este proceso no tiene un runner manual registrado. Para habilitarlo hay que definir cómo recuperar revisiones fallidas o atascadas, evitar duplicar tareas activas y agregar pruebas del flujo.",
+  },
+  webhooks_clientes: {
+    titulo: "Webhooks a clientes pendientes de implementación",
+    descripcion: "Aún no existe el envío de eventos webhook a clientes. Para resolverlo hay que definir eventos y destinos, autenticación/firma, reintentos e idempotencia, y después implementar la entrega y registrar el runner.",
+  },
+};
 
 export default function SistemasPage() {
   const { t, fmtN, locale } = useI18n();
@@ -26,8 +37,22 @@ export default function SistemasPage() {
   const [errorModal, setErrorModal] = useState<string | null>(null);
   const [resolviendo, setResolviendo] = useState<string | null>(null); // id incidente
   const [resolucion, setResolucion] = useState("");
+  const [historialAbierto, setHistorialAbierto] = useState<string | null>(null);
 
   const global = estado.data?.estado_global as string | undefined;
+  const hayEjecucionesPendientes = (procesos.data?.items ?? []).some(
+    (proceso: any) => ["queued", "running"].includes(
+      proceso.ultima_ejecucion?.status),
+  );
+
+  useEffect(() => {
+    if (!hayEjecucionesPendientes) return;
+    const timer = window.setInterval(() => {
+      procesos.recargar();
+      estado.recargar();
+    }, 4000);
+    return () => window.clearInterval(timer);
+  }, [estado.recargar, hayEjecucionesPendientes, procesos.recargar]);
 
   const ejecutar = async (clave: string) => {
     try {
@@ -178,7 +203,7 @@ export default function SistemasPage() {
       {/* ------- procesos ------- */}
       <Card>
         <CardHead titulo={t("sistemas.procesos")} sub={t("sistemas.procesos_sub")}
-          info="Cada fila describe un proceso y muestra su programación y última ejecución registrada, incluido estado y duración cuando existen. Esta tabla no es el historial completo de ejecuciones; estados en cola o en ejecución todavía no son resultados finales." />
+          info="Cada fila describe un proceso y muestra su programación y última ejecución registrada. Abre el historial para revisar resultados anteriores, actores y errores." />
         <Estado cargando={procesos.cargando} error={procesos.error} reintentar={procesos.recargar}>
           <div className="overflow-x-auto">
             <table className="ops-table">
@@ -194,6 +219,12 @@ export default function SistemasPage() {
               <tbody>
                 {(procesos.data?.items ?? []).map((p: any) => {
                   const ult = p.ultima_ejecucion;
+                  const ejecutando = ult?.status === "queued" || ult?.status === "running";
+                  const reintento = ult?.status === "error" || ult?.status === "timeout";
+                  const infoManual = INFO_EJECUCION_MANUAL[p.clave] ?? {
+                    titulo: "Ejecución manual pendiente",
+                    descripcion: "Este proceso todavía no tiene un runner manual registrado. Hay que implementar y probar su función de ejecución antes de habilitarla.",
+                  };
                   const tono = !ult ? "mut" : ult.status === "ok" ? "ok"
                     : ult.status === "running" || ult.status === "queued" ? "mut"
                     : "crit";
@@ -226,8 +257,25 @@ export default function SistemasPage() {
                       </td>
                       <td>
                         <div className="flex gap-1.5">
+                          {p.manual_ejecutable ? (
+                            <button className="ops-btn ops-btn-ghost"
+                              disabled={ejecutando}
+                              onClick={() => ejecutar(p.clave)}>
+                              {ejecutando ? t(`job.${ult.status}`)
+                                : reintento ? "Reintentar" : t("job.ejecutar")}
+                            </button>
+                          ) : <span className="inline-flex items-center gap-1.5 self-center">
+                            <Pill tono="warn">Pendiente</Pill>
+                            <InfoButton titulo={infoManual.titulo}
+                              descripcion={infoManual.descripcion} />
+                          </span>}
                           <button className="ops-btn ops-btn-ghost"
-                            onClick={() => ejecutar(p.clave)}>{t("job.ejecutar")}</button>
+                            aria-expanded={historialAbierto === p.clave}
+                            aria-controls={`historial-${p.clave}`}
+                            onClick={() => setHistorialAbierto(
+                              historialAbierto === p.clave ? null : p.clave)}>
+                            {historialAbierto === p.clave ? "Ocultar historial" : "Historial"}
+                          </button>
                           {p.tipo === "programado" && (p.activo ? (
                             <button className="ops-btn ops-btn-ghost"
                               onClick={() => setPausando(p.clave)}>{t("job.pausar")}</button>
@@ -240,6 +288,14 @@ export default function SistemasPage() {
                     </tr>
                   );
                 })}
+                {(procesos.data?.items ?? []).map((p: any) => historialAbierto === p.clave && (
+                  <tr key={`historial-${p.clave}`}>
+                    <td id={`historial-${p.clave}`} colSpan={6} className="px-3 py-4"
+                      style={{ background: "var(--ops-line-soft)" }}>
+                      <HistorialEjecuciones clave={p.clave} />
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
@@ -275,6 +331,110 @@ export default function SistemasPage() {
       </Modal>
     </div>
   );
+}
+
+type Ejecucion = {
+  run_id: number;
+  status: string;
+  disparo: string;
+  actor: { user_id: string; email: string } | null;
+  started_at: string | null;
+  finished_at: string | null;
+  duracion_s: number | null;
+  items_procesados: number | null;
+  mensaje: string | null;
+  error_detalle: string | null;
+};
+
+type PaginaEjecuciones = {
+  items: Ejecucion[];
+  page: number;
+  page_size: number;
+  total: number;
+  total_pages: number;
+};
+
+function HistorialEjecuciones({ clave }: { clave: string }) {
+  const [pagina, setPagina] = useState(1);
+  const [status, setStatus] = useState("");
+  const historial = useOps<PaginaEjecuciones>(() => opsApi(
+    `/procesos/${clave}/ejecuciones`,
+    { query: { page: pagina, page_size: TAMANO_HISTORIAL, status: status || undefined } },
+  ), [clave, pagina, status]);
+  const fecha = (valor: string | null) => valor
+    ? new Date(valor).toLocaleString("es-CL") : "—";
+
+  return <section aria-label={`Historial de ejecuciones de ${clave}`}>
+    <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+      <h3 className="ops-title">Historial de ejecuciones</h3>
+      <label className="flex items-center gap-2 text-sm">
+        Estado
+        <select className="ops-input" value={status} onChange={(event) => {
+          setStatus(event.target.value);
+          setPagina(1);
+        }} aria-label="Filtrar historial por estado">
+          <option value="">Todos</option>
+          <option value="queued">En cola</option>
+          <option value="running">En ejecución</option>
+          <option value="ok">Correctas</option>
+          <option value="error">Fallidas</option>
+          <option value="timeout">Tiempo agotado</option>
+        </select>
+      </label>
+    </div>
+    <Estado cargando={historial.cargando} error={historial.error}
+      reintentar={historial.recargar}>
+      {historial.data && <>
+        <div className="overflow-x-auto">
+          <table className="ops-table min-w-full">
+            <thead><tr>
+              <th>Inicio</th><th>Estado</th><th>Disparo</th><th>Actor</th>
+              <th>Duración</th><th>Procesados</th><th>Resultado / error</th>
+            </tr></thead>
+            <tbody>
+              {historial.data.items.map((run) => (
+                <tr key={run.run_id}>
+                  <td>{fecha(run.started_at)}</td>
+                  <td><Pill tono={run.status === "ok" ? "ok"
+                    : run.status === "queued" || run.status === "running" ? "mut" : "crit"}>
+                    {run.status}
+                  </Pill></td>
+                  <td>{run.disparo}</td>
+                  <td>{run.actor?.email ?? "Sistema"}</td>
+                  <td>{run.duracion_s == null ? "—" : `${run.duracion_s} s`}</td>
+                  <td className="num">{run.items_procesados ?? "—"}</td>
+                  <td className="max-w-sm whitespace-normal break-words">
+                    {run.error_detalle || run.mensaje || "—"}
+                  </td>
+                </tr>
+              ))}
+              {historial.data.items.length === 0 && <tr>
+                <td colSpan={7} className="py-4 text-center ops-sub">
+                  No hay ejecuciones para este filtro.
+                </td>
+              </tr>}
+            </tbody>
+          </table>
+        </div>
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+          <span className="ops-sub">{historial.data.total} ejecuciones</span>
+          <div className="flex items-center gap-2">
+            <button className="ops-btn ops-btn-ghost"
+              disabled={pagina <= 1 || historial.cargando}
+              onClick={() => setPagina((actual) => Math.max(1, actual - 1))}>
+              Anterior
+            </button>
+            <span className="ops-sub">Página {pagina} de {Math.max(historial.data.total_pages, 1)}</span>
+            <button className="ops-btn ops-btn-ghost"
+              disabled={pagina >= historial.data.total_pages || historial.cargando}
+              onClick={() => setPagina((actual) => actual + 1)}>
+              Siguiente
+            </button>
+          </div>
+        </div>
+      </>}
+    </Estado>
+  </section>;
 }
 
 /** Fila de la tarjeta de disponibilidad: nombre + tira 90d + % del rango. */

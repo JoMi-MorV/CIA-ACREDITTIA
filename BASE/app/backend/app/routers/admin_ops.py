@@ -554,6 +554,8 @@ def procesos(resp: Response, componente: str | None = Query(None),
         items.append({
             "clave": job.clave, "nombre": job.nombre, "tipo": job.tipo,
             "cron_expr": job.cron_expr, "activo": job.activo,
+            "manual_ejecutable": (job.tipo == "programado"
+                                   and job.clave in ops.OPS_RUNNERS),
             "componente": job.componente,
             "pausado_motivo": job.pausado_motivo,
             "proxima_ejecucion_at": prox.isoformat() if prox else None,
@@ -626,13 +628,14 @@ def ejecutar(clave: str, body: EjecutarBody | None = Body(None),
     if job is None:
         raise err(404, "JOB_DESCONOCIDO", f"No existe el proceso '{clave}'")
 
-    en_curso = db.scalars(select(OpsJobRun).where(
-        OpsJobRun.job_clave == clave,
-        OpsJobRun.status.in_(("queued", "running")))).first()
+    en_curso = ops.cerrar_runs_atascados(db, job)
     if en_curso:
         raise err(409, "JOB_EN_EJECUCION",
                   "Ya hay una ejecución en curso de este proceso",
                   details=[{"run_id": en_curso.id}])
+    if job.tipo != "programado" or job.clave not in ops.OPS_RUNNERS:
+        raise err(409, "RUNNER_NO_DISPONIBLE",
+                  "Este proceso no tiene una ejecución manual disponible")
 
     ultimo = db.scalars(select(OpsJobRun)
                         .where(OpsJobRun.job_clave == clave)

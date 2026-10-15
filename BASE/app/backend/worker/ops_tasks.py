@@ -75,7 +75,10 @@ def run_disponibilidad(db, fecha: str | None = None, **_):
         p95s = sorted(x["metricas"].get("latencia_p95_ms") for x in latidos
                       if x["metricas"].get("latencia_p95_ms") is not None)
         db.execute(text(
-            "SELECT ops_upsert_disponibilidad(:c, :f, :e, :u, :p, :t, :x)"), {
+            "SELECT ops_upsert_disponibilidad(" 
+            "CAST(:c AS text), CAST(:f AS date), "
+            "CAST(:e AS ops_comp_estado), CAST(:u AS numeric), "
+            "CAST(:p AS integer), CAST(:t AS integer), CAST(:x AS integer))"), {
             "c": componente, "f": objetivo, "e": peor,
             "u": round(100.0 * (total - caidos) / total, 2),
             "p": p95s[int(len(p95s) * 0.95) - 1] if p95s else None,

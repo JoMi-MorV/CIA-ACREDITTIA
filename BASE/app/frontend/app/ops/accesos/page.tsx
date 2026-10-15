@@ -4,14 +4,27 @@ import { Card, CardHead, Estado, Pill, useOps } from "@/components/ops/ui";
 import { opsApi } from "@/lib/ops/api";
 import { useDialog } from "@/components/ui";
 
+const TAMANO_PAGINA = 25;
+
+type PaginaUsuarios = {
+  items: any[];
+  page: number;
+  page_size: number;
+  total: number;
+  total_pages: number;
+};
+
 const identidad = (user: { nombre?: string | null; email: string }) =>
   user.nombre?.trim() ? `${user.nombre.trim()} (${user.email})` : user.email;
 
 export default function AccesosPage() {
   const dialog = useDialog();
   const [buscar, setBuscar] = useState("");
+  const [pagina, setPagina] = useState(1);
   const [reactivando, setReactivando] = useState<string | null>(null);
-  const users = useOps(() => opsApi("/users", { query: { page_size: 100, search: buscar || undefined } }), [buscar]);
+  const users = useOps<PaginaUsuarios>(() => opsApi("/users", { query: {
+    page: pagina, page_size: TAMANO_PAGINA, search: buscar || undefined,
+  } }), [buscar, pagina]);
   const catalog = useOps(() => opsApi("/users/catalog"), []);
   const audit = useOps(() => opsApi("/users/audit", { query: { page_size: 25 } }), []);
   const cambiar = async (user: any, body: Record<string, unknown>, impacto: string) => {
@@ -63,7 +76,10 @@ export default function AccesosPage() {
     {dialog.host}
     <Card><CardHead titulo="Usuarios, roles y permisos" sub="Asigna alcance por empresa o contrato y revoca accesos"
       info="Cada cambio de rol, empresa o contrato requiere confirmar su impacto e ingresar un motivo auditable. Las sesiones del usuario se invalidan para aplicar el nuevo alcance." />
-      <input className="ops-input w-full max-w-md" type="search" value={buscar} onChange={(event) => setBuscar(event.target.value)} placeholder="Filtrar por nombre o correo" aria-label="Filtrar usuarios por nombre o correo" />
+      <input className="ops-input w-full max-w-md" type="search" value={buscar} onChange={(event) => {
+        setBuscar(event.target.value);
+        setPagina(1);
+      }} placeholder="Filtrar por nombre o correo" aria-label="Filtrar usuarios por nombre o correo" />
       <Estado cargando={users.cargando} error={users.error} reintentar={users.recargar}>
         <div className="mt-3 overflow-x-auto"><table className="ops-table"><thead><tr><th>Usuario</th><th>Rol</th><th>Empresa</th><th>Contrato</th><th>Último acceso</th><th>Estado</th><th /></tr></thead><tbody>
           {(users.data?.items ?? []).map((user: any) => {
@@ -106,7 +122,33 @@ export default function AccesosPage() {
                 : <button className="ops-btn ops-btn-ghost text-xs" disabled={reactivando !== null} onClick={() => reactivar(user)}>{reactivando === user.id ? "Reactivando…" : "Reactivar"}</button>}</td>
             </tr>;
           })}
+          {users.data?.items.length === 0 && <tr>
+            <td colSpan={7} className="py-6 text-center ops-sub">
+              No hay usuarios que coincidan con la búsqueda.
+            </td>
+          </tr>}
         </tbody></table></div>
+        {users.data && <div className="mt-3 flex flex-wrap items-center justify-between gap-3"
+          role="navigation" aria-label="Paginación de usuarios">
+          <span className="ops-sub">
+            Mostrando {users.data.total === 0 ? 0 : (pagina - 1) * TAMANO_PAGINA + 1}
+            –{Math.min(pagina * TAMANO_PAGINA, users.data.total)} de {users.data.total}
+          </span>
+          <div className="flex items-center gap-2">
+            <button className="ops-btn ops-btn-ghost" disabled={pagina <= 1 || users.cargando}
+              onClick={() => setPagina((actual) => Math.max(1, actual - 1))}>
+              Anterior
+            </button>
+            <span className="ops-sub" aria-live="polite">
+              Página {pagina} de {Math.max(users.data.total_pages, 1)}
+            </span>
+            <button className="ops-btn ops-btn-ghost"
+              disabled={pagina >= users.data.total_pages || users.cargando}
+              onClick={() => setPagina((actual) => actual + 1)}>
+              Siguiente
+            </button>
+          </div>
+        </div>}
       </Estado>
     </Card>
     <Card><CardHead titulo="Auditoría de permisos" sub="Cambios de rol, empresa, contrato y revocaciones"

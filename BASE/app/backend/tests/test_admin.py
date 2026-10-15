@@ -10,7 +10,7 @@ mismo patrón que usa test_reportes.py.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
 import pytest
 
@@ -72,12 +72,18 @@ def _run_ok(cliente, admin, clave: str, params: dict | None = None) -> dict:
 # Autorización
 # ============================================================================
 def test_todo_el_router_exige_admin(app_cliente, empresa_a):
-    for ruta in ("usuarios/resumen", "sistemas/estado", "procesos",
+    for ruta in ("usuarios/resumen", "usuarios/actividad-mensual",
+                 "clientes", "sistemas/estado", "procesos",
                  "indicadores/resumen"):
         r = app_cliente.get(f"{API}/admin/{ruta}",
                             headers=empresa_a["headers"])
         assert r.status_code == 403, ruta
         assert r.json()["error"]["code"] == "SOLO_ADMIN"
+    r = app_cliente.get(
+        f"{API}/admin/clientes/{empresa_a['company_id']}",
+        headers=empresa_a["headers"])
+    assert r.status_code == 403
+    assert r.json()["error"]["code"] == "SOLO_ADMIN"
 
 
 def test_sin_token(app_cliente):
@@ -135,6 +141,46 @@ def test_usuarios_resumen_ventana_invalida(app_cliente, admin):
     assert r.status_code == 422        # validación FastAPI (ge=7)
 
 
+def test_actividad_mensual_incluye_snapshot_y_mes_actual(
+        app_cliente, admin, empresa_a, empresa_b, motor_admin):
+    mes_actual = date.today().replace(day=1)
+    mes_anterior = (mes_actual - timedelta(days=1)).replace(day=1)
+    from sqlalchemy import text
+    with motor_admin.begin() as conn:
+        conn.execute(text(
+            "INSERT INTO metricas_mensuales "
+            "(mes, valor_uf, mrr_clp, clientes_activos, usuarios_totales, "
+            "usuarios_activos) VALUES (:mes, 1, 100, 1, 4, 3)"),
+            {"mes": mes_anterior})
+
+    r = app_cliente.get(
+        f"{API}/admin/usuarios/actividad-mensual?meses=2&ventana_dias=7",
+        headers=admin["headers"])
+    assert r.status_code == 200, r.text
+    items = r.json()["items"]
+    historico = next(item for item in items
+                     if item["mes"] == mes_anterior.strftime("%Y-%m"))
+    actual = items[-1]
+    assert historico == {
+        "mes": mes_anterior.strftime("%Y-%m"),
+        "usuarios_activos": 3,
+        "usuarios_totales": 4,
+        "parcial": False,
+    }
+    assert actual["mes"] == mes_actual.strftime("%Y-%m")
+    assert actual["parcial"] is True
+    assert actual["usuarios_totales"] >= 2
+    assert 0 <= actual["usuarios_activos"] <= actual["usuarios_totales"]
+
+
+@pytest.mark.parametrize("query", ["meses=0", "ventana_dias=5"])
+def test_actividad_mensual_rechaza_parametros_fuera_de_rango(
+        app_cliente, admin, query):
+    r = app_cliente.get(f"{API}/admin/usuarios/actividad-mensual?{query}",
+                        headers=admin["headers"])
+    assert r.status_code == 422
+
+
 def test_por_plan_y_sin_plan(app_cliente, admin, empresa_a, empresa_b,
                              suscripcion_a):
     r = app_cliente.get(f"{API}/admin/usuarios/por-plan",
@@ -169,6 +215,17 @@ def test_clientes_tabla_y_filtros(app_cliente, admin, empresa_a, empresa_b,
     assert r.status_code == 200 and set(r.json()) == ENVOLTURA
     assert r.json()["total"] >= 2
 
+    pagina_1 = app_cliente.get(
+        f"{API}/admin/clientes?page=1&page_size=1&sort=nombre",
+        headers=admin["headers"]).json()
+    pagina_2 = app_cliente.get(
+        f"{API}/admin/clientes?page=2&page_size=1&sort=nombre",
+        headers=admin["headers"]).json()
+    assert pagina_1["total"] == pagina_2["total"]
+    assert len(pagina_1["items"]) == len(pagina_2["items"]) == 1
+    assert pagina_1["items"][0]["company_id"] != pagina_2["items"][0]["company_id"]
+    assert pagina_1["items"][0]["nombre"] <= pagina_2["items"][0]["nombre"]
+
     r = app_cliente.get(f"{API}/admin/clientes?industria=mineria",
                         headers=admin["headers"])
     assert {x["industria"] for x in r.json()["items"]} == {"mineria"}
@@ -193,7 +250,8 @@ def test_clientes_tabla_y_filtros(app_cliente, admin, empresa_a, empresa_b,
     assert r.json()["error"]["code"] == "RANGO_INVALIDO"
 
 
-def test_cliente_detalle_y_404(app_cliente, admin, empresa_a, suscripcion_a):
+def test_cliente_detalle_y_404(
+    app_cliente, admin, empresa_a, empresa_b, suscripcion_a):
     from decimal import Decimal
     from app.config_ops import ops_settings
     r = app_cliente.get(f"{API}/admin/clientes/{empresa_a['company_id']}",
@@ -205,6 +263,15 @@ def test_cliente_detalle_y_404(app_cliente, admin, empresa_a, suscripcion_a):
         Decimal("12.5") * Decimal(str(ops_settings.ops_valor_uf))
     ).quantize(Decimal("0.01"))
     assert d["facturacion"]["estado_cuenta"] == "al_dia"
+
+    r = app_cliente.get(f"{API}/admin/clientes/{empresa_b['company_id']}",
+                        headers=admin["headers"])
+    assert r.status_code == 200, r.text
+    sin_suscripcion = r.json()
+    assert sin_suscripcion["suscripcion"] is None
+    assert sin_suscripcion["usuarios"]["totales"] >= 0
+    assert sin_suscripcion["usuarios"]["activos_30d"] <= (
+        sin_suscripcion["usuarios"]["totales"])
 
     r = app_cliente.get(f"{API}/admin/clientes/{uuid.uuid4()}",
                         headers=admin["headers"])
@@ -284,13 +351,42 @@ def test_disponibilidad_404_y_parcial(app_cliente, admin):
     assert d["dias"][-1]["estado"] == "operativo"
 
 
+def test_consolidar_disponibilidad_persiste_latidos(app_cliente, admin,
+                                                    motor_admin):
+    from app.services import ops
+    from sqlalchemy import text
+
+    ops.reset_store()
+    ops.guardar_latido("api", "operativo", {"latencia_p95_ms": 42})
+    fecha = datetime.now(timezone.utc).date()
+    resultado = _run_ok(app_cliente, admin, "ops_disponibilidad",
+                        {"fecha": fecha.isoformat()})
+    assert resultado["items_procesados"] == 1
+
+    with motor_admin.connect() as conn:
+        fila = conn.execute(text(
+            "SELECT estado::text, uptime_pct, latencia_p95_ms, checks_total, "
+            "checks_fallidos FROM ops_disponibilidad_diaria "
+            "WHERE componente='api' AND fecha=:fecha"),
+            {"fecha": fecha}).one()
+    assert fila.estado == "operativo"
+    assert float(fila.uptime_pct) == 100.0
+    assert fila.latencia_p95_ms == 42
+    assert fila.checks_total == 1
+    assert fila.checks_fallidos == 0
+
+
 def test_procesos_listado(app_cliente, admin):
     r = app_cliente.get(f"{API}/admin/procesos", headers=admin["headers"])
     assert r.status_code == 200
     claves = {x["clave"] for x in r.json()["items"]}
     assert {"vencimientos", "ops_heartbeat", "metricas_snapshot",
             "ia_revision"} <= claves
-    continuo = next(x for x in r.json()["items"] if x["clave"] == "ia_revision")
+    por_clave = {x["clave"]: x for x in r.json()["items"]}
+    assert por_clave["ops_disponibilidad"]["manual_ejecutable"] is True
+    assert por_clave["ia_revision"]["manual_ejecutable"] is False
+    assert por_clave["webhooks_clientes"]["manual_ejecutable"] is False
+    continuo = por_clave["ia_revision"]
     assert continuo["tipo"] == "continuo" and continuo["cron_expr"] is None
 
 
@@ -316,11 +412,84 @@ def test_ejecutar_manual_y_409_en_ejecucion(app_cliente, admin, motor_admin):
         c.commit()
 
 
+def test_ejecucion_queued_atascada_se_recupera_al_reintentar(
+        app_cliente, admin, motor_admin):
+    from sqlalchemy import text
+    with motor_admin.begin() as conn:
+        run_atascado = conn.execute(text(
+            "INSERT INTO ops_job_runs (job_clave, status, disparo, created_at) "
+            "VALUES ('ops_heartbeat', 'queued', 'manual', "
+            "now() - interval '5 minutes') RETURNING id")).scalar_one()
+
+    respuesta = app_cliente.post(
+        f"{API}/admin/procesos/ops_heartbeat/ejecutar",
+        headers=admin["headers"], json={})
+    assert respuesta.status_code == 202, respuesta.text
+    assert respuesta.json()["disparo"] == "reintento"
+
+    historial = app_cliente.get(
+        f"{API}/admin/procesos/ops_heartbeat/ejecuciones",
+        headers=admin["headers"], params={"page_size": 10}).json()["items"]
+    anterior = next(run for run in historial if run["run_id"] == run_atascado)
+    nuevo = next(run for run in historial
+                 if run["run_id"] == respuesta.json()["run_id"])
+    assert anterior["status"] == "timeout"
+    assert nuevo["status"] == "ok"
+
+
+def test_reintento_de_ejecucion_fallida(app_cliente, admin, motor_admin):
+    anterior = _run_ok(app_cliente, admin, "ops_heartbeat")
+    from sqlalchemy import text
+    with motor_admin.begin() as conn:
+        conn.execute(text(
+            "UPDATE ops_job_runs SET status='error' WHERE id=:run_id"),
+            {"run_id": anterior["run_id"]})
+
+    r = app_cliente.post(
+        f"{API}/admin/procesos/ops_heartbeat/ejecutar",
+        headers=admin["headers"], json={})
+    assert r.status_code == 202, r.text
+    assert r.json()["disparo"] == "reintento"
+    run_id = r.json()["run_id"]
+    historial = app_cliente.get(
+        f"{API}/admin/procesos/ops_heartbeat/ejecuciones",
+        headers=admin["headers"]).json()["items"]
+    reintento = next(item for item in historial if item["run_id"] == run_id)
+    assert reintento["disparo"] == "reintento"
+    assert reintento["status"] == "ok"
+
+
+def test_historial_ejecuciones_paginado_y_filtrado(app_cliente, admin):
+    primera = _run_ok(app_cliente, admin, "ops_heartbeat")
+    segunda = _run_ok(app_cliente, admin, "ops_heartbeat")
+    ruta = f"{API}/admin/procesos/ops_heartbeat/ejecuciones"
+
+    pagina_1 = app_cliente.get(ruta, headers=admin["headers"],
+                               params={"page": 1, "page_size": 1, "status": "ok"})
+    pagina_2 = app_cliente.get(ruta, headers=admin["headers"],
+                               params={"page": 2, "page_size": 1, "status": "ok"})
+    assert pagina_1.status_code == pagina_2.status_code == 200
+    datos_1, datos_2 = pagina_1.json(), pagina_2.json()
+    assert datos_1["total"] == datos_2["total"] >= 2
+    assert datos_1["items"][0]["status"] == datos_2["items"][0]["status"] == "ok"
+    assert {datos_1["items"][0]["run_id"], datos_2["items"][0]["run_id"]} == {
+        primera["run_id"], segunda["run_id"]}
+    assert datos_1["items"][0]["actor"]["email"] == admin["email"]
+
+
 def test_ejecutar_job_desconocido(app_cliente, admin):
     r = app_cliente.post(f"{API}/admin/procesos/nada/ejecutar",
                          headers=admin["headers"], json={})
     assert r.status_code == 404
     assert r.json()["error"]["code"] == "JOB_DESCONOCIDO"
+
+
+@pytest.mark.parametrize("clave", ["ia_revision", "webhooks_clientes"])
+def test_job_sin_runner_rechaza_ejecucion_manual(app_cliente, admin, clave):
+    r = app_cliente.post(f"{API}/admin/procesos/{clave}/ejecutar",
+                         headers=admin["headers"], json={})
+    assert r.status_code == 409
+    assert r.json()["error"]["code"] == "RUNNER_NO_DISPONIBLE"
 
 
 def test_pausar_reanudar_y_reglas(app_cliente, admin):
