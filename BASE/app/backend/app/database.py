@@ -89,8 +89,10 @@ def install_runtime_role_guard() -> None:
 SCHEMA_SCRIPTS = ["01_esquema.sql", "02_indices.sql", "03_triggers.sql",
                   "04_rls.sql", "06_migracion_v11.sql", "07_consola_interna.sql", "08_funciones_consola.sql",
                   "09_indices_consola.sql", "10_version_sesion.sql",
-                  "11_ciclo_vida_contratos.sql"]
-SCHEMA_VERSION = 11
+                  "11_ciclo_vida_contratos.sql",
+                  "12_scheduling_operacional.sql",
+                  "13_respaldos_admin.sql"]
+SCHEMA_VERSION = 13
 MIGRATION_LOCK_ID = 918273        # clave del pg_advisory_lock de migración
 
 
@@ -339,13 +341,26 @@ def apply_schema(schema_dir: str | None = None) -> int:
                 pendientes = SCHEMA_SCRIPTS[5:]
             elif actual == 7:
                 pendientes = ["09_indices_consola.sql", "10_version_sesion.sql",
-                              "11_ciclo_vida_contratos.sql"]
+                              "11_ciclo_vida_contratos.sql",
+                              "12_scheduling_operacional.sql",
+                              "13_respaldos_admin.sql"]
             elif actual == 8:
-                pendientes = ["10_version_sesion.sql", "11_ciclo_vida_contratos.sql"]
+                pendientes = ["10_version_sesion.sql", "11_ciclo_vida_contratos.sql",
+                              "12_scheduling_operacional.sql",
+                              "13_respaldos_admin.sql"]
             elif actual == 9:
-                pendientes = ["11_ciclo_vida_contratos.sql"]
+                pendientes = ["11_ciclo_vida_contratos.sql",
+                              "12_scheduling_operacional.sql",
+                              "13_respaldos_admin.sql"]
             elif actual == 10:
-                pendientes = ["11_ciclo_vida_contratos.sql"]
+                pendientes = ["11_ciclo_vida_contratos.sql",
+                              "12_scheduling_operacional.sql",
+                              "13_respaldos_admin.sql"]
+            elif actual == 11:
+                pendientes = ["12_scheduling_operacional.sql",
+                              "13_respaldos_admin.sql"]
+            elif actual == 12:
+                pendientes = ["13_respaldos_admin.sql"]
             else:
                 # Por si viene de otra versión intermedia, aplicamos los scripts desde el 06 en adelante
                 pendientes = SCHEMA_SCRIPTS[4:]

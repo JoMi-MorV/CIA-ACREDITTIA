@@ -238,6 +238,8 @@ class Conector(ABC):
 
     #: clave del enum `integracion_tipo` que atiende este conector
     TIPO: str = ""
+    #: Cambiar a True solo cuando exista una sincronización real y probada.
+    IMPLEMENTADO: bool = False
 
     @abstractmethod
     def sincronizar(self, db: Session, integracion: Integracion) -> tuple[int, str]:

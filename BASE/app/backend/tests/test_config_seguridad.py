@@ -79,6 +79,25 @@ def test_arranque_sin_semillas(monkeypatch):
     asyncio.run(arrancar())
 
 
+def test_arranque_test_no_inicia_scheduler_local(monkeypatch):
+    import asyncio
+    from unittest.mock import MagicMock
+    from app import main
+
+    monkeypatch.setattr(settings, "app_env", "test")
+    monkeypatch.setattr(settings, "queue_backend", "inproc")
+    for nombre in ("wait_for_db", "assert_schema_version", "recalcular_documentos",
+                   "registrar_scheduler_local"):
+        monkeypatch.setattr(main, nombre, MagicMock())
+    monkeypatch.setattr(main, "SessionLocal", MagicMock())
+
+    async def arrancar():
+        async with main.lifespan(main.app):
+            main.registrar_scheduler_local.assert_not_called()
+
+    asyncio.run(arrancar())
+
+
 @pytest.mark.parametrize("entorno,habilitado", [("development", False), ("production", True)])
 def test_recuperacion_no_expone_token(monkeypatch, app_cliente, empresa_a, entorno, habilitado):
     monkeypatch.setattr(settings, "app_env", entorno)

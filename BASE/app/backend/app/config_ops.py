@@ -9,6 +9,11 @@ from pydantic_settings import BaseSettings
 
 
 class OpsSettings(BaseSettings):
+    # --- Sondas de infraestructura ---------------------------------------
+    # URL interna de la API para validar disponibilidad desde el worker.
+    # Vacía: la sonda usa la telemetría de requests y declara el límite.
+    ops_api_health_url: str = ""
+
     # --- Finanzas (§7). CAC y margen NO son derivables de la BD: los fija el
     # equipo. Con cac_clp = 0 el endpoint devuelve ltv_cac = null.
     ops_valor_uf: float = 39000.0          # reemplazar por fuente diaria (SII/CMF)

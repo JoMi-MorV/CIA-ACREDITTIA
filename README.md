@@ -36,12 +36,14 @@ Bash
 cd BASE/app
 docker compose up --build
 
-### Actualización de esquema 11
+### Actualización de esquema 12
 
 Las migraciones `09_indices_consola.sql` y `10_version_sesion.sql` crean índices
 administrativos y añaden `users.auth_version`. `11_ciclo_vida_contratos.sql`
 añade estado de ciclo, motivo, actor y fecha de transición, preservando el estado
 operacional existente del contrato.
+`12_scheduling_operacional.sql` cambia el despachador de reportes programados a
+una revisión cada minuto, necesaria para respetar el minuto de sus expresiones cron.
 Desde `BASE/app`,
 actualizar las imágenes y aplicar la migración antes de recrear los servicios:
 
@@ -51,11 +53,10 @@ docker compose run --rm migrate
 docker compose up -d api worker beat
 ```
 
-Si se configuró `SCHEMA_VERSION_ESPERADA` externamente, usar `11`. La migración
-conserva los datos de negocio; crea índices con bloqueo de escritura durante su
-construcción, por lo que en una base grande debe programarse una ventana adecuada.
-La validación automatizada se realiza en PostgreSQL temporal; no aplica cambios
-a la base habitual.
+Si se configuró `SCHEMA_VERSION_ESPERADA` externamente, usar `12`. La migración
+12 conserva los datos y actualiza la frecuencia del despachador; la validación
+automatizada se realiza en PostgreSQL temporal y no aplica cambios a la base
+habitual.
 
 En Usuarios, las cuentas revocadas tienen la acción **Reactivar** con confirmación.
 Conserva identidad, rol y alcance. Revocar o cambiar el estado activo desde ADMIN
@@ -780,7 +781,7 @@ su build pasó, pero los flujos aún requieren validación operativa.
   ADMIN; al aprobarlo, la empresa y el usuario inicial quedan aprobados y el
   usuario conserva el rol `company`. La verificación manual cubrió la
   aprobación; rechazo y transiciones repetidas requieren validación separada.
-- El esquema vigente requerido por la API es v11. La migración v9 incorporó
+- El esquema vigente requerido por la API es v12. La migración v9 incorporó
   invalidación de sesiones al cambiar el estado de acceso; la validación de
   seguridad de conexiones de producción no configura por sí sola los roles
   reales de la base de datos.

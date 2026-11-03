@@ -1,6 +1,6 @@
 """Disparo de los reportes programados.
 
-`celery beat` invoca `disparar_pendientes()` una vez por hora. Aquí se decide
+`celery beat` invoca `disparar_pendientes()` cada minuto. Aquí se decide
 qué expresiones cron corresponden a este momento y se encolan como reportes
 normales, para que el camino de generación sea exactamente el mismo que el de un
 reporte pedido a mano.
@@ -14,7 +14,8 @@ no se puede guardar una expresión que luego no sepamos evaluar.
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -23,6 +24,7 @@ from ..models import Reporte, ReporteProgramado
 from .jobs import enqueue
 
 log = logging.getLogger("acredittia.programados")
+ZONA_HORARIA = ZoneInfo("America/Santiago")
 
 
 def _campo_coincide(expr: str, valor: int, minimo: int, maximo: int) -> bool:
@@ -55,41 +57,61 @@ def _campo_coincide(expr: str, valor: int, minimo: int, maximo: int) -> bool:
 
 
 def cron_coincide(expr: str, momento: datetime) -> bool:
-    """True si la expresión de 5 campos corresponde a `momento` (hora exacta).
-
-    El beat corre una vez por hora, así que el campo de minuto se ignora en la
-    comparación: basta con que la hora, el día del mes, el mes y el día de la
-    semana coincidan. Comparar el minuto haría que una expresión con `minuto=30`
-    nunca se disparase, porque el beat solo mira el minuto 5.
-    """
+    """True si los cinco campos cron corresponden a `momento` en hora de Chile."""
     campos = expr.split()
     if len(campos) != 5:
         return False
-    _minuto, hora, dia, mes, dow = campos
+    minuto, hora, dia, mes, dow = campos
+    if momento.tzinfo is None:
+        momento = momento.replace(tzinfo=ZONA_HORARIA)
+    else:
+        momento = momento.astimezone(ZONA_HORARIA)
+
     # crontab: domingo es 0 y también 7; datetime usa lunes=0
     dow_cron = (momento.weekday() + 1) % 7
+    coincide_dia = _campo_coincide(dia, momento.day, 1, 31)
+    coincide_dow = (_campo_coincide(dow, dow_cron, 0, 6)
+                    or (dow_cron == 0 and _campo_coincide(dow, 7, 0, 7)))
+    if dia not in ("*", "?") and dow not in ("*", "?"):
+        coincide_dia = coincide_dia or coincide_dow
+    else:
+        coincide_dia = coincide_dia and coincide_dow
     return (
-        _campo_coincide(hora, momento.hour, 0, 23)
-        and _campo_coincide(dia, momento.day, 1, 31)
+        _campo_coincide(minuto, momento.minute, 0, 59)
+        and _campo_coincide(hora, momento.hour, 0, 23)
+        and coincide_dia
         and _campo_coincide(mes, momento.month, 1, 12)
-        and (_campo_coincide(dow, dow_cron, 0, 6)
-             or (dow_cron == 0 and _campo_coincide(dow, 7, 0, 7)))
+    )
+
+
+def _mismo_minuto(a: datetime, b: datetime) -> bool:
+    if a.tzinfo is None:
+        a = a.replace(tzinfo=ZONA_HORARIA)
+    if b.tzinfo is None:
+        b = b.replace(tzinfo=ZONA_HORARIA)
+    return (
+        a.astimezone(timezone.utc).replace(second=0, microsecond=0)
+        == b.astimezone(timezone.utc).replace(second=0, microsecond=0)
     )
 
 
 def disparar_pendientes(db: Session, momento: datetime | None = None) -> int:
-    """Encola los reportes programados que toquen en esta hora.
+    """Encola los reportes programados cuyo cron coincide con el minuto actual.
 
-    Antirrebote: si `ultimo_run_at` está dentro de la última hora, se omite. Sin
-    esa guarda, un beat reiniciado dos veces en la misma hora generaría el
-    reporte por duplicado y el usuario recibiría dos correos.
+    El beat consulta cada minuto. El antirrebote evita duplicados de ese mismo
+    minuto sin impedir expresiones más frecuentes que una vez por hora.
     """
-    ahora = momento or datetime.now()
-    limite = ahora - timedelta(minutes=55)
+    ahora = momento or datetime.now(ZONA_HORARIA)
+    if ahora.tzinfo is None:
+        ahora = ahora.replace(tzinfo=ZONA_HORARIA)
+    else:
+        ahora = ahora.astimezone(ZONA_HORARIA)
     disparados = 0
 
-    for p in db.scalars(select(ReporteProgramado).where(ReporteProgramado.activo)):
-        if p.ultimo_run_at and p.ultimo_run_at.replace(tzinfo=None) > limite:
+    for p in db.scalars(
+            select(ReporteProgramado).where(ReporteProgramado.activo)
+            .with_for_update()):
+        if p.ultimo_run_at and _mismo_minuto(p.ultimo_run_at, ahora):
             continue
         if not cron_coincide(p.cron_expr, ahora):
             continue

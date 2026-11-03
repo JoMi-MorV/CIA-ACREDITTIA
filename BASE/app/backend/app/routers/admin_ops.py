@@ -34,6 +34,7 @@ from ..models_ops import (MetricasMensuales, MetricasMensualesPlan,
                           OpsComponente, OpsDisponibilidadDiaria, OpsIncidente,
                           OpsJob, OpsJobRun)
 from ..services import ops
+from ..services.backups import backup_configured
 from ..services.jobs import enqueue
 
 router = APIRouter(tags=["admin"],
@@ -42,6 +43,14 @@ router = APIRouter(tags=["admin"],
 INDUSTRIAS = ("mineria", "construccion", "energia", "industrial", "otras")
 ESTADOS_CUENTA = ("al_dia", "en_riesgo", "moroso")
 _MES_RE = re.compile(r"^\d{4}-(0[1-9]|1[0-2])$")
+
+
+def _require_backup_configuration() -> None:
+    if not backup_configured():
+        raise err(409, "RESPALDO_NO_CONFIGURADO",
+                  "Configure almacenamiento local, BACKUP_DATABASE_URL, "
+                  "BACKUP_ENCRYPTION_KEY y las herramientas PostgreSQL antes "
+                  "de activar o ejecutar respaldos")
 
 
 # ============================================================================
@@ -544,9 +553,9 @@ def procesos(resp: Response, componente: str | None = Query(None),
     items = []
     for job in db.scalars(q):
         ultimo = db.scalars(select(OpsJobRun)
-                            .where(OpsJobRun.job_clave == job.clave,
-                                   OpsJobRun.status.notin_(("queued",)))
-                            .order_by(OpsJobRun.created_at.desc())).first()
+                            .where(OpsJobRun.job_clave == job.clave)
+                            .order_by(OpsJobRun.created_at.desc(),
+                                      OpsJobRun.id.desc())).first()
         if solo_con_error and (ultimo is None
                                or ultimo.status not in ("error", "timeout")):
             continue
@@ -570,6 +579,7 @@ def procesos(resp: Response, componente: str | None = Query(None),
                               if ultimo.started_at and ultimo.finished_at else None,
                 "items_procesados": ultimo.items_procesados,
                 "mensaje": ultimo.mensaje,
+                "es_demo": (ultimo.params or {}).get("origen") == "seed_demo",
             } if ultimo else None,
         })
     _cache(resp)
@@ -610,6 +620,7 @@ def ejecuciones(clave: str, p: Page = Depends(paginacion),
         "duracion_s": int((r.finished_at - r.started_at).total_seconds())
                       if r.started_at and r.finished_at else None,
         "items_procesados": r.items_procesados,
+        "es_demo": (r.params or {}).get("origen") == "seed_demo",
         "mensaje": r.mensaje, "error_detalle": r.error_detalle,
     } for r in filas]
     return sobre(items, total, p)
@@ -627,6 +638,8 @@ def ejecutar(clave: str, body: EjecutarBody | None = Body(None),
     job = db.get(OpsJob, clave)
     if job is None:
         raise err(404, "JOB_DESCONOCIDO", f"No existe el proceso '{clave}'")
+    if clave == "admin_backup":
+        _require_backup_configuration()
 
     en_curso = ops.cerrar_runs_atascados(db, job)
     if en_curso:
@@ -671,6 +684,8 @@ def pausar(clave: str, body: PausaBody, db: Session = Depends(get_db),
     if job.tipo != "programado":
         raise err(409, "JOB_NO_PAUSABLE",
                   "Los procesos continuos no se pausan desde la consola")
+    if clave == "admin_backup" and body.activo:
+        _require_backup_configuration()
 
     if job.activo != body.activo:               # idempotente si no cambia
         if not body.activo:

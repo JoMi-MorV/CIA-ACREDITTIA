@@ -1,7 +1,7 @@
 # Despliegue en Azure
 
 Guía operativa para la versión actual del backend. La API requiere el esquema
-**v11** (`SCHEMA_VERSION_ESPERADA=11`); aplica y verifica las migraciones antes
+**v13** (`SCHEMA_VERSION_ESPERADA=13`); aplica y verifica las migraciones antes
 de desplegar API, worker y beat con la misma imagen.
 
 Cuatro procesos, **una sola imagen**, diferenciados por el `command`. Así un
@@ -13,6 +13,11 @@ despliegue no puede dejar la API y el worker en versiones distintas del código.
 | Worker | Container App | `celery -A worker.celery_app worker --concurrency=4` |
 | Beat (cron) | Container App, 1 réplica fija | `celery -A worker.celery_app beat` |
 | Migración | Container Apps Job, `--parallelism 1` | `python -m migrate.run` |
+
+Todos los procesos programados pasan por el mismo registro operativo que usa la
+consola; el horario aplica en `America/Santiago` y cada corrida deja un resultado
+consultable. El despachador de reportes revisa las programaciones cada minuto
+para respetar el minuto definido en su expresión cron.
 
 ## Recursos necesarios
 
@@ -45,7 +50,7 @@ de configuración más fácil de cometer y el más difícil de notar.
 DATABASE_URL      postgresql+psycopg://acredittia_app:<pwd>@<host>:5432/acredittia?sslmode=require
 DB_RLS_ENABLED    true
 DB_APPLY_SCHEMA_ON_START  false      # lo hace el job de migración
-SCHEMA_VERSION_ESPERADA   11
+SCHEMA_VERSION_ESPERADA   13
 JWT_SECRET        <secreto de Key Vault>
 CORS_ORIGINS      https://app.acredittia.cl
 PUBLIC_BASE_URL   https://api.acredittia.cl
@@ -61,13 +66,61 @@ IA_BACKEND        claude
 ANTHROPIC_API_KEY <secreto de Key Vault>
 ```
 
+### Respaldos y exportaciones ADMIN
+
+La exportación de conjuntos administrativos no depende del backend de archivos.
+El respaldo/restauración implementado actualmente **solo admite
+`STORAGE_BACKEND=local`**. Esta guía de Azure configura `STORAGE_BACKEND=azure`,
+por lo que los respaldos no están habilitados para el despliegue Azure: no se
+debe tratar el volumen local como copia de Blob ni activar el proceso semanal
+hasta aprobar e implementar un adaptador de respaldo de Azure Blob. La interfaz
+marca la función como no configurada y la migración deja el job pausado. La API
+rechaza reanudarlo o ejecutarlo si falta configuración.
+
+Para instalaciones compatibles con almacenamiento local:
+
+```
+BACKUPS_DIR                 /data/backups
+BACKUP_DATABASE_URL         postgresql+psycopg://<rol_lectura_backup>:<pwd>@<host>:5432/acredittia?sslmode=require
+BACKUP_RESTORE_DATABASE_URL postgresql+psycopg://<rol_mantenimiento>:<pwd>@<host>:5432/acredittia?sslmode=require
+BACKUP_ENCRYPTION_KEY       <base64-url-safe de 32 bytes aleatorios, desde Key Vault>
+BACKUP_RESTORE_ROLE         <rol propietario de la base temporal/restaurada>
+BACKUP_RETENTION_COUNT      8
+```
+
+Ambas URLs deben apuntar al mismo servidor/base que `DATABASE_URL`. Mantenga
+credenciales separadas: `BACKUP_DATABASE_URL` solo requiere lectura completa
+para `pg_dump` (incluido `BYPASSRLS` para respaldar todas las empresas) y se
+usa en API/worker; `BACKUP_RESTORE_DATABASE_URL` queda solo en API y necesita
+privilegios de mantenimiento para crear/restaurar/verificar bases, cerrar
+conexiones y reemplazar la activa. `BACKUP_RESTORE_ROLE` es el dueño de la base
+restaurada y debe poder crear los objetos/extensiones requeridos por el esquema.
+No entregue la credencial de mantenimiento al worker. El contenedor instala
+herramientas PostgreSQL 16. Configure la misma clave externa en API y worker,
+mantenga una copia recuperable por un canal independiente y no la guarde en
+repositorio, imagen ni paquete. Perder esa clave vuelve irrecuperables las
+copias. En `development`, si `BACKUP_RESTORE_DATABASE_URL` no se fija, el
+servicio usa `BACKUP_DATABASE_URL` como compatibilidad local; en producción no
+hay fallback. `BACKUPS_DIR` debe ser privado y persistente, compartido por API
+y worker. No se incluyen claves JWE/vault, secretos ni archivos remotos de
+Azure. La retención de ocho no constituye una copia fuera del entorno ni
+define RPO o RTO; no desplegar ni ejecutar la restauración contra producción
+sin una ventana aprobada y prueba de recuperación.
+
 ### Worker y beat
 Lo mismo, salvo:
 ```
 WORKER_DATABASE_URL  postgresql+psycopg://acredittia_worker:<pwd>@<host>:5432/acredittia?sslmode=require
+OPS_API_HEALTH_URL   URL interna del endpoint /health de la API, accesible desde el worker
 ```
 `worker/celery_app.py` la copia sobre `DATABASE_URL` antes de importar la
 aplicación, para que el engine se construya con el rol correcto.
+
+El worker ejecuta las sondas de salud: verifica Redis y workers Celery, y
+consulta esta URL para medir la disponibilidad HTTP de la API. Configúrala con
+el nombre DNS interno de la Container App; no uses una URL pública si existe
+una ruta interna. Las latencias y errores de requests se agregan en Redis en
+ventanas de cinco minutos, sin conservar rutas, usuarios ni payloads.
 
 ### Job de migración
 ```
@@ -89,6 +142,15 @@ Asigna a la identidad de los Container Apps:
 
 `DefaultAzureCredential` las resuelve sin secretos en configuración. En
 desarrollo la misma credencial usa `az login`.
+
+## Salud de Azure Blob
+
+La sonda operativa no ejecuta escrituras, lecturas ni borrados canario sobre
+Azure Blob: esas solicitudes generarían transacciones facturables. Cuando
+`STORAGE_BACKEND=azure`, Storage aparece como **degradado / no verificado** en
+vez de afirmar disponibilidad sin evidencia. Para habilitar una señal positiva
+sin sondeos sintéticos, hace falta instrumentar y agregar las operaciones reales
+del negocio.
 
 ## Parámetro del servidor obligatorio
 
@@ -136,16 +198,23 @@ no a mitad de un request.
   veces; los snapshots de cumplimiento lo absorben (son idempotentes por día),
   pero los reportes programados se duplicarían.
 
-## Cron diario
+## Procesos programados
 
-`celery beat` ejecuta a las 00:30 America/Santiago: recálculo de vencimientos,
-snapshots de cumplimiento, expiración de credenciales. A las 04:00 purga los
-blobs temporales de extracción IA. Cada hora, al minuto 5, dispara los reportes
-programados que toquen.
+`celery beat` debe ejecutarse en una sola réplica y programa todos los runners
+operativos a través del dispatcher de `ops_jobs`. Cada disparo queda registrado
+en el historial operativo, respeta la pausa del proceso y evita ejecuciones
+solapadas. Los horarios usan `America/Santiago`:
 
-El beat de operaciones registra además la comprobación de disponibilidad
-diaria a las 00:05, la toma de métricas a las 02:10 y la tarea semanal de
-retención los domingos a las 03:30 (zona horaria `America/Santiago`).
+| Proceso | Frecuencia |
+|---|---|
+| Sondeo de componentes (heartbeat) | Cada minuto |
+| Reportes programados | Cada minuto; el dispatcher evalúa los cinco campos del cron |
+| Vencimientos y snapshots de documentos | Todos los días a las 00:30 |
+| Consolidación de disponibilidad | Todos los días a las 00:05 |
+| Snapshot de métricas de negocio | Todos los días a las 02:10 |
+| Retención de telemetría | Domingos a las 03:30 |
+| Respaldo ADMIN (solo con storage local configurado) | Domingos a las 02:00 |
+| Purga de blobs temporales de IA | Todos los días a las 04:00 |
 
 Con `QUEUE_BACKEND=inproc` el cron corre dentro del proceso de la API vía
 APScheduler; sirve para desarrollo y **no** para producción con más de una

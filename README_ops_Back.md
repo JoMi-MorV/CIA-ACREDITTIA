@@ -15,7 +15,7 @@ El módulo operativo sigue siendo una base funcional relevante, pero el estado r
 | `app/models_ops.py` | `app/backend/app/` | ORM de las tablas nuevas sobre el mismo `Base`; añade `Company.industria` sin tocar `models.py` |
 | `app/config_ops.py` | `app/backend/app/` | Settings `OPS_*` (valor UF, CAC, margen, umbrales del detector) |
 | `app/services/ops.py` | `app/backend/app/services/` | Heartbeats (Redis/in-proc), detector de incidentes, ciclo de vida de runs, decorador `@con_run`, auditoría |
-| `app/services/ops_probes.py` | `app/backend/app/services/` | Las 6 sondas (db, api, workers, storage, ia, integraciones); p95 externo tras adaptador con stub |
+| `app/services/ops_probes.py` | `app/backend/app/services/` | Sondas de DB, API, Redis/Celery, Storage, IA e integraciones; sin sondeos externos facturables. Azure Blob queda explícitamente no verificado hasta contar con telemetría de operaciones reales |
 | `app/routers/admin_ops.py` | `app/backend/app/routers/` | Los 20 endpoints (§5, §6, §7) |
 | `worker/ops_tasks.py` | `app/backend/worker/` | Runners de los jobs, entrada `ops_ejecutar_run` para la cola y `registrar_ops(celery)` con el beat |
 | `tests/test_admin.py` | `app/backend/tests/` | Suite pytest con el patrón del repo (pgserver + esquema real) |

@@ -3,7 +3,7 @@
 > **Alcance:** documento histórico de cambios incompatibles implementados al
 > alinear los ocho routers originales con la especificación v1.1. No describe
 > todas las rutas ni garantiza por sí solo el contrato vigente: desde entonces
-> se añadieron routers, endpoints y cambios de esquema (actualmente v11).
+> se añadieron routers, endpoints y cambios de esquema (actualmente v12).
 > Para el comportamiento actual, consulta el OpenAPI servido por la aplicación
 > en `/docs` y el código de `backend/app/routers/`; las guías de ejecución están
 > en `../README_base.md` y `DESPLIEGUE_AZURE.md`.

@@ -433,11 +433,13 @@ def proxima_ejecucion(job: OpsJob) -> datetime | None:
 
 def tasa_exito_7d(db: Session, clave: str) -> float | None:
     corte = datetime.now(timezone.utc) - timedelta(days=7)
-    filas = db.execute(select(OpsJobRun.status).where(
+    filas = db.execute(select(OpsJobRun.status, OpsJobRun.params).where(
         OpsJobRun.job_clave == clave,
         OpsJobRun.created_at >= corte,
         OpsJobRun.status.in_(("ok", "error", "timeout")))).all()
+    filas = [(status, params) for status, params in filas
+             if (params or {}).get("origen") != "seed_demo"]
     if not filas:
         return None
-    ok = sum(1 for (s,) in filas if s == "ok")
+    ok = sum(1 for status, _ in filas if status == "ok")
     return round(100.0 * ok / len(filas), 1)

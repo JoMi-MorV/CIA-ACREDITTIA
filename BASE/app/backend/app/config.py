@@ -32,7 +32,7 @@ class Settings(BaseSettings):
     # las políticas de RLS del modelo de datos se apliquen de verdad.
     database_url: str = "postgresql+psycopg://postgres:postgres@localhost:5432/acredittia"
     schema_dir: str = "/schema"
-    schema_version_esperada: int = 11       # ciclo de vida de contratos
+    schema_version_esperada: int = 13       # respaldo local programado
     db_apply_schema_on_start: bool = False  # en Azure lo hace el job de migración
     db_rls_enabled: bool = True             # fija app.company_id/is_admin/user_id por request
 
@@ -46,6 +46,11 @@ class Settings(BaseSettings):
     # --- Almacenamiento: local | azure ------------------------------------
     storage_backend: str = "local"
     storage_dir: str = "/data/uploads"
+    backups_dir: str = "/data/backups"
+    backup_database_url: str = ""
+    backup_restore_database_url: str = ""
+    backup_restore_role: str = ""
+    backup_retention_count: int = 8
     azure_storage_account: str = ""        # identidad administrada (preferido)
     azure_blob_conn: str = ""              # cadena de conexión (alternativa)
     azure_blob_container: str = "docs"

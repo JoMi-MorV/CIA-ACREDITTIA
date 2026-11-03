@@ -121,32 +121,77 @@ export default function SistemasPage() {
         info="Estado y métricas disponibles para cada componente técnico. El estado global resume los estados informados, pero no atribuye automáticamente una falla a una empresa." />
       <Estado cargando={estado.cargando} error={estado.error} reintentar={estado.recargar}>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {(estado.data?.componentes ?? []).map((comp: any) => (
-            <Card key={comp.clave}>
-              <div className="flex items-start gap-2">
-                <div className="min-w-0">
-                  <h2 className="ops-title">{comp.nombre}</h2>
-                  <div className="ops-sub">{comp.descripcion}</div>
-                </div>
-                <span className="ml-auto shrink-0">
-                  <Pill tono={TONO_ESTADO[comp.estado]}>{t(`estado.${comp.estado}`)}</Pill>
-                </span>
-              </div>
-              <div className="mt-3 flex gap-6">
-                {Object.entries(comp.metricas ?? {}).slice(0, 2).map(([k, v]) => (
-                  <div key={k}>
-                    <div className="text-[11px]" style={{ color: "var(--ops-faint)" }}>
-                      {k.replaceAll("_", " ")}
-                    </div>
-                    <div className="text-[17px] font-bold"
-                      style={{ fontVariantNumeric: "tabular-nums" }}>
-                      {typeof v === "number" ? fmtN(v as number, (v as number) % 1 ? 1 : 0) : String(v)}
-                    </div>
+          {(estado.data?.componentes ?? []).map((comp: any) => {
+            const metricas = comp.metricas ?? {};
+            const orden = [
+              "latencia_p95_ms", "tasa_error_5xx_pct", "tasa_error_pct",
+              "ping_ms", "healthcheck_ms", "redis_ping_ms",
+              "solicitudes_5m", "errores_5xx_5m", "workers_activos",
+              "tareas_ejecutandose", "ejecuciones_7d", "errores_7d",
+              "revisiones_7d", "fallidas_7d", "en_cola", "conexiones",
+              "conexiones_max", "escritura_ms", "lectura_ms",
+              "eliminacion_ms", "integraciones_activas",
+              "conectores_implementados",
+            ];
+            const visibles = orden
+              .filter((clave) => metricas[clave] !== undefined && metricas[clave] !== null)
+              .slice(0, 4)
+              .map((clave) => [clave, metricas[clave]] as [string, unknown]);
+            const porTipo = metricas.por_tipo as Record<string, any> | undefined;
+            return (
+              <Card key={comp.clave}>
+                <div className="flex items-start gap-2">
+                  <div className="min-w-0">
+                    <h2 className="ops-title">{comp.nombre}</h2>
+                    <div className="ops-sub">{comp.descripcion}</div>
                   </div>
-                ))}
-              </div>
-            </Card>
-          ))}
+                  <span className="ml-auto shrink-0">
+                    <Pill tono={TONO_ESTADO[comp.estado]}>{t(`estado.${comp.estado}`)}</Pill>
+                  </span>
+                </div>
+                <div className="mt-3 flex flex-wrap gap-6">
+                  {visibles.map(([k, v]) => (
+                    <div key={k}>
+                      <div className="text-[11px]" style={{ color: "var(--ops-faint)" }}>
+                        {k.replaceAll("_", " ")}
+                      </div>
+                      <div className="text-[17px] font-bold"
+                        style={{ fontVariantNumeric: "tabular-nums" }}>
+                        {typeof v === "number" ? fmtN(v, v % 1 ? 1 : 0) : String(v)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {(metricas.backend || metricas.modo) && (
+                  <div className="mt-2 text-xs ops-sub">
+                    {metricas.backend && `Backend: ${metricas.backend}`}
+                    {metricas.modo && `Modo: ${metricas.modo}`}
+                  </div>
+                )}
+                {metricas.detalle && (
+                  <div className="mt-2 text-xs ops-sub">{metricas.detalle}</div>
+                )}
+                {porTipo && Object.entries(porTipo).length > 0 && (
+                  <ul className="mt-2 space-y-1 text-xs ops-sub">
+                    {Object.entries(porTipo).map(([tipo, datos]) => (
+                      <li key={tipo}>
+                        {tipo}: {datos.ejecuciones_7d} ejecuciones / {datos.errores_7d} errores
+                        {datos.latencia_p95_ms != null
+                          ? ` / p95 ${fmtN(datos.latencia_p95_ms)} ms` : ""}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {(metricas.conectividad_externa_verificada === false
+                  || metricas.verificacion_externa === false) && (
+                  <div className="mt-2 text-xs ops-sub">
+                    Sin prueba activa de conectividad externa; estado basado en
+                    {comp.clave === "ia" ? " ejecuciones históricas." : " sincronizaciones registradas."}
+                  </div>
+                )}
+              </Card>
+            );
+          })}
         </div>
       </Estado>
 
@@ -203,7 +248,7 @@ export default function SistemasPage() {
       {/* ------- procesos ------- */}
       <Card>
         <CardHead titulo={t("sistemas.procesos")} sub={t("sistemas.procesos_sub")}
-          info="Cada fila describe un proceso y muestra su programación y última ejecución registrada. Abre el historial para revisar resultados anteriores, actores y errores." />
+          info="Cada fila describe un proceso y muestra su programación y última ejecución registrada. Las corridas marcadas Demostración son datos de ejemplo, no evidencia de ejecución real. Abre el historial para revisar resultados anteriores, actores y errores." />
         <Estado cargando={procesos.cargando} error={procesos.error} reintentar={procesos.recargar}>
           <div className="overflow-x-auto">
             <table className="ops-table">
@@ -249,6 +294,9 @@ export default function SistemasPage() {
                           {ult ? (p.tipo === "continuo" && ult.status === "ok"
                             ? t("job.operando") : t(`job.${ult.status}`)) : "—"}
                         </Pill>
+                        {ult?.es_demo && (
+                          <span className="ml-2"><Pill tono="warn">Demostración</Pill></span>
+                        )}
                         {ult?.mensaje && (
                           <span className="ml-2 text-[11px]" style={{ color: "var(--ops-faint)" }}>
                             {ult.mensaje}
@@ -342,6 +390,7 @@ type Ejecucion = {
   finished_at: string | null;
   duracion_s: number | null;
   items_procesados: number | null;
+  es_demo?: boolean;
   mensaje: string | null;
   error_detalle: string | null;
 };
@@ -398,7 +447,9 @@ function HistorialEjecuciones({ clave }: { clave: string }) {
                   <td><Pill tono={run.status === "ok" ? "ok"
                     : run.status === "queued" || run.status === "running" ? "mut" : "crit"}>
                     {run.status}
-                  </Pill></td>
+                  </Pill>
+                    {run.es_demo && <span className="ml-2"><Pill tono="warn">Demostración</Pill></span>}
+                  </td>
                   <td>{run.disparo}</td>
                   <td>{run.actor?.email ?? "Sistema"}</td>
                   <td>{run.duracion_s == null ? "—" : `${run.duracion_s} s`}</td>

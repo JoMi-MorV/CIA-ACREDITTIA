@@ -1,10 +1,18 @@
 # Imagen única para los cuatro procesos: API, worker, beat y job de migración.
 # Se diferencian solo por el `command`, así que un despliegue no puede dejarlos
 # en versiones distintas del código.
-FROM python:3.12-slim
+FROM python:3.12-slim-bookworm
 
 # psycopg[binary] trae libpq; curl es para los probes de Container Apps.
-RUN apt-get update && apt-get install -y --no-install-recommends curl \
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      ca-certificates curl gnupg \
+    && install -d /usr/share/keyrings \
+    && curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+      | gpg --dearmor -o /usr/share/keyrings/postgresql.gpg \
+    && echo "deb [signed-by=/usr/share/keyrings/postgresql.gpg] https://apt.postgresql.org/pub/repos/apt bookworm-pgdg main" \
+      > /etc/apt/sources.list.d/pgdg.list \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends postgresql-client-16 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /srv
@@ -19,7 +27,7 @@ COPY tests ./tests
 
 # Usuario sin privilegios; los directorios de datos se montan como volumen.
 RUN useradd --create-home --uid 10001 acredittia \
-    && mkdir -p /data/uploads /data/keys \
+    && mkdir -p /data/uploads /data/keys /data/backups \
     && chown -R acredittia:acredittia /data
 USER acredittia
 

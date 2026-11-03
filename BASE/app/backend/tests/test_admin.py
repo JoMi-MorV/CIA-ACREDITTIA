@@ -331,9 +331,11 @@ def test_estado_ciego_luego_operativo(app_cliente, admin):
     r = app_cliente.get(f"{API}/admin/sistemas/estado",
                         headers=admin["headers"])
     d = r.json()
-    assert d["estado_global"] == "operativo", d
-    api = next(c for c in d["componentes"] if c["clave"] == "db")
-    assert api["metricas"]["conexiones"] >= 1
+    assert d["estado_global"] == "degradado", d
+    componentes = {c["clave"]: c for c in d["componentes"]}
+    assert componentes["db"]["metricas"]["conexiones"] >= 1
+    assert componentes["api"]["metricas"]["solicitudes_5m"] > 0
+    assert componentes["ia"]["metricas"]["backend"] == "simulada"
 
 
 def test_disponibilidad_404_y_parcial(app_cliente, admin):

@@ -1,7 +1,7 @@
 # Gap Analysis — Acredittia
 
 Estado: borrador de revisión
-Fecha de referencia: 15-10-2026 13:55:03 -03:00
+Fecha de referencia: 03-11-2026
 
 Este documento consolida la evidencia documental y técnica del proyecto a partir de la especificación funcional ([SRS.md](./SRS.md)) y la implementación actual en código. Este corte incorpora las pruebas/build y límites de validación registrados en [VALIDACION_ACTUAL.md](./VALIDACION_ACTUAL.md); el análisis de brechas no sustituye aceptación de producto ni certificación de producción.
 
@@ -38,6 +38,36 @@ Esta entrega del portal de empresa corresponde al alcance funcional del producto
 
 **Actualización 15-10-2026 13:55:03 -03:00 — portal de empresa y alcance de usuarios:** `/gestion-cuentas` permite listar, buscar, paginar y administrar cuentas asociadas. Durante impersonación, ADMIN ve Responsables de contrato y el perfil de empresa, no su perfil personal. Se restaura la conversión de una cuenta `company` a `contract_admin`, incluida la inicial, si queda otro `company` activo; solo se bloquea si sería el último (`ULTIMO_ADMINISTRADOR`). La interfaz confirma doblemente la reducción de alcance. La regresión de autenticación/tenant pasó 71/71 y el build frontend pasó. No existe todavía invitación/aceptación para vincular una cuenta existente; las invitaciones actuales crean usuarios nuevos y su entrega de token por correo sigue incompleta. Esta actualización no cambia el 67% histórico de avance ADMIN ni los bloqueos P0 de DEC-08, auditoría y aislamiento de producción.
 
+**Actualización 03-11-2026 — salud operativa y procesos programados:** se
+unificaron los horarios Celery Beat/APScheduler bajo el ciclo de `ops_jobs`,
+incluyendo historial, pausa y prevención de solapamiento. En Compose local se
+aplicó y verificó el esquema 12; Beat despachó heartbeat y reportes por Redis,
+el worker completó los runs `4476`, `4477` y `4478` con estado `ok`, y el
+heartbeat sondeó seis componentes. Se ejecutaron 124 pruebas focalizadas y el
+build frontend pasó. Esta evidencia mejora la validación técnica de
+Salud/Sistemas, pero no cierra pruebas de fallo/recuperación, trazabilidad
+integral ni disponibilidad externa de Azure Blob/IA simulada. Tras la
+verificación, Compose se detuvo por solicitud; los servicios están detenidos y
+los datos conservados.
+
+**Línea base de cobertura de código — SRS v0.62, 03-11-2026:** la revisión de
+las 37 fichas (29 funcionales y 8 no funcionales) estimó 68,6% (`2538 / 37`).
+Reevaluó RF-SAL-02 55→70, RF-SAL-03 80→90, RF-USU-01 65→75, RF-CLI-07 90→93,
+RNF-REP-01 60→65, RNF-VAL-01 75→80 y RNF-OPE-01 60→75. Los demás valores eran
+estimaciones del SRS, no una auditoría automatizada de criterios.
+
+**Actualización RNF-REC-01 / DEC-14 — 03-11-2026:** se implementó el flujo
+inicial ADMIN de respaldo cifrado local, retención, verificación/restauración
+controlada y exportación de conjuntos administrativos. El job queda pausado
+hasta que exista configuración válida. Las pruebas focalizadas pasaron 54/54
+y el build web pasó; no se ejecutó una restauración real ni se
+aplicó el esquema 13 al entorno detenido. RNF-REC-01 se reestima de 0% a 50%;
+la cobertura estimada actual pasa a **69,9% (`2588 / 37`, 70% redondeado)**.
+Por dominio: ADMIN 69,5%, portal 78,7% y RNF 61,3%; P0 54,4%, P1 78,1% y P2
+63,3%. Es una actualización de cobertura de código/evidencia, no de aceptación
+ni de preparación productiva. La estimación de las ocho prioridades ADMIN
+permanece en 67,5%; no se reponderó por esta entrega.
+
 El módulo admin tiene una base funcional sólida en:
 
 - dashboard general y KPI operativos,
@@ -64,12 +94,21 @@ La principal señal de riesgo es el bloqueo P0 documentado en el SRS:
 - No pasar a producción con datos reales sin cerrar DEC-08.
 - Requiere evidencia legal/contractual, aprobación de retención, responsables y controles implementados/validados.
 
-En términos prácticos, la cifra actual de 67% corresponde únicamente a avance
-funcional estimado de ADMIN. No se calcula un porcentaje de preparación para
-producción real con datos sensibles: los bloqueos existentes impiden
-interpretar el avance funcional como autorización de despliegue. Las cifras
-75–80% general y 55–65% para producción que aparecían en cortes anteriores son
-históricas y no deben utilizarse como estimaciones vigentes.
+El avance reportable del conjunto de requisitos documentados es **69,9%
+(70% redondeado)**: promedio de 37 porcentajes revaluados, con igual peso para
+cada requisito. El 67% del 13-10 era el promedio de ocho prioridades ADMIN;
+no era el avance total del proyecto. La línea base SRS v0.62 fue 68,6%;
+RNF-REC-01 se reestimó de 0% a 50% al incorporar la implementación inicial.
+Para mantener comparabilidad, el
+promedio actualizado de esas ocho prioridades es **67,5% (68% redondeado)**:
+se reevalúa Salud y operación como promedio simple de RF-SAL-01 (75%),
+RF-SAL-02 (70%) y RF-SAL-03 (90%), mientras las otras siete prioridades
+conservan su estimación previa. No hay un modelo de ponderación aprobado, y
+varios requisitos siguen usando estimaciones anteriores; por ello 69,9% es una
+estimación basada en cobertura de código/evidencia, no un porcentaje medido de
+líneas, esfuerzo o criterios aceptados. La preparación para producción real
+con datos sensibles no se puntúa: DEC-08 y otros bloqueos P0 permanecen
+abiertos.
 
 ## 4. Fuentes de evidencia utilizadas
 
@@ -81,42 +120,49 @@ históricas y no deben utilizarse como estimaciones vigentes.
 - [BASE/app/backend/app/routers/admin.py](../BASE/app/backend/app/routers/admin.py) — administración global.
 - [BASE/app/backend/app/routers/admin_ops.py](../BASE/app/backend/app/routers/admin_ops.py) — consola interna y métricas.
 - [BASE/app/backend/worker/ops_tasks.py](../BASE/app/backend/worker/ops_tasks.py) — jobs, health y operación.
+- [BASE/app/backend/app/services/ops_probes.py](../BASE/app/backend/app/services/ops_probes.py) — sondas de salud y telemetría.
+- [BASE/modelo_datos/12_scheduling_operacional.sql](../BASE/modelo_datos/12_scheduling_operacional.sql) — actualización del cron de reportes programados.
 - [BASE/app/backend/app/routers/reportes.py](../BASE/app/backend/app/routers/reportes.py) y [BASE/app/backend/app/services/pdf.py](../BASE/app/backend/app/services/pdf.py) — generación y formatos de reportes del portal.
-- [VALIDACION_ACTUAL.md](./VALIDACION_ACTUAL.md) — evidencia y límites de validación de la entrega de Reportes.
+- [VALIDACION_ACTUAL.md](./VALIDACION_ACTUAL.md) — evidencia y límites de validación del sistema, incluyendo procesos programados.
 
 ## 5. Matriz de cumplimiento por prioridad de ADMIN
 
-| Prioridad | Estado | % estimado al 13-10-2026 | Observación |
+| Prioridad ADMIN | Estado | % estimado al 03-11-2026 | Observación |
 |---|---|---:|---|
 | Dashboard global | Parcial | 75% | Hay contadores, acreditación, estados documentales y actividad por eventos; falta validar universos/denominadores y crecimiento de adopción. |
 | Gestión global de empresas | Avanzado | 90% | Listado y ficha agregada con industria, estado de cuenta, perfiles y responsables; el rechazo y los casos límite siguen pendientes. |
 | Buscador global | Parcial | 55% | Las categorías están implementadas, pero la autorización por categoría y detalle no se aplica como permiso granular en servidor. |
 | Métricas SaaS | Parcial | 60% | Existen métricas y series; tiempo de uso continúa estimado, y documentos procesados no equivale necesariamente a documentos únicos. Faltan definiciones y cálculos validados. |
-| Alertas y salud de clientes | Parcial | 70% | Hay indicadores y detalle plegable; faltan validar umbrales, casos límite, totales/paginación y sondas que acrediten disponibilidad real. |
+| Alertas y salud de clientes | Parcial | 78% | Promedio de RF-SAL-01 (75%), RF-SAL-02 (70%) y RF-SAL-03 (90%). Se añadieron sondas reales locales y ejecución distribuida; faltan escenarios de fallo/recuperación, umbrales, casos límite y totales/paginación. Azure Blob e IA simulada no acreditan disponibilidad SaaS externa. |
 | Usuarios, roles y permisos | Parcial | 70% | La consola pagina usuarios; el portal permite convertir `company` a `contract_admin` si queda otro `company` activo. Se conserva el bloqueo de último administrador. Falta invitación/aceptación de cuentas existentes, correo de activación y validación integral de permisos. El 70% es la estimación histórica del 13-10, no recalculada en este corte. |
 | Auditoría y trazabilidad | Parcial | 50% | Algunas operaciones y descargas quedan registradas; falta cobertura uniforme de autenticación, lecturas sensibles, operaciones y transferencias de exportación. |
 | Seguridad y aislamiento de datos | Parcial; bloqueo P0 | 62% | Hay autorización, RLS y pruebas multiempresa; falta demostrar mínimo privilegio y aislamiento contractual con configuración equivalente a producción, además de acceso excepcional auditado. |
 
 ### % global estimado
 
-El **67%** es el promedio simple de las ocho estimaciones de avance funcional
-ADMIN: `(75 + 90 + 55 + 60 + 70 + 70 + 50 + 62) / 8 = 66,5%`, redondeado al
-entero más cercano. Las prioridades tienen igual peso por falta de ponderación
-acordada. La revisión fue documental y de código; no ejecutó pruebas ni
-recorrido de navegador. No es cumplimiento validado ni porcentaje de
-preparación productiva.
+El promedio actualizado de las ocho prioridades ADMIN es **67,5% (68%
+redondeado)**: `(75 + 90 + 55 + 60 + 78,3 + 70 + 50 + 62) / 8`. La prioridad
+de Salud se obtiene del promedio de sus tres requisitos asociados. El promedio
+de los 37 requisitos es **69,9% (70% redondeado)**: `2588 / 37`. El primero es
+comparable con el 67% histórico de ADMIN; el segundo amplía el alcance e
+incluye el portal y requisitos no funcionales. No se dispone de ponderación
+por esfuerzo o criticidad, así que ambos son estimaciones, no medidas objetivas
+ni aceptación.
 
 | Indicador | Valor |
 |---|---:|
-| Avance funcional ADMIN estimado | 67% |
+| Avance funcional estimado de las ocho prioridades ADMIN | 67,5% (68% redondeado) |
+| Cobertura estimada de los 37 requisitos SRS | 69,9% (70% redondeado) |
+| Avance total ponderado del producto Acredittia | No determinado; falta ponderación por alcance/esfuerzo aprobada |
 | Preparación para producción real con datos sensibles | No puntuada; bloqueada por brechas P0 y DEC-08 |
 | Cumplimiento ADMIN validado como conjunto | No determinado; aceptación integral pendiente |
 | Estado del riesgo crítico operativo | Alto; no expresado como porcentaje de avance |
 
-Conclusión global: ADMIN cuenta con una base funcional avanzada, pero el 67%
-no significa que esté listo para producción real. Permanecen brechas críticas
-de permisos granulares, aislamiento/mínimo privilegio, auditoría y revisión
-legal/retención.
+Por prioridad de requisito, los nueve P0 promedian **54,4%**, los 22 P1
+**78,1%** y los seis P2 **63,3%**. La conclusión es que existe una base
+funcional amplia, pero el 70% estimado no significa que el producto esté listo
+para producción real. Persisten brechas críticas de permisos granulares,
+aislamiento/mínimo privilegio, auditoría y revisión legal/retención.
 
 ## 6. Brechas por prioridad
 
@@ -212,7 +258,7 @@ Brechas:
 - faltan umbrales explícitos para baja actividad, muchos pendientes y vencimientos;
 - falta distinguir claramente empresa sin usuarios, empresa con usuarios sin actividad, empresa sin documentos y salud correcta;
 - los totales y paginación de bandeja requieren validación en casos límite;
-- no está cerrada la prueba de salud real con API/worker/DB. La vista ya resume riesgos por categoría y despliega el detalle; las ayudas explicativas no sustituyen la verificación de datos y reglas.
+- se verificó en Compose local el heartbeat y las sondas API, PostgreSQL, Redis/workers y Storage local; faltan escenarios negativos, vencimiento/recuperación del heartbeat y validación de datos/umbrales. Azure Blob no fue sondeado para evitar operaciones facturables; IA simulada no acredita salud SaaS externa.
 
 Riesgo:
 - falsas alarmas o alarmas no accionables, con impacto operativo.

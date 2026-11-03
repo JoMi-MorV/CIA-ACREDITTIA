@@ -76,3 +76,40 @@ export async function opsApi<T = any>(
   }
   return data as T;
 }
+
+export async function opsDownload(
+  path: string, reintento = true,
+): Promise<{ blob: Blob; filename: string }> {
+  if (MOCK) {
+    throw new OpsApiError("EXPORTACION_NO_DISPONIBLE",
+      "Las descargas no están disponibles en modo demostración.", 501);
+  }
+  const headers: Record<string, string> = {};
+  const tok = getAccess();
+  if (tok) headers["Authorization"] = `Bearer ${tok}`;
+  let res: Response;
+  try {
+    res = await fetch(`${BASE}/api/v1/admin${path}`, { headers });
+  } catch {
+    throw new OpsApiError("SIN_CONEXION", "No se pudo contactar con el servidor.", 0);
+  }
+  if (res.status === 401) {
+    if (reintento && (await refrescar())) return opsDownload(path, false);
+    if (typeof window !== "undefined") window.location.href = "/login";
+    throw new OpsApiError("SESION_EXPIRADA", "La sesión expiró.", 401);
+  }
+  if (!res.ok) {
+    const texto = await res.text();
+    let data: any = {};
+    try { data = texto ? JSON.parse(texto) : {}; } catch { /* respuesta no JSON */ }
+    throw new OpsApiError(data?.error?.code ?? "ERROR",
+      data?.error?.message ?? `Error ${res.status}`, res.status);
+  }
+  const disposition = res.headers.get("content-disposition") ?? "";
+  const encoded = disposition.match(/filename\*=UTF-8''([^;]+)/i)?.[1];
+  const plain = disposition.match(/filename="?([^";]+)"?/i)?.[1];
+  return {
+    blob: await res.blob(),
+    filename: encoded ? decodeURIComponent(encoded) : plain ?? "exportacion-admin",
+  };
+}

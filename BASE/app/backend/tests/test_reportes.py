@@ -12,6 +12,8 @@ el reporte ya está en `done` y descargable en la aserción siguiente.
 from __future__ import annotations
 
 import uuid
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -181,6 +183,43 @@ def test_ciclo_de_vida_de_un_programado(app_cliente, empresa_a):
     assert r.json()["ok"] is True
     assert app_cliente.get(f"{API}/reportes/programados",
                            headers=empresa_a["headers"]).json()["total"] == 0
+
+
+def test_despachador_respeta_minuto_y_antirrebote_del_cron(
+        empresa_a, monkeypatch):
+    from app.database import worker_session
+    from app.models import ReporteProgramado
+    from app.services import programados
+
+    zona = ZoneInfo("America/Santiago")
+    a_las_1215 = datetime(2026, 11, 3, 12, 15, tzinfo=zona)
+    assert programados.cron_coincide("*/15 * * * *", a_las_1215)
+    assert not programados.cron_coincide(
+        "*/15 * * * *", a_las_1215.replace(minute=16))
+    assert programados.cron_coincide(
+        "0 9 * * 1", datetime(2026, 11, 2, 9, 0, tzinfo=zona))
+
+    encolados = []
+    monkeypatch.setattr(
+        programados, "enqueue",
+        lambda nombre, **kwargs: encolados.append((nombre, kwargs)))
+    with worker_session(is_admin=True) as db:
+        programado = ReporteProgramado(
+            company_id=uuid.UUID(empresa_a["company_id"]),
+            nombre="Prueba de cron", tipo="vencimientos", formato="pdf",
+            cron_expr="*/15 * * * *")
+        db.add(programado)
+        db.commit()
+
+        assert programados.disparar_pendientes(db, a_las_1215) == 1
+        assert programados.disparar_pendientes(db, a_las_1215) == 0
+        assert programados.disparar_pendientes(
+            db, a_las_1215.replace(minute=16)) == 0
+        assert programados.disparar_pendientes(
+            db, a_las_1215.replace(minute=30)) == 1
+
+    assert len(encolados) == 2
+    assert all(nombre == "generar_reporte" for nombre, _ in encolados)
 
 
 def test_programado_matriz_conserva_tipo_y_formato_al_editar_params(

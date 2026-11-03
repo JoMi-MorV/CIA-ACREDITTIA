@@ -4,6 +4,7 @@ from app import seeds
 from app.database import worker_session
 from app.models import (Alerta, Company, Contrato, Documento,
                         EventoCalendario, Sujeto, User)
+from app.models_ops import OpsDisponibilidadDiaria
 from app.services.vencimientos import recalcular_documentos
 
 
@@ -58,6 +59,12 @@ def test_seed_operacional_demo_es_amplio_y_repetible(app_cliente):
         assert len(nombres_personal) == len(set(nombres_personal))
         assert len(nombres_usuarios) == len(set(nombres_usuarios))
 
+        disponibilidad = db.scalars(
+            select(OpsDisponibilidadDiaria).limit(1)).first()
+        disponibilidad.uptime_pct = 73.21
+        db.commit()
         seeds.run(db)
         conteos_despues = {empresa.id: conteos(empresa) for empresa in empresas}
         assert conteos_despues == conteos_antes
+        db.refresh(disponibilidad)
+        assert float(disponibilidad.uptime_pct) == 73.21

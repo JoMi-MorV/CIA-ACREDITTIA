@@ -206,7 +206,7 @@ ON CONFLICT (clave) DO NOTHING;
 
 INSERT INTO ops_jobs (clave, nombre, tipo, cron_expr, componente, timeout_s) VALUES
   ('vencimientos',          'Cálculo de vencimientos y snapshots', 'programado', '30 0 * * *',  'workers', 3600),
-  ('reportes_programados',  'Reportes programados',                'programado', '5 * * * *',   'workers', 1800),
+  ('reportes_programados',  'Reportes programados',                'programado', '* * * * *',   'workers', 1800),
   ('purga_temporales',      'Purga de blobs temporales IA',        'programado', '0 4 * * *',   'storage',  900),
   ('ops_heartbeat',         'Sondeo de componentes',               'programado', '* * * * *',   'api',       55),
   ('ops_disponibilidad',    'Consolidación de disponibilidad',     'programado', '5 0 * * *',   'api',      600),

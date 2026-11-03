@@ -1,24 +1,35 @@
 # Resumen de requisitos ADMIN
 
-**Corte ADMIN:** 13 de octubre de 2026  
-**Base documental:** SRS versión 0.60 y `VALIDACION_ACTUAL.md`, actualizados al 15 de octubre de 2026.
+**Corte ADMIN:** 03 de noviembre de 2026  
+**Base documental:** SRS versión 0.63, GAP y `VALIDACION_ACTUAL.md`.
 **Propósito:** resumir el estado técnico de las ocho prioridades ADMIN, distinguir lo implementado de lo validado y proponer criterios concretos para revisar su cierre.
 
 Este documento es una guía de revisión, no una aceptación contractual ni una certificación de producción. Los estados reflejan los requisitos y la evidencia descritos en el [SRS](SRS.md) y en [VALIDACION_ACTUAL.md](VALIDACION_ACTUAL.md). `IV` significa implementado y validado dentro del alcance probado; `ISV`, implementado sin validación completa; `PAR`, parcial; `COR`, requiere corrección; y `PEN`, pendiente. Los porcentajes estimados del SRS no equivalen a porcentaje de cumplimiento validado.
 
 La actualización del 13-10-2026 registra mejoras de interfaz y auditoría
 descritas abajo y una revisión de código/documentación de las ocho prioridades.
-No se elevan los estados a IV sin completar las pruebas y criterios de
-aceptación pendientes.
+La actualización del 03-11-2026 incorpora pruebas de ejecución distribuida
+Celery, sondas locales y el módulo inicial de respaldos/exportaciones ADMIN.
+El avance de las ocho prioridades ADMIN se estima en **67,5% (68% redondeado)**
+y no se repondera por esta entrega. La cobertura media actual de los 37
+requisitos SRS, incluidos portal y requisitos no funcionales, es **69,9% (70%
+redondeado)**; RNF-REC-01 sube a 50% estimado. Ninguna cifra mide preparación
+productiva.
 
 La ampliación de Reportes del portal documentada el 14-10-2026 no forma parte
-de la estimación de las prioridades ADMIN ni modifica su 67%.
+de la estimación de las prioridades ADMIN.
+
+La sección `/ops/respaldos` incorpora creación/verificación/restauración
+controlada y exportación ZIP CSV+JSON/PDF. La estimación de Auditoría y
+trazabilidad (50%) se conserva hasta validar el registro de eventos y su
+cobertura completa; la restauración productiva no se ha ejecutado. Véase
+DEC-14 en el SRS y los límites en GAP/VALIDACION_ACTUAL.
 
 La actualización del 15-10-2026 registra cambios del portal de empresa:
 `/gestion-cuentas`, perfil de empresa y responsables visibles para ADMIN en
 «Ver como empresa». La conversión `company` → `contract_admin` está permitida
 si queda otro `company` activo; la protección del último administrador se
-mantiene. Estos cambios no modifican el 67% histórico del corte ADMIN del
+mantiene. Estos cambios no modifican las estimaciones ADMIN históricas del corte
 13-10. La invitación/aceptación de cuentas existentes y la validación visual
 final siguen pendientes; evidencia en `VALIDACION_ACTUAL.md`.
 
@@ -30,28 +41,33 @@ final siguen pendientes; evidencia en `VALIDACION_ACTUAL.md`.
 | 2 | Gestión global de empresas | **90%** | **IV en alcance verificado; rechazo/casos límite pendientes** — RF-EMP-01/02 | Tabla «Empresas (cuentas)» con industria y estado de cuenta; detalle de perfiles y responsables por contrato. Flujo normal de registro/aprobación verificado; falta validar rechazo y transiciones repetidas. |
 | 3 | Buscador global | **55%** | **PAR** — RF-BUS-01/02 | Botones despliegan listas por categoría; el backend exige ADMIN, pero no aplica permisos independientes por categoría/detalle. La autorización granular y la validación visual integral siguen pendientes. |
 | 4 | Métricas SaaS | **60%** | **PAR** — RF-MET-01/02/03 | Hay métricas de clientes/usuarios, sesiones y series mensuales; baja actividad y uso/adopción aparecen en Salud. El tiempo de uso sigue siendo estimado y las revisiones de IA no equivalen necesariamente a documentos únicos. |
-| 5 | Alertas y salud de clientes | **70%** | **Mixto:** RF-SAL-01 **PAR**; RF-SAL-02 **COR**; RF-SAL-03 **ISV** | Salud agrupa indicadores y detalle desplegable con explicaciones; falta validar umbrales y casos límite, totales/paginación y sondas operacionales que detecten fallos reales. |
+| 5 | Alertas y salud de clientes | **78%** | **Mixto:** RF-SAL-01 **PAR**; RF-SAL-02 **ISV**; RF-SAL-03 **ISV** | Se verificaron heartbeat, sondas locales y ejecución distribuida. Faltan escenarios negativos/recuperación, umbrales y casos límite, totales/paginación y verificación de proveedores externos. |
 | 6 | Usuarios, roles y permisos | **70%** | **PAR** — RF-USU-01/02 | El listado ADMIN pagina usuarios y los cambios de alcance invalidan sesiones. El portal permite convertir `company` en `contract_admin` si queda otro `company` activo; siguen pendientes invitación/aceptación de cuentas existentes, historial completo de acceso y validación integral. El porcentaje es el estimado histórico del 13-10. |
 | 7 | Auditoría y trazabilidad | **50%** | **PAR** — RF-AUD-01/02/03 | Se auditan cambios seleccionados y la emisión de URL documental requiere motivo. Falta cobertura uniforme de autenticación, lecturas sensibles, operaciones y exportaciones; una URL emitida no prueba transferencia efectiva. |
 | 8 | Seguridad y aislamiento | **62%** | **PAR** — RF-SEG-01/02/03, RNF-SEG-01 | Hay controles de autorización, RLS y pruebas de aislamiento multiempresa. Falta demostrar mínimo privilegio en configuración equivalente a producción, cerrar el acceso excepcional y validar el alcance contractual, aplicado mayormente en API. |
 
 ### Estimación global del corte
 
-**Avance funcional ADMIN estimado: 67%**, promedio simple de las ocho
-estimaciones anteriores: `(75 + 90 + 55 + 60 + 70 + 70 + 50 + 62) / 8 =
-66,5%`, redondeado al entero más cercano. Cada prioridad pesa igual; no hay
-ponderaciones acordadas por criticidad o esfuerzo. No es un porcentaje de
-pruebas aprobadas, aceptación contractual ni preparación para producción.
+**Avance funcional ADMIN estimado: 67,5% (68% redondeado)**, promedio simple
+de las ocho prioridades, donde Salud y operación es el promedio de sus tres
+requisitos: `(75 + 90 + 55 + 60 + 78,3 + 70 + 50 + 62) / 8 = 67,5%`. No hay
+ponderaciones acordadas por criticidad o esfuerzo. No es porcentaje de pruebas
+aprobadas, aceptación contractual ni preparación para producción.
 
-El 67% describe cobertura funcional estimada. No se asigna un porcentaje de
-«listo para producción con datos sensibles»: los bloqueos P0 siguen abiertos,
-incluidos DEC-08, permisos por categoría/recurso, auditoría integral y evidencia
-de aislamiento/mínimo privilegio en un entorno equivalente a producción.
+La cobertura estimada actual de los 37 requisitos (29 funcionales y 8 no funcionales)
+es **69,9% (70% redondeado)**. Este es el porcentaje de avance de código más
+amplio que se puede reportar con el inventario actual del SRS; no incluye una
+ponderación aprobada por esfuerzo ni convierte criterios pendientes en
+completados. No se asigna un porcentaje de «listo para producción con datos
+sensibles»: los bloqueos P0 siguen abiertos, incluidos DEC-08, permisos por
+categoría/recurso, auditoría integral y evidencia de aislamiento/mínimo
+privilegio en un entorno equivalente a producción.
 
-La cifra procede de revisión de código y documentación del 13-10-2026; en esa
-revisión no se ejecutaron pruebas ni recorrido visual. Los porcentajes
-anteriores del GAP (75–80% general y 55–65% para producción) son históricos y
-no deben presentarse como estimación actual.
+La nueva cifra combina estimaciones documentadas por requisito con evidencia
+de pruebas y ejecución local del 03-11-2026; no es una medición de líneas de
+código ni una aceptación de extremo a extremo. Los porcentajes anteriores del
+GAP (75–80% general y 55–65% para producción) son históricos y no deben
+presentarse como estimación vigente.
 
 ## 1. Dashboard global
 
@@ -171,15 +187,15 @@ denominador es usuarios únicos con actividad en el período.
 
 ## 5. Alertas y salud de clientes
 
-**Estado:** RF-SAL-01 **PAR**; RF-SAL-02 **COR**; RF-SAL-03 **ISV**.
+**Estado:** RF-SAL-01 **PAR**; RF-SAL-02 **ISV**; RF-SAL-03 **ISV**.
 
 **Lo que hace hoy**
 
 - Calcula empresas con acreditación bajo el umbral existente, contratos con al menos tres documentos faltantes/vencidos, vencidos por empresa, morosidad y alertas activas.
 - Hay límites en las listas de contratos (25) y alertas (50); la cantidad visible no siempre representa el total global.
 - Salud de clientes presenta uso/adopción, distribución de usuarios por plan e industria y clientes con baja actividad; los detalles de riesgos se despliegan por categoría. No equivale al cierre de la prioridad: faltan validar clasificación, umbrales y tratamiento de listas limitadas.
-- Existen panel y heartbeats operacionales, pero las sondas actuales no acreditan por sí solas disponibilidad real de API/workers.
-- Procesos e incidentes tienen catálogo y acciones; ejecución manual inproc fue corregida/probada, pero falta recorrido distribuido Celery y trazabilidad correlacionable para investigar origen, operación y resultado de incidentes.
+- En Compose local se verificaron sondas de API, PostgreSQL, Redis/workers y Storage local, además de heartbeat operativo. Azure Blob no se probó para evitar operaciones facturables; IA simulada no acredita salud SaaS externa.
+- Procesos e incidentes tienen catálogo y acciones; se verificó ejecución distribuida con Celery/Beat. Falta validar fallos, reintentos, recuperación y trazabilidad correlacionable del incidente.
 
 **Sugerencias y criterios a considerar**
 
@@ -187,10 +203,10 @@ denominador es usuarios únicos con actividad en el período.
 2. Verificar en las vistas de salud que se distingan empresa sin usuarios, empresa con usuarios sin eventos, empresa sin documentos y empresa saludable, manteniendo coherencia con la clasificación de actividad presentada allí.
 3. Mostrar total real, límite y mecanismo para recuperar el resto; no llamar “total” a la longitud de una muestra.
 4. Probar casos justo por debajo, en y por encima de cada umbral y con más registros que el límite.
-5. Comprobar que la API se detecta caída aunque el worker siga activo, y que cola vacía no se interpreta como worker disponible.
-6. Ejecutar el flujo distribuido de Celery, reintento y cierre de incidente con actor, resultado, timestamps y correlación consultables; asociar empresas solo con evidencia verificable.
+5. Simular fallos de API, worker y dependencias, comprobar alertamiento y recuperación y evitar que cola vacía se interprete como worker disponible.
+6. Completar pruebas distribuidas de reintento y cierre de incidente con actor, resultado, timestamps y correlación consultables; asociar empresas solo con evidencia verificable.
 
-**Para considerar el punto validado:** umbrales acordados, casos límite probados, totales completos/paginación definidos y sondas capaces de detectar fallos reales en API, worker y base de datos.
+**Para considerar el punto validado:** umbrales acordados, casos límite probados, totales completos/paginación definidos, sondas verificadas ante fallos reales y recuperación y trazabilidad de incidentes comprobadas.
 
 ## 6. Usuarios, roles y permisos
 

@@ -229,9 +229,11 @@ class AzureBlobStorage(Storage):
         return self._blob(blob_path).download_blob().readall()
 
     def delete(self, blob_path: str) -> None:
+        from azure.core.exceptions import ResourceNotFoundError
+
         try:
             self._blob(blob_path).delete_blob()
-        except Exception:
+        except ResourceNotFoundError:
             pass
 
 

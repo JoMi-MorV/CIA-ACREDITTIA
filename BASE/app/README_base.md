@@ -23,7 +23,7 @@ app/
 
 El servicio `migrate` aplica los scripts de `../modelo_datos/` antes de iniciar
 la API y los workers. PostgreSQL no ejecuta el esquema desde su inicialización:
-la versión actual del esquema es **11**. La API comprueba la versión requerida
+la versión actual del esquema es **12**. La API comprueba la versión requerida
 al arrancar.
 
 ## Ejecutar en local
@@ -45,6 +45,31 @@ detenerlo.
 
 Para dejar la pila en segundo plano, ejecuta `docker compose up --build -d`;
 revisa la salida con `docker compose logs -f` y el estado con `docker compose ps`.
+Para detener todos los servicios sin borrar contenedores ni datos, ejecuta
+`docker compose stop`.
+
+## Procesos programados
+
+Celery Beat es el scheduler del modo Compose y debe ejecutarse en una sola
+réplica. Los disparos pasan por el ciclo de vida de procesos operativos, que
+registra cada ejecución, respeta las pausas y evita solapamientos. En desarrollo
+con `QUEUE_BACKEND=inproc`, APScheduler registra los mismos procesos en la API;
+no uses ese modo con varias réplicas.
+
+Todos los horarios usan `America/Santiago`:
+
+| Proceso | Frecuencia |
+|---|---|
+| Sondeo de componentes (heartbeat) | Cada minuto |
+| Reportes programados | Cada minuto; solo dispara los reportes cuyo cron coincide |
+| Vencimientos y snapshots de documentos | Todos los días a las 00:30 |
+| Consolidación de disponibilidad | Todos los días a las 00:05 |
+| Snapshot de métricas de negocio | Todos los días a las 02:10 |
+| Retención de telemetría | Domingos a las 03:30 |
+| Purga de blobs temporales de IA | Todos los días a las 04:00 |
+
+En `APP_ENV=test` no se inicia el scheduler local; las pruebas cubren el
+registro de horarios sin lanzar procesos periódicos contra la base de pruebas.
 
 ## Demo temporal por ngrok
 
@@ -180,7 +205,7 @@ no la instalación ni la ejecución normal de la imagen de la aplicación.
 | DATABASE_URL | postgres local | Conexión SQLAlchemy (psycopg) |
 | DB_RLS_ENABLED | true | Activa el contexto de aislamiento por tenant |
 | DB_APPLY_SCHEMA_ON_START | false | En Compose el servicio `migrate` aplica el esquema |
-| SCHEMA_VERSION_ESPERADA | 11 | Versión de esquema exigida por la API |
+| SCHEMA_VERSION_ESPERADA | 12 | Versión de esquema exigida por la API |
 | STORAGE_BACKEND / STORAGE_DIR | local / `/data/uploads` | Almacenamiento local o `azure` |
 | AZURE_STORAGE_ACCOUNT / AZURE_BLOB_CONN / AZURE_BLOB_CONTAINER | vacío / vacío / `docs` | Configuración de Azure Blob Storage |
 | QUEUE_BACKEND / REDIS_URL | inproc / Redis local | `celery` usa Redis para trabajos en segundo plano |

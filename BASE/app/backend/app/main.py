@@ -10,8 +10,10 @@ El cron tampoco vive aquí cuando hay Celery: `celery beat` lo ejecuta. Con
 `QUEUE_BACKEND=inproc` (desarrollo) se mantiene APScheduler dentro del proceso.
 """
 import logging
+import time
 from contextlib import asynccontextmanager
 
+import anyio
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -21,25 +23,20 @@ from .database import (SessionLocal, apply_schema, assert_schema_version,
                        reset_ctx, schema_version, schema_version_compatible,
                        set_ctx, wait_for_db,
                        install_runtime_role_guard)
+from .services.ops_probes import registrar_solicitud_api
 from .routers import (actividad, admin, alertas, auth, blobs, calendario, cargos,
                       company, contrato_requisitos, contratos, dashboard,
                       documentos, faenas, ia, integraciones, licencia_interna,
                       notificaciones, personas, plataformas, reportes,
-                      requisitos, sujetos, suscripcion, webhooks, admin_ops)
+                      requisitos, sujetos, suscripcion, webhooks, admin_ops,
+                      admin_backups)
 # Importar los módulos de tareas registra las entradas de TAREAS que usa la cola.
 from .services import integraciones as _svc_integraciones  # noqa: F401
 from .services import tasks as _svc_tasks  # noqa: F401
-from worker import ops_tasks as _ops_tasks  # noqa: F401
+from worker.ops_tasks import registrar_scheduler_local
 from .services.vencimientos import recalcular_documentos
 
 log = logging.getLogger("acredittia")
-
-
-def _job_vencimientos() -> None:
-    """Cron de desarrollo. En producción lo dispara celery beat."""
-    from .database import worker_session
-    with worker_session(is_admin=True) as db:
-        recalcular_documentos(db)
 
 
 @asynccontextmanager
@@ -64,10 +61,10 @@ async def lifespan(app: FastAPI):
             reset_ctx()
 
     scheduler = None
-    if settings.queue_backend != "celery":
+    if settings.queue_backend != "celery" and settings.app_env != "test":
         from apscheduler.schedulers.background import BackgroundScheduler
         scheduler = BackgroundScheduler(timezone="America/Santiago")
-        scheduler.add_job(_job_vencimientos, "cron", hour=0, minute=30)
+        registrar_scheduler_local(scheduler)
         scheduler.start()
         log.info("Cron en proceso activo (QUEUE_BACKEND=%s)", settings.queue_backend)
 
@@ -97,10 +94,23 @@ async def limpiar_contexto(request: Request, call_next):
     `app.company_id` y devolvería vacío en lugar de datos de otra empresa.
     """
     reset_ctx()
+    inicio = time.monotonic()
+    status_code = 500
     try:
-        return await call_next(request)
+        response = await call_next(request)
+        status_code = response.status_code
+        return response
     finally:
         reset_ctx()
+        if request.url.path not in ("/health", "/health/esquema"):
+            try:
+                await anyio.to_thread.run_sync(
+                    registrar_solicitud_api,
+                    (time.monotonic() - inicio) * 1000,
+                    status_code,
+                )
+            except Exception:
+                log.warning("No se pudo registrar telemetría de API", exc_info=True)
 
 
 @app.exception_handler(HTTPException)
@@ -120,6 +130,7 @@ app.include_router(cargos.router_admin, prefix=API)
 app.include_router(suscripcion.router_admin, prefix=API)
 app.include_router(admin_ops.router, prefix=f"{API}/admin")
 app.include_router(admin_ops.router, prefix=f"{API}/admin/ops")
+app.include_router(admin_backups.router, prefix=API)
 
 # --- Empresa y catálogos --------------------------------------------------
 app.include_router(company.router, prefix=API)

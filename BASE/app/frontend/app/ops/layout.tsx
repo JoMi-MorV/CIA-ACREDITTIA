@@ -32,6 +32,8 @@ const NAV = [
     <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="6.8" cy="6.8" r="4.8" /><path d="m10.4 10.4 4 4" /></svg> },
   { href: "/admin/auditoria", clave: "nav.auditoria", icono:
     <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M3 2h8l2 2v10H3zM5 7h6M5 10h6M5 13h3" /></svg> },
+  { href: "/admin/respaldos", clave: "nav.respaldos", icono:
+    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M2 3h12v10H2zM5 3V1.5h6V3M5 8h6M5 10.5h4" /></svg> },
 ];
 
 const TITULOS: Record<string, [string, string]> = {
@@ -43,6 +45,7 @@ const TITULOS: Record<string, [string, string]> = {
   "/admin/usuarios": ["usuarios.titulo", "usuarios.crumb"],
   "/admin/sistemas": ["sistemas.titulo", "sistemas.crumb"],
   "/admin/auditoria": ["auditoria.titulo", "auditoria.crumb"],
+  "/admin/respaldos": ["respaldos.titulo", "respaldos.crumb"],
 };
 
 function Marco({ children }: { children: React.ReactNode }) {

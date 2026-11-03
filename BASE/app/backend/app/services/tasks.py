@@ -886,24 +886,32 @@ def purgar_temporales(horas: int = 24) -> int:
         base = os.path.join(st.base, "tmp")
         if not os.path.isdir(base):
             return 0
-        for raiz, _dirs, archivos in os.walk(base):
+
+        def fallar_recorrido(error):
+            raise error
+
+        errores = []
+        for raiz, _dirs, archivos in os.walk(base, onerror=fallar_recorrido):
             for nombre in archivos:
                 ruta = os.path.join(raiz, nombre)
                 try:
                     if os.path.getmtime(ruta) < limite:
                         os.remove(ruta)
                         borrados += 1
-                except OSError:
+                except FileNotFoundError:
                     continue
+                except OSError as exc:
+                    errores.append(exc)
+        if errores:
+            raise RuntimeError(
+                f"No se pudieron purgar {len(errores)} blobs temporales locales"
+            ) from errores[0]
         return borrados
 
-    try:
-        contenedor = st.client.get_container_client(settings.azure_blob_container)
-        for blob in contenedor.list_blobs(name_starts_with="tmp/"):
-            creado = getattr(blob, "creation_time", None) or blob.last_modified
-            if creado and creado.timestamp() < limite:
-                st.delete(blob.name)
-                borrados += 1
-    except Exception:  # noqa: BLE001
-        logger.exception("no se pudieron purgar los blobs temporales")
+    contenedor = st.client.get_container_client(settings.azure_blob_container)
+    for blob in contenedor.list_blobs(name_starts_with="tmp/"):
+        creado = getattr(blob, "creation_time", None) or blob.last_modified
+        if creado and creado.timestamp() < limite:
+            st.delete(blob.name)
+            borrados += 1
     return borrados

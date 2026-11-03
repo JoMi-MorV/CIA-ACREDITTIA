@@ -1,4 +1,30 @@
-# Validación funcional — actualizado al 15 de octubre de 2026, 13:55:03 -03:00
+# Validación funcional — actualizado al 3 de noviembre de 2026, 13:39 -03:00
+
+## Despliegue local de procesos programados — 3 de noviembre de 2026
+
+Se aplicó en el Compose local la migración de esquema 12, que ajusta el cron de
+`reportes_programados` a cada minuto. El comando de verificación del migrador
+confirmó versión 12. Se reconstruyeron y levantaron API, worker, Celery Beat y
+web; PostgreSQL y Redis también quedaron activos durante la comprobación.
+
+Evidencia de funcionamiento distribuido: API `/health` y la página
+`/ops/sistemas` respondieron HTTP 200; Celery Beat despachó `ops-heartbeat` y
+`ops-reportes_programados` por Redis y el worker los procesó. El historial de
+`ops_job_runs` mostró como `ok` las corridas `4477` (heartbeat, 6 componentes
+sondeados), `4476` y `4478` (reportes programados, 0 reportes pendientes).
+La base expuso la programación esperada para los seis procesos operativos y
+reportes cada minuto.
+
+Validación del código asociada: 124 pruebas aprobadas en las suites de
+operaciones, reportes, esquema, semillas demo y configuración/arranque; build
+de producción del frontend exitoso; `docker compose config --quiet` válido.
+Persistió una advertencia no bloqueante de deprecación de Starlette/httpx.
+
+Tras la comprobación, a solicitud del usuario se ejecutó `docker compose stop`.
+Al cierre de esta nota, API, worker, Beat, web, PostgreSQL y Redis están
+detenidos; los contenedores y volúmenes de datos se conservaron. Los contenedores
+antiguos de proxy y ngrok ya estaban detenidos y no se modificaron. Para
+reactivar la pila local, ejecutar `docker compose up -d` desde `BASE/app`.
 
 ## Gestión de cuentas e impersonación ADMIN — 15 de octubre de 2026, 13:55:03 -03:00
 
@@ -361,6 +387,48 @@ El esquema actual tiene un único `company_id` y `contrato_id` por usuario. La
 propuesta no autoriza por sí misma el cambio ni acceso multiempresa. No se ha
 implementado ni validado el flujo.
 
+## Respaldos y exportaciones ADMIN — 3 de noviembre de 2026
+
+Se incorporó `/ops/respaldos` para consultar la programación e historial,
+solicitar un respaldo, descargar/verificarlo, confirmar una restauración y
+exportar conjuntos administrativos. El backend usa paquetes cifrados de
+PostgreSQL y almacenamiento local, retención de ocho copias, horario semanal
+domingo 02:00 `America/Santiago`, verificación previa en una base aislada y
+copia previa antes de sustituir la base. ZIP contiene CSV+JSON de tablas
+allowlist; el PDF presenta un informe ejecutivo-operativo con KPI y tendencias
+SaaS, dashboard de cumplimiento, salud de clientes, gráficos vectoriales y
+tablas de usuarios, planes, contratos, disponibilidad, incidentes, procesos y
+actividad. Incluye la fecha/hora ISO exacta con zona `America/Santiago`; la
+generación real autenticada produjo un PDF de 16 páginas. No es una captura
+estática de pantalla. Se excluyen secretos, credenciales, claves JWE/vault y
+archivos/documentos. El job queda pausado
+hasta configurar la clave externa; reanudarlo o ejecutarlo manualmente sin
+configuración se rechaza. En producción la URL de mantenimiento para
+restauración es distinta de la URL de lectura del backup y no se entrega al
+worker.
+
+Validación ejecutada: 54/54 pruebas aprobadas en
+`test_admin_backups.py`, `test_esquema.py` y `test_ops.py`; se verificó control
+ADMIN, confirmación exacta, exportación ZIP/PDF y columnas excluidas, cifrado y
+detección de alteración, protección CSV contra fórmulas, migración/esquema y
+registro de procesos. `npm run build`, compilación de módulos Python y
+`docker compose config --quiet` finalizaron correctamente. En esta actualización
+se reconstruyeron y desplegaron los contenedores API y frontend; el build
+frontend pasó, el esquema Compose informa versión 13 y la descarga autenticada
+final del PDF retornó HTTP 200, 16 páginas y metadata con timestamp exacto
+`2026-11-03T19:03:42-03:00` (`America/Santiago`). No se pudo ejecutar pytest
+desde el Python del host porque no tiene SQLAlchemy instalado; la validación
+focalizada del PDF se hizo contra el API activo.
+
+No se ejecutó `pg_dump` real ni una restauración/swap completo; las pruebas no
+demuestran integridad del ciclo con una base y archivos reales, permisos de
+mantenimiento, recuperación ante falla de swap ni RPO/RTO. El esquema 13 ya está
+aplicado y Compose local permanece levantado. No se configuró la clave de
+cifrado, por lo que la programación se mantiene pausada y no se generó un
+respaldo real. `STORAGE_BACKEND=azure` no es compatible con esta primera
+implementación; antes de habilitarla en Azure hace falta un adaptador de
+respaldo de Blob aprobado y validado.
+
 > **BLOQUEO P0 — GO/NO-GO DE PRODUCCIÓN:** no exponer datos reales hasta que DEC-08 tenga revisión legal/contractual documentada, decisiones definitivas de retención, responsables y aprobaciones identificados, y evidencia de que los controles de privacidad y auditoría están implementados y validados. La propuesta de retención no equivale a aprobación. **Estado actual: pendiente; no hay evidencia de cierre registrada aquí.**
 
 ## Evidencia requerida para levantar el bloqueo DEC-08
@@ -549,7 +617,7 @@ navegador en esta validación.
 Al corte de esta validación (01-10-2026), Compose local estaba en modo
 demostración y esquema 9. Esta ejecución de pruebas usó una base temporal
 aislada y no aplicó migraciones ni modificaciones a la base habitual. El esquema
-requerido por la API actual es v11; la anotación anterior no describe el estado
+requerido por la API actual es v12; la anotación anterior no describe el estado
 actual de cada entorno. Estados de requisitos relacionados permanecen PAR/ISV cuando sus
 criterios integrales siguen pendientes; ver SRS v0.15.
 

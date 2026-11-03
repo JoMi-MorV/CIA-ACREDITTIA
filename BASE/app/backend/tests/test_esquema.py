@@ -14,7 +14,7 @@ from app.database import SCHEMA_VERSION, schema_version
 
 def test_version_de_esquema(esquema):
     """Los scripts de negocio y consola instalan la versión exigida por la API."""
-    assert SCHEMA_VERSION == 11
+    assert SCHEMA_VERSION == 13
     assert schema_version() == SCHEMA_VERSION
 
 
@@ -30,15 +30,15 @@ def test_esquema_futuro_exige_migrar_antes_de_arrancar(motor_admin, monkeypatch)
     with motor_admin.begin() as conn:
         conn.execute(sa.text("ALTER TABLE users ADD COLUMN IF NOT EXISTS rut text"))
         conn.execute(sa.text(
-            "INSERT INTO app_schema_migrations (version) VALUES (12) "
+            "INSERT INTO app_schema_migrations (version) VALUES (14) "
             "ON CONFLICT DO NOTHING"))
     try:
-        assert not database.schema_version_compatible(12, 11)
+        assert not database.schema_version_compatible(14, 13)
         with pytest.raises(RuntimeError):
-            database.assert_schema_version(11)
+            database.assert_schema_version(13)
     finally:
         with motor_admin.begin() as conn:
-            conn.execute(sa.text("DELETE FROM app_schema_migrations WHERE version = 12"))
+            conn.execute(sa.text("DELETE FROM app_schema_migrations WHERE version = 14"))
 
 
 def test_migracion_indices_desde_v7_repetible(motor_admin, monkeypatch):
@@ -56,8 +56,8 @@ def test_migracion_indices_desde_v7_repetible(motor_admin, monkeypatch):
         conn.execute(sa.text("DELETE FROM app_schema_migrations WHERE version >= 8"))
     try:
         assert database.schema_version() == 7
-        assert database.apply_schema() == 11
-        assert database.apply_schema() == 11
+        assert database.apply_schema() == 13
+        assert database.apply_schema() == 13
         test_foreign_keys_con_indice(motor_admin)
         with motor_admin.connect() as conn:
             assert conn.execute(sa.text("SELECT count(*) FROM ops_jobs")).scalar() == antes
@@ -74,10 +74,38 @@ def test_migracion_sesion_desde_v8(motor_admin, monkeypatch):
         conn.execute(sa.text("DELETE FROM app_schema_migrations WHERE version >= 9"))
     try:
         assert database.schema_version() == 8
-        assert database.apply_schema() == 11
-        assert database.apply_schema() == 11
+        assert database.apply_schema() == 13
+        assert database.apply_schema() == 13
         with motor_admin.connect() as conn:
             assert conn.execute(sa.text("SELECT count(*) FROM users WHERE auth_version <> 0 OR auth_version IS NULL")).scalar() == 0
+    finally:
+        database.apply_schema()
+
+
+def test_migracion_actualiza_frecuencia_del_despachador(motor_admin, monkeypatch):
+    from app import database
+
+    monkeypatch.setattr(database, "engine", motor_admin)
+    with motor_admin.begin() as conn:
+        conn.execute(sa.text(
+            "UPDATE ops_jobs SET cron_expr='5 * * * *' "
+            "WHERE clave='reportes_programados'"))
+        conn.execute(sa.text("DELETE FROM app_schema_migrations WHERE version >= 12"))
+    try:
+        assert database.schema_version() == 11
+        assert database.apply_schema() == 13
+        assert database.apply_schema() == 13
+        with motor_admin.connect() as conn:
+            cron = conn.execute(sa.text(
+                "SELECT cron_expr FROM ops_jobs "
+                "WHERE clave='reportes_programados'")).scalar_one()
+        assert cron == "* * * * *"
+        with motor_admin.connect() as conn:
+            backup_schedule, backup_active = conn.execute(sa.text(
+                "SELECT cron_expr, activo FROM ops_jobs "
+                "WHERE clave='admin_backup'")).one()
+        assert backup_schedule == "0 2 * * 0"
+        assert backup_active is False
     finally:
         database.apply_schema()
 

@@ -466,7 +466,7 @@ def run(db: Session) -> None:
     # 2. Procesos críticos programados
     jobs_data = [
         ("vencimientos", "Cálculo de vencimientos y snapshots", "programado", "30 0 * * *", "workers", 3600),
-        ("reportes_programados", "Reportes programados", "programado", "5 * * * *", "workers", 1800),
+        ("reportes_programados", "Reportes programados", "programado", "* * * * *", "workers", 1800),
         ("purga_temporales", "Purga de blobs temporales IA", "programado", "0 4 * * *", "storage", 900),
         ("ops_heartbeat", "Sondeo de componentes", "programado", "* * * * *", "api", 55),
         ("ops_disponibilidad", "Consolidación de disponibilidad", "programado", "5 0 * * *", "api", 600),
@@ -480,8 +480,7 @@ def run(db: Session) -> None:
             db.add(OpsJob(clave=clave, nombre=nombre, tipo=tipo, cron_expr=cron, componente=comp, timeout_s=timeout, activo=True))
     db.flush()
 
-    # 3. Disponibilidad diaria variada de los últimos 30 días para que las
-    # barras distingan operación normal, degradación e incidentes.
+    # 3. Datos demo rellenan solo fechas vacías; nunca pisan consolidaciones reales.
     hoy = date.today()
     disponibilidad_base = {
         "api": (99.98, 95), "db": (99.99, 70), "workers": (99.72, 240),
@@ -512,9 +511,6 @@ def run(db: Session) -> None:
             if existe_disp is None:
                 db.add(OpsDisponibilidadDiaria(componente=c_clave,
                                                fecha=d_fecha, **valores))
-            else:
-                for campo, valor in valores.items():
-                    setattr(existe_disp, campo, valor)
     db.flush()
 
     # 4. Historial de ejecuciones recientes con resultados distintos para la

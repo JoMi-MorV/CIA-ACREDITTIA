@@ -22,12 +22,21 @@ from datetime import date, datetime, timedelta, timezone
 from sqlalchemy import text
 
 from app.config_ops import COMPONENTES, ops_settings
-from app.database import worker_session
 from app.services import ops
 from app.services.jobs import tarea
 from app.services.ops_probes import SONDAS
 
 log = logging.getLogger("acredittia.ops.tasks")
+
+OPS_CRON_SCHEDULES = {
+    "vencimientos": "30 0 * * *",
+    "reportes_programados": "* * * * *",
+    "purga_temporales": "0 4 * * *",
+    "ops_disponibilidad": "5 0 * * *",
+    "metricas_snapshot": "10 2 * * *",
+    "ops_retencion": "30 3 * * 0",
+    "admin_backup": "0 2 * * 0",
+}
 
 
 # ============================================================================
@@ -162,6 +171,16 @@ def run_purga_temporales(db, **_):
     return n, f"{n} blobs temporales purgados"
 
 
+@ops.runner("admin_backup")
+def run_admin_backup(db, **_):
+    """Genera y cifra el respaldo PostgreSQL + Storage local."""
+    from app.services.backups import create_backup
+
+    backup = create_backup(reason="programado")
+    return 1, (f"Respaldo {backup['id']} creado; "
+               f"{backup['files']} archivos incluidos")
+
+
 # ============================================================================
 # Celery: tareas + beat (§8). Los ticks pasan por disparar_por_cron(), que
 # respeta la pausa (ops_jobs.activo) y evita corridas solapadas.
@@ -174,26 +193,37 @@ def registrar_ops(celery) -> None:
         rid = ops.disparar_por_cron(clave)
         return {"job": clave, "run_id": rid}
 
-    celery.conf.beat_schedule.update({
+    schedules = {
         "ops-heartbeat": {
             "task": "acredittia.ops_tick",
             "schedule": 60.0,                       # cada minuto
             "args": ("ops_heartbeat",),
-        },
-        "ops-disponibilidad": {
+        }
+    }
+    for clave, expresion in OPS_CRON_SCHEDULES.items():
+        minuto, hora, dia, mes, dia_semana = expresion.split()
+        schedules[f"ops-{clave}"] = {
             "task": "acredittia.ops_tick",
-            "schedule": crontab(hour=0, minute=5),
-            "args": ("ops_disponibilidad",),
-        },
-        "ops-metricas-snapshot": {
-            "task": "acredittia.ops_tick",
-            "schedule": crontab(hour=2, minute=10),
-            "args": ("metricas_snapshot",),
-        },
-        "ops-retencion": {
-            "task": "acredittia.ops_tick",
-            "schedule": crontab(hour=3, minute=30, day_of_week=0),
-            "args": ("ops_retencion",),
-        },
-    })
+            "schedule": crontab(
+                minute=minuto, hour=hora, day_of_month=dia,
+                month_of_year=mes, day_of_week=dia_semana),
+            "args": (clave,),
+        }
+    celery.conf.beat_schedule.update(schedules)
     log.info("Tareas de la consola interna registradas en Celery")
+
+
+def registrar_scheduler_local(scheduler) -> None:
+    """Registra los mismos procesos en APScheduler para el modo inproc local."""
+    from apscheduler.triggers.cron import CronTrigger
+
+    scheduler.add_job(
+        ops.disparar_por_cron, "interval", seconds=60,
+        args=("ops_heartbeat",), id="ops-ops_heartbeat",
+        replace_existing=True)
+    for clave, expresion in OPS_CRON_SCHEDULES.items():
+        trigger = CronTrigger.from_crontab(
+            expresion, timezone=scheduler.timezone)
+        scheduler.add_job(
+            ops.disparar_por_cron, trigger=trigger, args=(clave,),
+            id=f"ops-{clave}", replace_existing=True)

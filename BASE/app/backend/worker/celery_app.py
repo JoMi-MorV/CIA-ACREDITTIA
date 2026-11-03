@@ -21,7 +21,6 @@ import logging
 import os
 
 from celery import Celery
-from celery.schedules import crontab
 
 # El rol del worker es distinto del de la API (§7.3 del modelo de datos).
 if os.environ.get("WORKER_DATABASE_URL"):
@@ -73,63 +72,30 @@ def ejecutar_tarea(self, nombre: str, kwargs: dict | None = None):
         raise self.retry(exc=exc, countdown=30)
 
 
-# --------------------------------------------------------------------- cron
+# -------------------------------------------------------- cron compatibilidad
+def _disparar_job_operativo(clave: str) -> dict:
+    from app.services.ops import disparar_por_cron
+
+    run_id = disparar_por_cron(clave)
+    return {"job": clave, "run_id": run_id}
+
+
 @celery.task(name="acredittia.cron_diario")
 def cron_diario():
-    """00:30 America/Santiago (§10.1 de la especificación).
-
-    Recalcula `estado_calc` de los documentos con vencimiento, actualiza el
-    estado agregado de sujetos y contratos, genera alertas, escribe los
-    snapshots de cumplimiento del día y marca las credenciales expiradas.
-    """
-    from app.database import worker_session
-    from app.services.vencimientos import (
-        expirar_credenciales, escribir_snapshots, recalcular_documentos)
-
-    with worker_session(is_admin=True) as db:
-        docs = recalcular_documentos(db)
-        snaps = escribir_snapshots(db)
-        creds = expirar_credenciales(db)
-    log.info("Cron diario: %s documentos, %s snapshots, %s credenciales expiradas",
-             docs, snaps, creds)
-    return {"documentos": docs, "snapshots": snaps, "credenciales": creds}
+    """Alias compatible: toda ejecución se registra en la consola operativa."""
+    return _disparar_job_operativo("vencimientos")
 
 
 @celery.task(name="acredittia.cron_reportes_programados")
 def cron_reportes_programados():
-    """Cada hora: dispara los `reportes_programados` cuyo cron toca ahora."""
-    from app.database import worker_session
-    from app.services.programados import disparar_pendientes
-
-    with worker_session(is_admin=True) as db:
-        n = disparar_pendientes(db)
-    log.info("Reportes programados disparados: %s", n)
-    return {"disparados": n}
+    """Alias compatible para el despachador de reportes programados."""
+    return _disparar_job_operativo("reportes_programados")
 
 
 @celery.task(name="acredittia.cron_purga_temporales")
 def cron_purga_temporales():
-    """Purga los blobs temporales de extracción IA con más de 24 horas."""
-    from app.services.tasks import purgar_temporales
-    n = purgar_temporales()
-    log.info("Blobs temporales purgados: %s", n)
-    return {"purgados": n}
-
-
-celery.conf.beat_schedule = {
-    "cron-diario": {
-        "task": "acredittia.cron_diario",
-        "schedule": crontab(hour=0, minute=30),
-    },
-    "reportes-programados": {
-        "task": "acredittia.cron_reportes_programados",
-        "schedule": crontab(minute=5),          # cada hora, al minuto 5
-    },
-    "purga-temporales": {
-        "task": "acredittia.cron_purga_temporales",
-        "schedule": crontab(hour=4, minute=0),
-    },
-}
+    """Alias compatible para la purga de blobs temporales."""
+    return _disparar_job_operativo("purga_temporales")
 
 from worker.ops_tasks import registrar_ops  # noqa: E402
 

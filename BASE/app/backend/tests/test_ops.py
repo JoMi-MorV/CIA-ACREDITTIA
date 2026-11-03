@@ -221,11 +221,166 @@ def test_estado_ciego_luego_operativo(app_cliente, admin):
     r = app_cliente.get(f"{API}/admin/ops/sistemas/estado",
                         headers=admin["headers"])
     d = r.json()
-    assert d["estado_global"] == "operativo", d
-    api = next(c for c in d["componentes"] if c["clave"] == "db")
-    assert api["metricas"]["conexiones"] >= 1
-    assert api["impacto"]["alcance"] == "ninguno"
-    assert api["impacto"]["empresas_afectadas"] == []
+    assert d["estado_global"] == "degradado", d
+    componentes = {c["clave"]: c for c in d["componentes"]}
+    assert componentes["db"]["metricas"]["conexiones"] >= 1
+    assert componentes["db"]["metricas"]["version"]
+    assert componentes["api"]["metricas"]["solicitudes_5m"] > 0
+    assert componentes["workers"]["metricas"]["modo"] == "inproc"
+    assert componentes["ia"]["estado"] == "degradado"
+    assert componentes["ia"]["metricas"]["backend"] == "simulada"
+    assert all(c["impacto"]["empresas_afectadas"] == []
+               for c in componentes.values())
+
+
+def test_sonda_api_mide_latencia_y_respuestas_5xx(monkeypatch):
+    from app.services import ops_probes
+
+    ops_probes.reset_metricas_api()
+    monkeypatch.setattr(ops_probes.settings, "queue_backend", "inproc")
+    monkeypatch.setattr(ops_probes.ops_settings, "ops_api_health_url", "")
+    for duracion in range(1, 21):
+        ops_probes.registrar_solicitud_api(
+            duracion, 500 if duracion == 20 else 200)
+
+    estado, metricas = ops_probes.sonda_api(None)
+    assert estado == "degradado"
+    assert metricas["solicitudes_5m"] == 20
+    assert metricas["errores_5xx_5m"] == 1
+    assert metricas["tasa_error_5xx_pct"] == 5
+    assert metricas["latencia_p95_ms"] == 19
+    ops_probes.reset_metricas_api()
+
+
+def test_sonda_api_comparte_histograma_redis(monkeypatch):
+    from app.services import ops_probes
+
+    class FakePipeline:
+        def __init__(self, client):
+            self.client = client
+            self.comandos = []
+
+        def hincrby(self, key, campo, valor):
+            self.comandos.append(("hincrby", key, campo, valor))
+
+        def expire(self, key, segundos):
+            self.comandos.append(("expire", key, segundos))
+
+        def hgetall(self, key):
+            self.comandos.append(("hgetall", key))
+
+        def execute(self):
+            salida = []
+            for comando in self.comandos:
+                if comando[0] == "hincrby":
+                    _, key, campo, valor = comando
+                    fila = self.client.datos.setdefault(key, {})
+                    fila[campo] = int(fila.get(campo, 0)) + valor
+                    salida.append(fila[campo])
+                elif comando[0] == "hgetall":
+                    salida.append(self.client.datos.get(comando[1], {}))
+                else:
+                    salida.append(True)
+            return salida
+
+    class FakeRedis:
+        def __init__(self):
+            self.datos = {}
+
+        def pipeline(self, transaction=False):
+            return FakePipeline(self)
+
+    monkeypatch.setattr(ops_probes.settings, "queue_backend", "celery")
+    monkeypatch.setattr(ops_probes.ops_settings, "ops_api_health_url", "")
+    monkeypatch.setattr(ops_probes, "_api_redis", FakeRedis())
+    for duracion in range(1, 21):
+        ops_probes.registrar_solicitud_api(
+            duracion, 500 if duracion == 20 else 200)
+
+    estado, metricas = ops_probes.sonda_api(None)
+    assert estado == "degradado"
+    assert metricas["solicitudes_5m"] == 20
+    assert metricas["errores_5xx_5m"] == 1
+    assert metricas["latencia_p95_ms"] == 25
+    assert "histograma" in metricas["metodo_percentil"]
+
+
+def test_sonda_storage_verifica_ciclo_completo(monkeypatch):
+    from app.services import ops_probes
+
+    class StorageTemporal:
+        def __init__(self):
+            self.objetos = {}
+
+        def save(self, ruta, contenido):
+            self.objetos[ruta] = contenido
+
+        def read(self, ruta):
+            return self.objetos[ruta]
+
+        def delete(self, ruta):
+            self.objetos.pop(ruta, None)
+
+        def exists(self, ruta):
+            return ruta in self.objetos
+
+    storage = StorageTemporal()
+    monkeypatch.setattr("app.services.storage.get_storage", lambda: storage)
+    estado, metricas = ops_probes.sonda_storage(None)
+
+    assert estado == "operativo"
+    assert {"escritura_ms", "lectura_ms", "eliminacion_ms"} <= metricas.keys()
+    assert storage.objetos == {}
+
+
+def test_sonda_storage_no_ejecuta_canario_azure(monkeypatch):
+    from app.services import ops_probes
+
+    monkeypatch.setattr(ops_probes.settings, "storage_backend", "azure")
+    monkeypatch.setattr(
+        "app.services.storage.get_storage",
+        lambda: pytest.fail("No debe inicializar ni consultar Azure Blob"),
+    )
+
+    estado, metricas = ops_probes.sonda_storage(None)
+
+    assert estado == "degradado"
+    assert metricas["backend"] == "azure"
+    assert metricas["estado_datos"] == "no_verificado"
+    assert "transacciones facturables" in metricas["detalle"]
+
+
+def test_sonda_integraciones_mide_corridas_y_marca_conector_pendiente(
+    empresa_a, monkeypatch,
+):
+    from datetime import timedelta
+
+    from app.database import worker_session
+    from app.models import Integracion, SyncLog
+    from app.services.ops_probes import sonda_integraciones
+
+    ahora = datetime.now(timezone.utc)
+    with worker_session(is_admin=True) as db:
+        integracion = Integracion(
+            company_id=uuid.UUID(empresa_a["company_id"]),
+            tipo="whatsapp", estado="activa")
+        db.add(integracion)
+        db.flush()
+        db.add(SyncLog(
+            integracion_id=integracion.id,
+            company_id=integracion.company_id,
+            status="error",
+            started_at=ahora - timedelta(seconds=2),
+            finished_at=ahora,
+        ))
+        db.flush()
+        estado, metricas = sonda_integraciones(db)
+
+    assert estado == "degradado"
+    assert metricas["ejecuciones_7d"] == 1
+    assert metricas["errores_7d"] == 1
+    assert metricas["conectividad_externa_verificada"] is False
+    assert metricas["conectores_pendientes"] == ["whatsapp"]
 
 
 def test_disponibilidad_404_y_parcial(app_cliente, admin):
@@ -251,6 +406,120 @@ def test_procesos_listado(app_cliente, admin):
             "ia_revision"} <= claves
     continuo = next(x for x in r.json()["items"] if x["clave"] == "ia_revision")
     assert continuo["tipo"] == "continuo" and continuo["cron_expr"] is None
+
+
+def test_schedules_celery_y_local_cubren_todos_los_jobs():
+    from types import SimpleNamespace
+    from zoneinfo import ZoneInfo
+
+    from worker.ops_tasks import (OPS_CRON_SCHEDULES, registrar_ops,
+                                  registrar_scheduler_local)
+
+    class FakeCelery:
+        def __init__(self):
+            self.conf = SimpleNamespace(beat_schedule={})
+
+        def task(self, name):
+            return lambda fn: fn
+
+    class FakeScheduler:
+        timezone = ZoneInfo("America/Santiago")
+
+        def __init__(self):
+            self.jobs = {}
+
+        def add_job(self, fn, trigger, **kwargs):
+            self.jobs[kwargs["id"]] = (fn, trigger, kwargs)
+
+    celery = FakeCelery()
+    registrar_ops(celery)
+    schedules = celery.conf.beat_schedule
+    assert set(schedules) == {
+        "ops-heartbeat", *(f"ops-{clave}" for clave in OPS_CRON_SCHEDULES)}
+    assert schedules["ops-reportes_programados"]["args"] == (
+        "reportes_programados",)
+
+    local = FakeScheduler()
+    registrar_scheduler_local(local)
+    assert set(local.jobs) == {
+        "ops-ops_heartbeat", *(f"ops-{clave}" for clave in OPS_CRON_SCHEDULES)}
+    assert all(fn is not None for fn, _, _ in local.jobs.values())
+    assert local.jobs["ops-reportes_programados"][1].timezone == local.timezone
+
+
+def test_corrida_cron_pasa_por_historial_operativo(monkeypatch, motor_admin):
+    from sqlalchemy import text
+
+    from app.services import ops
+
+    monkeypatch.setitem(
+        ops.OPS_RUNNERS, "metricas_snapshot",
+        lambda db, **_: (1, "runner de prueba ejecutado"))
+    run_id = ops.disparar_por_cron("metricas_snapshot")
+    assert run_id is not None
+    with motor_admin.connect() as conn:
+        fila = conn.execute(text(
+            "SELECT status::text, disparo::text, mensaje "
+            "FROM ops_job_runs WHERE id=:id"), {"id": run_id}).one()
+    assert fila == ("ok", "cron", "runner de prueba ejecutado")
+
+
+def test_historial_identifica_corridas_demo_y_no_las_mide_como_reales(
+        app_cliente, admin, motor_admin):
+    from sqlalchemy import text
+
+    with motor_admin.begin() as conn:
+        run_id = conn.execute(text(
+            "INSERT INTO ops_job_runs "
+            "(job_clave, status, disparo, params, started_at, finished_at, "
+            "items_procesados, mensaje) "
+            "VALUES ('purga_temporales', 'ok', 'cron', "
+            "'{\"origen\":\"seed_demo\"}'::jsonb, now(), now(), 59, "
+            "'Ejecución de ejemplo') RETURNING id")).scalar_one()
+
+    ruta = f"{API}/admin/ops/procesos"
+    respuesta = app_cliente.get(ruta, headers=admin["headers"])
+    purga = next(item for item in respuesta.json()["items"]
+                 if item["clave"] == "purga_temporales")
+    assert purga["ultima_ejecucion"]["run_id"] == run_id
+    assert purga["ultima_ejecucion"]["es_demo"] is True
+    assert purga["tasa_exito_7d_pct"] is None
+
+    historial = app_cliente.get(
+        f"{API}/admin/ops/procesos/purga_temporales/ejecuciones",
+        headers=admin["headers"]).json()["items"]
+    assert historial[0]["es_demo"] is True
+
+
+def test_purga_temporales_expone_fallo_de_storage(monkeypatch):
+    from app.services import tasks
+
+    class Contenedor:
+        def list_blobs(self, name_starts_with):
+            raise RuntimeError("Storage no disponible")
+
+    class StorageTemporal:
+        client = type("Cliente", (), {
+            "get_container_client": lambda self, nombre: Contenedor(),
+        })()
+
+    monkeypatch.setattr(
+        "app.services.storage.get_storage", lambda: StorageTemporal())
+    with pytest.raises(RuntimeError, match="Storage no disponible"):
+        tasks.purgar_temporales()
+
+
+def test_storage_azure_no_oculta_errores_de_borrado(monkeypatch):
+    from app.services.storage import AzureBlobStorage
+
+    class Blob:
+        def delete_blob(self):
+            raise PermissionError("Borrado no autorizado")
+
+    storage = AzureBlobStorage.__new__(AzureBlobStorage)
+    monkeypatch.setattr(storage, "_blob", lambda ruta: Blob())
+    with pytest.raises(PermissionError, match="Borrado no autorizado"):
+        storage.delete("tmp/prueba")
 
 
 def test_ejecutar_manual_y_409_en_ejecucion(app_cliente, admin, motor_admin):

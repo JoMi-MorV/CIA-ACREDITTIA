@@ -1,10 +1,12 @@
 # SRS — Acredittia
 
-Especificación de requisitos de software · versión 0.60 · 15-10-2026
+Especificación de requisitos de software · versión 0.64 · 03-11-2026
 
-**Estado documental:** validado en backend con PostgreSQL temporal y lista de pendientes documental/operativa. No constituye certificación de producción ni cierre legal de DEC-08.
+**Estado documental:** validado con pruebas focalizadas en PostgreSQL temporal y ejecución local distribuida de Celery; permanecen pendientes criterios funcionales, de seguridad y aceptación integral. No constituye certificación de producción ni cierre legal de DEC-08.
 
-> **Evidencia actual validada (14-10-2026):** `python -m pytest -q` en `BASE/app/backend` ejecutó la suite completa con resultado verificado de 399 pruebas aprobadas, 0 fallidas. Queda un warning residual externo del stack FastAPI/Starlette (`starlette.testclient` + `httpx` deprecado), sin impacto funcional sobre la ejecución ni sobre los criterios de negocio.
+> **Evidencia de operación (03-11-2026):** las suites focalizadas de operaciones, reportes, esquema, semillas demo y arranque/configuración obtuvieron 124 aprobadas, 0 fallidas. El build de producción del frontend y `docker compose config --quiet` finalizaron correctamente. En Compose local, con esquema 12, se comprobó API `/health` y `/ops/sistemas` con HTTP 200; Celery Beat envió por Redis los ticks de reportes y heartbeat, el worker los procesó y el historial registró corridas `ok` 4476, 4477 y 4478. El heartbeat sondeó seis componentes. No se ejecutó la suite backend completa; permanece un warning no bloqueante de deprecación de Starlette/httpx.
+
+> **Evidencia de respaldos/exportaciones (03-11-2026):** 54 pruebas focalizadas previas aprobaron backup, migración/esquema y procesos operativos; se verificaron los builds de frontend/backend y se aplicó/verificó esquema 13 en Compose local. La ruta ADMIN de respaldos y exportaciones quedó desplegada. El PDF integral incluye KPI/series SaaS, dashboard de cumplimiento, salud de clientes, gráficos vectoriales y tablas de usuarios, contratos, disponibilidad, incidentes, procesos y actividad; una descarga autenticada real produjo HTTP 200, 16 páginas y timestamp ISO exacto en `America/Santiago` (UTC−03:00). No se ejecutó `pg_dump` ni restauración real: falta `BACKUP_ENCRYPTION_KEY`, por lo que la programación continúa pausada y la creación/restauración de respaldos está bloqueada.
 
 > **BLOQUEO P0 — NO PASAR A PRODUCCIÓN CON DATOS REALES SIN CERRAR DEC-08.** Antes de autorizar el go-live, debe existir evidencia documentada de la revisión legal y contractual de privacidad y auditoría, de la aprobación de los plazos definitivos de retención y de la asignación de responsables. La evidencia debe identificar revisor/instancia, fecha, alcance, decisiones y aprobaciones; además, debe confirmar que los controles acordados están implementados y validados. La propuesta actual de plazos no constituye aprobación. Hasta entonces, DEC-08 permanece abierta y el paso a producción con datos reales queda bloqueado.
 
@@ -154,6 +156,47 @@ La versión 0.59 registra la restauración de cambios de alcance para cualquier 
 
 La versión 0.60 corrige el alcance del cambio del 15-10-2026 13:52:46 -03:00: la conversión de cuentas `company` a `contract_admin` vuelve a estar permitida, incluida la cuenta inicial, si queda otro usuario `company` activo. Solo se bloquea cuando sería el último administrador activo (`ULTIMO_ADMINISTRADOR`). Se validó con 71 pruebas y build frontend; la invitación/aceptación de cuentas existentes sigue pendiente.
 
+La versión 0.61 (03-11-2026) actualiza RF-SAL-02 y RF-SAL-03 con la
+instrumentación de salud y la programación unificada de procesos. Celery Beat y
+APScheduler local registran los mismos procesos operativos; en Compose se
+verificó el recorrido Beat→Redis→worker, el historial y el esquema 12. La API
+expone una sonda HTTP real cuando `OPS_API_HEALTH_URL` está configurada; las
+sondas comprueban PostgreSQL, Redis/workers, Storage local y la actividad de IA
+e integraciones. No se hacen operaciones de prueba facturables en Azure Blob:
+ese Storage permanece explícitamente no verificado; el proveedor IA simulado
+tampoco acredita disponibilidad de un SaaS externo. Las pruebas de caducidad
+ante fallos, recuperación, los criterios restantes de incidentes y la
+aceptación integral siguen pendientes. Tras la comprobación, los servicios
+Compose se detuvieron a solicitud del usuario; contenedores y datos se
+conservaron. Evidencia detallada en [VALIDACION_ACTUAL.md](VALIDACION_ACTUAL.md).
+
+La versión 0.62 (03-11-2026) reevalúa las 37 fichas de requisitos con una media
+simple de cobertura estimada de código. El resultado de ese corte fue 68,6% (69%
+redondeado), frente al 66,9% (67% redondeado) de los porcentajes individuales
+anteriores. Se ajustaron siete fichas con evidencia nueva de operaciones
+distribuidas, gestión de usuarios, reportes, reproducibilidad y pruebas. El
+promedio de las ocho prioridades ADMIN es 67,5% (68% redondeado), incluyendo
+la reevaluación de Salud y operación. No hay ponderaciones acordadas: esta es
+una estimación de cobertura de implementación, no una medición objetiva de
+calidad, aceptación ni preparación productiva. Los nueve requisitos P0
+promedian 54,4% y DEC-08 mantiene bloqueada la exposición de datos reales.
+
+La versión 0.63 incorpora la primera implementación de respaldos/restauración
+ADMIN y exportaciones de consola. RNF-REC-01 sube de 0% a 50% estimado como
+cobertura de código; la aceptación de una restauración real, la configuración
+productiva y la recuperación de claves externas siguen pendientes. El avance
+total estimado se recalcula a 69,9% (2588/37); esto no significa que las
+pruebas de recuperación o el go-live estén aprobados.
+
+La versión 0.64 amplía el PDF ADMIN desde un inventario breve a un informe
+ejecutivo-operativo con gráficos y tablas de las secciones disponibles de
+consola, incluyendo el dashboard de cumplimiento y riesgo de clientes y
+métricas SaaS desglosadas por plan. Incluye fecha y hora ISO con zona
+`America/Santiago`; la validación final de exportación en Compose produjo 16
+páginas. Es una representación de los datos consultados, no una captura de
+pantalla ni una exportación completa de archivos/documentos. Se mantienen las
+exclusiones de credenciales, tokens y secretos.
+
 Se conservan los **100% declarados en el cronograma** como cierre de la actividad en su alcance y fecha originales. Se permite registrar **«Completada con observaciones»** cuando existen ajustes posteriores o evidencia por adjuntar. Esta convención de seguimiento no certifica aceptación del cliente ni convierte una funcionalidad parcial en validada.
 
 Se mantienen dos estados independientes:
@@ -176,6 +219,18 @@ Los valores de las fichas son **propuestas iniciales de gestión para revisión 
 El avance del requisito es independiente del porcentaje declarado de la actividad del cronograma. No se sustituyen ni se promedian: no hay pesos por requisito acordados. Se conservan los 100 % declarados y las celdas sin avance informado. Para cambiar una estimación, registrar fecha, responsable, valor anterior/nuevo, fundamento, evidencia y pendientes. Un defecto crítico puede bloquear la aceptación con un avance estimado alto.
 
 **Corte de estimación ADMIN — 13-10-2026:** la revisión de código y documentación asigna estimaciones funcionales de cobertura por prioridad, resumidas en `RESUMEN_REQUISITOS_ADMIN.md`. El 67% global es el promedio simple de las ocho cifras, con igual peso para cada prioridad; no se definieron ponderaciones por criticidad o esfuerzo. No es porcentaje de pruebas aprobadas, cumplimiento contractual, preparación productiva ni una medida objetiva de seguridad. La revisión no ejecutó tests ni validó visualmente las pantallas. Las estimaciones iniciales individuales de requisitos que aparecen abajo se conservan como antecedentes y no se deben combinar con este corte.
+
+**Corte de cobertura de código — 03-11-2026:** se revisaron las 37 fichas
+vigentes del SRS (29 funcionales y 8 no funcionales). Tras la versión 0.63, la
+media simple de sus estimaciones es 69,9% (`2588 / 37`), redondeada a 70%.
+Por dominio: ADMIN 69,5% (20 requisitos), portal de empresa 78,7% (9) y
+requisitos no funcionales 61,3% (8). Por prioridad técnica: P0 54,4% (9
+requisitos), P1 78,1% (22) y P2 63,3% (6). Todos los requisitos pesan igual porque no existe
+ponderación aprobada por esfuerzo, criticidad o alcance contractual. Las
+estimaciones ajustadas y su evidencia aparecen en las fichas y en
+`GAP_ANALYSIS.md`; una mayor cobertura de código no cierra criterios pendientes
+ni elimina bloqueos P0. El 67% del 13-10 sigue siendo el corte histórico de las
+ocho prioridades ADMIN, no el total del proyecto.
 
 ## 3. Actores, datos y restricciones
 
@@ -379,14 +434,14 @@ Todas las rutas de API de esta sección son relativas a `/api/v1`. Cada requisit
 
 **RF-SAL-02 — Estado operacional verificable**
 
-- **Estado técnico:** COR.
+- **Estado técnico:** ISV.
 - **Prioridad:** P1.
-- **Avance estimado:** 55 % (propuesta inicial).
-- **Fundamento del avance:** Panel, heartbeat y caducidad existen; sondas insuficientes para acreditar disponibilidad real.
+- **Avance estimado:** 70 % (reevaluado el 03-11-2026).
+- **Fundamento del avance:** se verificaron sondas HTTP, PostgreSQL, Redis/workers y Storage local, además de heartbeat real de seis componentes. No se validaron todos los escenarios de fallo/recuperación ni la disponibilidad de proveedores externos.
 - **Comportamiento esperado:** Estado operacional verificable. Cumplir las condiciones detalladas en el criterio de aceptación.
-- **Estado actual:** existen heartbeat, panel y caducidad de lectura/TTL; falta validar esa caducidad ante fallos; la sonda de API no consulta realmente la API y la de workers usa profundidad de cola. Worker/Beat no tienen healthcheck de proceso habilitado en Compose. El panel marca impacto empresarial como `indeterminado` y deja la lista de empresas afectadas vacía cuando no hay una relación verificable; estado operativo informa alcance `ninguno` (EV-09).
-- **Pendientes / mejoras:** Panel, heartbeat y caducidad existen; sondas insuficientes para acreditar disponibilidad real. Completar la validación del criterio de aceptación.
-- **Validación:** Parcial: consultar evidencia de la sección 4; no se acredita el cierre de todos los criterios.
+- **Estado actual:** la sonda HTTP consulta `OPS_API_HEALTH_URL` cuando está configurada y reporta la latencia de esa verificación; la API recoge conteos, errores 5xx y latencia de solicitudes en una ventana acotada. Las sondas comprueban PostgreSQL con `SELECT 1`, Redis y workers Celery mediante ping/inspección (no solo profundidad de cola), y Storage local mediante escritura/lectura/eliminación de un objeto canario. Azure Blob se presenta como `no_verificado` porque no se realizan operaciones potencialmente facturables. La sonda IA identifica explícitamente el modo simulado, que no equivale a disponibilidad SaaS real. En la ejecución local del 03-11 se completó el heartbeat de seis componentes.
+- **Pendientes / mejoras:** probar indisponibilidad HTTP aunque worker siga activo, pérdida de Redis/worker, vencimiento de heartbeat y recuperación; documentar/validar umbrales y clasificación de estados en esos casos. No atribuir métricas del backend IA simulado ni del Storage Azure no probado como disponibilidad externa. El impacto empresarial permanece `indeterminado` si no existe relación verificable.
+- **Validación:** parcial, ejecución distribuida local y evidencia de corridas `ok` en [VALIDACION_ACTUAL.md](VALIDACION_ACTUAL.md); falta validar los escenarios negativos y cierre integral.
 - **Criterio de aceptación:** API inaccesible se detecta aunque el worker siga funcionando; cola vacía no certifica worker activo; heartbeat vencido muestra estado no verificable o caído según regla documentada; latencia sin fuente no se presenta como medida real.
 - **Dependencia:** RNF-OPE-01; tiempos objetivo por decidir en DEC-07.
 
@@ -395,12 +450,12 @@ Todas las rutas de API de esta sección son relativas a `/api/v1`. Cada requisit
 
 - **Estado técnico:** ISV.
 - **Prioridad:** P1.
-- **Avance estimado:** 80 % (propuesta inicial).
-- **Fundamento del avance:** Catálogo, acciones e incidentes implementados; el arranque API ya registra la tarea manual y los 19 casos ADMIN pasan. Se conserva la estimación del 80 % hasta completar los recorridos pendientes.
+- **Avance estimado:** 90 % (reevaluado el 03-11-2026).
+- **Fundamento del avance:** Catálogo, acciones, historial y scheduling común implementados; se verificó Celery Beat→Redis→worker en Compose. La trazabilidad investigable y las pruebas de fallo/recuperación siguen pendientes.
 - **Comportamiento esperado:** ADMIN consulta procesos, ejecuta trabajos manuales, pausa/reanuda los permitidos y gestiona incidentes con actor y resultado trazables.
-- **Estado actual:** Corregido el registro de ops_ejecutar_run mediante importación de worker.ops_tasks en main.py. Ejecuciones inproc llegan a estado final; pasan pausa, conflicto de ejecución, snapshots y auditoría de la suite ADMIN. La pantalla de salud declara que informa alcance global del componente y no mapea afectación específica por empresa; no se confirmó que marque individualmente a todas las empresas aprobadas como afectadas.
-- **Pendientes / mejoras:** Validar el recorrido real API→Redis→worker Celery, errores de ejecución y mutaciones en navegador. Implementar trazabilidad investigable del incidente (componente/proceso, operación, timestamps, resultado/error e identificador de correlación cuando estén disponibles) y asociación verificable a empresa, respetando minimización, acceso y retención de DEC-08.
-- **Validación:** Parcial: ADMIN 19/19 en entorno aislado con inproc, 30-09-2026, EV-01. No acredita el recorrido distribuido Celery.
+- **Estado actual:** los horarios de vencimientos, reportes, purga, heartbeat, disponibilidad, snapshots y retención usan el mismo dispatcher y ciclo de historial. El despachador de reportes evalúa los cinco campos cron cada minuto en `America/Santiago`. Las corridas `seed_demo` se identifican y no participan en la tasa real de éxito. En Compose local se verificó esquema 12 y el recorrido Celery Beat→Redis→worker: reportes y heartbeat se procesaron y quedaron `ok` en el historial.
+- **Pendientes / mejoras:** probar errores y recuperación del recorrido distribuido, validar mutaciones en navegador y completar trazabilidad investigable del incidente (componente/proceso, operación, timestamps, resultado/error e identificador de correlación cuando estén disponibles) y asociación verificable a empresa, respetando minimización, acceso y retención de DEC-08.
+- **Validación:** parcial: 124 pruebas focalizadas aprobadas en las suites de operaciones, reportes, esquema, semillas demo y arranque/configuración; ejecución distribuida local verificada el 03-11-2026. No equivale a la suite backend completa ni a aceptación integral.
 - **Criterio de aceptación:** ejecución llega a estado final y conserva actor; una ejecución incompatible concurrente se rechaza; pausa requiere motivo; proceso continuo no se pausa como cron; cierre de incidente requiere resolución; acciones quedan auditadas. Cada incidencia conserva suficiente contexto para investigar qué ocurrió y dónde: componente/proceso, operación, momento, resultado/error e identificador de correlación cuando estén disponibles, sin almacenar secretos o datos personales innecesarios. El impacto se asocia a empresa solo con evidencia verificable; si no se conoce, se indica global/indeterminado y no se atribuye automáticamente a todas las empresas. Probar la consulta y correlación del historial con los permisos y retención definidos en DEC-08.
 - **Alcance:** validar modo local `inproc` y recorrido Celery por separado. La trazabilidad correlacionable y asociación empresarial verificable acordadas en DEC-06 todavía no están implementadas; hasta entonces no inferir impacto individual a partir del estado global.
 
@@ -414,10 +469,10 @@ Todas las rutas de API de esta sección son relativas a `/api/v1`. Cada requisit
 - **Registro y perfil (05-10-2026):** el registro solicita el nombre completo del usuario que crea la cuenta, distinto de la razón social, y lo persiste en `users.nombre`. La sección autenticada «Mi perfil» permite cambiar nombre, correo y contraseña; el cambio de contraseña exige la actual. Usa `/auth/me`, sin cambio de esquema.
 - **Estado técnico:** PAR.
 - **Prioridad:** P1.
-- **Avance estimado:** 65 % (propuesta inicial).
-- **Fundamento del avance:** Listado, edición, revocación y botón de reactivación implementados; se conserva 65 % hasta completar altas, navegación y validación visual.
+- **Avance estimado:** 75 % (reevaluado el 03-11-2026).
+- **Fundamento del avance:** El listado y la administración de cuentas asociadas, edición de perfil, cambios de rol/alcance, revocación/reactivación y asignación de responsables tienen implementación y pruebas focalizadas; siguen pendientes invitación y aceptación de cuentas existentes, canal de activación y navegación sobre 100 usuarios en la consola ADMIN.
 - **Comportamiento esperado:** Ciclo de vida desde la consola. Cumplir las condiciones detalladas en el criterio de aceptación.
-- **Estado actual:** botón Reactivar para cuentas revocadas, con confirmación y bloqueo durante la petición; usa PATCH administrativo con `activo=true`. Conserva rol/alcance y exige nuevo login: revocar o cambiar activo desde ADMIN incrementa `auth_version` y revoca refresh tokens. La autenticación rechaza JWT de versiones previas. `auth_version` se incorporó en la migración de esquema 9 y se probó en base temporal; la API actualmente requiere esquema 11. La versión efectiva de cada entorno debe comprobarse durante su despliegue. Se solicitan 100 usuarios sin paginación visible.
+- **Estado actual:** botón Reactivar para cuentas revocadas, con confirmación y bloqueo durante la petición; usa PATCH administrativo con `activo=true`. Conserva rol/alcance y exige nuevo login: revocar o cambiar activo desde ADMIN incrementa `auth_version` y revoca refresh tokens. La autenticación rechaza JWT de versiones previas. `auth_version` se incorporó en la migración de esquema 9 y se probó en base temporal; la API actualmente requiere esquema 12. La versión efectiva de cada entorno debe comprobarse durante su despliegue. Se solicitan 100 usuarios sin paginación visible.
 - **Pendientes / mejoras:** completar altas y navegación de más de 100 usuarios; validar reactivación en navegador y auditoría integral. Extender invalidación uniforme a los demás mecanismos de desactivación/cambio de credenciales; esta entrega cubre operaciones ADMIN. Reactivar no aprueba solicitudes pendientes o rechazadas.
 - **Validación:** Parcial: consultar evidencia de la sección 4; no se acredita el cierre de todos los criterios.
 - **Criterio de aceptación:** crear/invitar según el flujo existente, listar más de 100 usuarios sin omisiones, revocar y reactivar con autorización; no exponer contraseñas/tokens; cuentas revocadas no acceden a API ni renuevan sesión. Reutilizar reglas de empresa cuando correspondan.
@@ -602,12 +657,12 @@ Esta sección requiere profundización posterior. Las fuentes principales son EV
 
 - **Estado técnico:** ISV.
 - **Prioridad:** P1.
-- **Avance estimado:** 90 % (propuesta inicial).
+- **Avance estimado:** 93 % (reevaluado el 03-11-2026).
 - **Fundamento del avance:** API, cliente frontend y página `/reportes`; `reportes.py`, `test_reportes.py`. La interfaz integra generación, historial, descarga y programación; completar el recorrido de generación, fallos y descarga por actor.
 - **Comportamiento esperado:** Reportes/exportación.
 - **Estado actual:** La página `/reportes` ofrece los seis tipos de informe —incluida la matriz de cumplimiento— en PDF y CSV. Incluye filtro de contrato/período, historial paginado con estados, descarga de resultados listos y alta/edición/pausa/activación/eliminación de programaciones. Los PDF incluyen marca, metadatos, recuento, tabla multipágina con encabezados repetidos y pie con número de página. El build frontend pasó el 14-10-2026; no se realizó recorrido de navegador ni validación contra una API activa. CSV se serializa como formato lógico CSV y se persiste usando el enum histórico `excel` con un parámetro de formato.
 - **Pendientes / mejoras:** Validar generación, fallos, permisos y descarga por actor; probar programaciones y exportaciones en entorno con API, worker y almacenamiento configurados; comprobar PDF y CSV con datos reales de prueba y volúmenes que produzcan varias páginas.
-- **Validación:** Parcial. Build frontend aprobado el 14-10-2026. La ejecución backend más reciente no llegó a recolectar pruebas por falta de `pgserver`; el PDF tampoco se probó en runtime local porque ReportLab no está instalado. No se acredita el flujo completo.
+- **Validación:** Parcial. Build frontend aprobado y pruebas focalizadas de reportes aprobadas dentro de las 124 pruebas del 03-11-2026; además se verificó el despacho distribuido de reportes programados. No se completó el recorrido de navegador ni toda la matriz de fallos, formatos, permisos y volumen; no se acredita el flujo integral.
 - **Criterio de aceptación:** Job finaliza o informa fallo, formato y filtros correctos, descarga autorizada/temporal; administrador de contrato no obtiene reporte global de empresa.
 
 **RF-CLI-08 — Perfil y usuarios de empresa**
@@ -666,8 +721,8 @@ Esta sección requiere profundización posterior. Las fuentes principales son EV
 
 - **Estado técnico:** PAR.
 - **Prioridad:** P1.
-- **Avance estimado:** 60 % (propuesta inicial).
-- **Fundamento del avance:** Frontend tiene lockfile, pero Docker instala sin copiarlo; backend usa rangos abiertos. Build limpio debe usar dependencias fijadas y registro de versiones; evaluar aviso npm sobre Next.js antes de despliegue.
+- **Avance estimado:** 65 % (reevaluado el 03-11-2026).
+- **Fundamento del avance:** Compose construye y ejecuta los servicios, la migración v12 se aplicó/verificó y el build frontend pasó; siguen pendientes lockfile reproducible en Docker, restricciones de versiones backend y evaluación de dependencias.
 - **Comportamiento esperado:** Construcciones reproducibles y control de dependencias.
 - **Estado actual:** Frontend tiene lockfile, pero Docker instala sin copiarlo; backend usa rangos abiertos. Build limpio debe usar dependencias fijadas y registro de versiones; evaluar aviso npm sobre Next.js antes de despliegue.
 - **Pendientes / mejoras:** Frontend tiene lockfile, pero Docker instala sin copiarlo; backend usa rangos abiertos. Build limpio debe usar dependencias fijadas y registro de versiones; evaluar aviso npm sobre Next.js antes de despliegue.
@@ -678,8 +733,8 @@ Esta sección requiere profundización posterior. Las fuentes principales son EV
 
 - **Estado técnico:** PAR.
 - **Prioridad:** P1.
-- **Avance estimado:** 75 % (propuesta inicial).
-- **Fundamento del avance:** Existe suite aislada con PostgreSQL; corregidos los fallos conocidos de ADMIN, esquema y parámetros documentales. Se conserva 75 %; quedan extensiones reales y automatización.
+- **Avance estimado:** 80 % (reevaluado el 03-11-2026).
+- **Fundamento del avance:** La suite backend completa tuvo una ejecución previa aprobada y las suites focalizadas actuales obtuvieron 124/124; quedan extensiones reales, cobertura integral después de los cambios y automatización reproducible.
 - **Comportamiento esperado:** Suite actualizada, aislada y repetible; no debilitar aserciones para ocultar defectos.
 - **Estado actual:** Pruebas alineadas con esquema 8; se conservan controles de autorización y se verifica importe UF exacto. Nueva prueba de actualización 7→8 e idempotencia. Consultar resultado de regresión completa en EV-01.
 - **Pendientes / mejoras:** Validar con citext/pg_trgm reales y automatizar ejecución con versión de código, entorno e informe identificables; cubrir los escenarios funcionales todavía abiertos.
@@ -702,8 +757,8 @@ Esta sección requiere profundización posterior. Las fuentes principales son EV
 
 - **Estado técnico:** PAR.
 - **Prioridad:** P1.
-- **Avance estimado:** 60 % (propuesta inicial).
-- **Fundamento del avance:** `/health` y esquema operativos; sondas parciales. Probar caída API, worker y BD en entorno aislado; registrar recuperación.
+- **Avance estimado:** 75 % (reevaluado el 03-11-2026).
+- **Fundamento del avance:** `/health`, chequeo de esquema, sondas y recorrido distribuido de tareas se verificaron localmente; faltan escenarios de indisponibilidad, recuperación, reintentos y objetivos operativos medidos.
 - **Comportamiento esperado:** Salud distingue proceso vivo, BD disponible y capacidad de ejecutar tareas; fallos/reintentos observables.
 - **Estado actual:** `/health` y esquema operativos; sondas parciales. Probar caída API, worker y BD en entorno aislado; registrar recuperación.
 - **Pendientes / mejoras:** `/health` y esquema operativos; sondas parciales. Probar caída API, worker y BD en entorno aislado; registrar recuperación.
@@ -712,15 +767,15 @@ Esta sección requiere profundización posterior. Las fuentes principales son EV
 
 **RNF-REC-01 — Respaldo y restauración**
 
-- **Estado técnico:** PEN.
+- **Estado técnico:** ISV.
 - **Prioridad:** P1.
-- **Avance estimado:** 0 % (propuesta inicial).
-- **Fundamento del avance:** No hay componentes de recuperación acreditados; 0 % provisional del alcance documentado, revisable ante evidencia adicional.
-- **Comportamiento esperado:** Respaldo y restauración de BD, archivos y claves coordinados. Es un mecanismo operativo de recuperación, distinto de la exportación de datos solicitada por usuarios; no reemplaza autorización/auditoría de exportaciones ni el ciclo de vida histórico del contrato.
-- **Estado actual:** No se identificó implementación de respaldo/restauración ni evidencia de restauración ejecutada en la revisión. Un volumen persistente no acredita recuperación; puede existir operación externa no aportada. La decisión de preservar contratos finalizados/desactivados en el sistema no constituye un respaldo recuperable.
-- **Pendientes / mejoras:** No hay evidencia de restauración ejecutada en esta revisión. Definir RPO/RTO en DEC-07 y demostrar recuperación de un archivo cifrado/relacionado con su registro.
-- **Validación:** No realizada: no se aportó restauración ejecutada.
-- **Criterio de aceptación:** Respaldo y restauración de BD, archivos y claves coordinados. No hay evidencia de restauración ejecutada en esta revisión. Definir RPO/RTO en DEC-07 y demostrar recuperación de un archivo cifrado/relacionado con su registro.
+- **Avance estimado:** 50 % (reevaluado el 03-11-2026).
+- **Fundamento del avance:** existe código para copia cifrada de PostgreSQL y archivos locales, retención, verificación aislada y reemplazo de la base activa con copia previa; no se ha completado una restauración real.
+- **Comportamiento esperado:** Respaldar y restaurar PostgreSQL y archivos locales mediante paquetes cifrados; verificar el contenido en una base aislada antes del reemplazo, exigir confirmación explícita y crear un respaldo previo. La clave de cifrado se administra fuera del código y del paquete; las claves del vault/JWE no se incluyen y deben recuperarse por un procedimiento externo. Este mecanismo no sustituye la exportación autorizada ni el ciclo de vida histórico del contrato.
+- **Estado actual:** La API ADMIN y el proceso semanal están implementados para `STORAGE_BACKEND=local`; el job queda pausado hasta que se configure y se active, y no se admite Azure Blob en este alcance. El código exige `BACKUP_DATABASE_URL`, `BACKUP_ENCRYPTION_KEY` y herramientas PostgreSQL; en producción la restauración requiere además `BACKUP_RESTORE_DATABASE_URL` y `BACKUP_RESTORE_ROLE`. La credencial de mantenimiento se separa de la credencial de lectura que usa el worker. Build web, pruebas focalizadas y configuración Compose validados; la restauración real, los fallos/rollback y la operación productiva no están acreditados.
+- **Pendientes / mejoras:** Ejecutar pruebas backend y restauración de extremo a extremo en entorno aislado; validar permisos/roles PostgreSQL y fallos de swap/rollback; definir RPO/RTO en DEC-07; recuperar externamente las claves del vault; aprobar almacenamiento fuera del entorno antes de considerar resiliencia ante pérdida del servidor.
+- **Validación:** 54 pruebas focalizadas de backup/migración/operaciones aprobadas y build web correcto; no se ejecutó restauración real ni se aportó evidencia de recuperación extremo a extremo.
+- **Criterio de aceptación:** Restaurar base y archivos desde un paquete autenticado en una base aislada; demostrar integridad, compatibilidad de esquema, confirmación, respaldo previo y recuperación ante fallos. Las claves excluidas deben estar recuperables por un procedimiento externo probado. Acordar RPO/RTO y validar en el entorno destino.
 
 **RNF-UX-01 — Experiencia de usuario**
 
@@ -768,6 +823,7 @@ Responsables propuestos: responsable de producto para reglas de negocio; respons
 | DEC-11 | Exportación de datos de negocio y archivos. | **Decisión acordada (08-10-2026):** exportar como ZIP con un CSV por tipo de entidad bajo `/datos`; documentos bajo `/archivos/<tipo>/<id>/`, con nombre original saneado y su ruta en el CSV correspondiente, evitando duplicar físicamente un archivo relacionado con más de una entidad. Al elegir una empresa, contrato, persona o equipo, incluir relaciones asociadas por defecto y permitir desmarcar categorías. Exigir motivo en toda exportación. Entregar para descarga inmediata y no conservar el ZIP después de transferencia completada. No fijar límites funcionales de filas ni tamaño: intentar incluir todo el alcance autorizado. Ante un fallo, cancelar el paquete completo, eliminar lo incompleto, informar el error y permitir un nuevo intento manual, sin reintento automático. Excluir contraseñas, tokens, secretos y credenciales. Autorización de cada recurso y archivo y auditoría de solicitud/generación/resultado/transferencia son obligatorias. Viabilidad técnica para volúmenes grandes pendiente. No equivale a respaldo/restauración (RNF-REC-01). | Cierre de RF-AUD-03/RNF-PRV-01 y validación de exportación autorizada. |
 | DEC-12 | Ciclo de vida de contratos. | **Decisión acordada (08-10-2026):** reemplazar la eliminación física ordinaria por desactivado (pausa) y finalizado (cierre); conservar ambos en histórico de solo lectura, fuera de totales/alertas operacionales y sin nuevas alertas/notificaciones mientras estén históricos. Las fechas originales siguen corriendo. Al restaurar, recalcular estado vigente y generar solo alertas/notificaciones todavía aplicables, sin reproducir avisos atrasados individualmente. `company` gestiona contratos propios, ADMIN globalmente y `contract_admin` solo consulta el histórico dentro de su alcance. Cada transición requiere motivo y audita actor, fecha, motivo y estado anterior/nuevo. Datos y relaciones se preservan. Implementación registrada en v0.51; validación focalizada registrada en v0.52, sin equivaler a aceptación integral. | RF-CLI-02; cobertura de auditoría RF-AUD-01. |
 | DEC-13 | Solicitud de vinculación de cuenta a otra empresa. | **Propuesta pendiente de aprobación del cliente (08-10-2026):** `company` o `contract_admin` podría solicitar una transferencia justificada de una cuenta a otra empresa. La persona titular debe aceptar primero; luego ADMIN revisa y decide. Ambas etapas deben completarse dentro de los 14 días desde el envío; rechazo o expiración no cambia empresa ni permisos. Solicitud, justificación, aceptación/rechazo, expiración y decisión ADMIN se auditan. La alternativa recomendada es transferir, sin membresía simultánea: al completarse se retira el acceso de origen y no se heredan permisos de contratos en destino, que requieren asignación explícita. No implementar hasta aprobación del cliente. El esquema actual solo admite un `company_id` y un `contrato_id` por usuario; diseño, implementación y validación pendientes. | RF-CLI-08, RF-USU-02, RF-AUD-01/03 y DEC-10. |
+| DEC-14 | Respaldos y exportaciones de la consola ADMIN. | **Decisión acordada:** respaldo semanal domingo 02:00 `America/Santiago`, con retención de ocho copias; el job inicia pausado y solo puede activarse con configuración válida. Cifrar PostgreSQL y archivos de almacenamiento local con clave externa al código y al paquete. No incluir claves del vault/JWE ni secretos; su recuperación requiere un procedimiento externo. Restaurar solo tras verificación aislada, confirmación exacta y respaldo previo, con manejo explícito de fallos. Separar credencial de lectura/backup de la credencial de mantenimiento; esta última se entrega solo a API. El alcance actual admite `STORAGE_BACKEND=local`, no Azure Blob ni almacenamiento fuera del entorno. Exportar conjuntos administrativos permitidos en ZIP CSV+JSON; el PDF presenta un informe ejecutivo-operativo con gráficos vectoriales y tablas de indicadores, clientes, salud, procesos y actividad, con hora exacta `America/Santiago`; no es una captura literal ni un respaldo completo. Excluir credenciales, documentos/archivos y columnas sensibles; auditar solicitudes. La implementación inicial no acredita restauración real, RPO/RTO, recuperación ante pérdida del entorno ni preparación productiva. | RNF-REC-01, RF-AUD-03, RNF-PRV-01; DEC-07 y DEC-08. |
 
 ## 10. Escenarios mínimos de aceptación transversal
 
@@ -783,6 +839,7 @@ Responsables propuestos: responsable de producto para reglas de negocio; respons
 | AT-08 | Empresa con más de 100 usuarios y más de 25 contratos de riesgo. | Navegación completa y totales no limitados a la primera página. | RF-USU-01, RF-SAL-01. |
 | AT-09 | API detenida mientras worker sigue activo. | Monitor no presenta API operativa sin comprobarla. | RF-SAL-02. |
 | AT-10 | Build y pruebas en entorno limpio con datos desechables. | Resultado reproducible, informe por caso y ningún cambio en datos actuales. | RNF-REP-01, RNF-VAL-01. |
+| AT-11 | Crear, autenticar/verificar y restaurar en base aislada un respaldo de prueba; luego probar clave incorrecta, archivo alterado, fallo de swap y fallo de restauración de archivos. Exportar ZIP/PDF como ADMIN y probar rechazo de otro rol. | Restauración comprobada con integridad y esquema, respaldo previo disponible y rollback verificable; exportaciones auditadas y sin secretos/archivos excluidos. No tocar el entorno activo. | RNF-REC-01, RF-AUD-03, RNF-PRV-01. |
 
 ## 11. Cierre y mantenimiento
 
@@ -810,7 +867,7 @@ La siguiente tabla conserva el cierre declarado de las actividades técnicas y d
 | 23 — Alcance priorizado, aceptación y backlog | 100% declarado, con observaciones | Secciones 5–10 y paquetes PT-* | Adjuntar backlog y conformidad original. Este SRS sigue siendo borrador: no demuestra por sí mismo validación previa del cliente. |
 | 24 — Rama y estrategia de integración | 100% declarado; evidencia por adjuntar | RNF-REP-01, RNF-VAL-01 | En la copia revisada no se detectó repositorio Git. Adjuntar referencia de repositorio/rama y estrategia; no concluir que no existen en otro lugar. |
 | 28 — Migraciones PostgreSQL y ORM | 100% declarado, con observaciones | RNF-VAL-01, RNF-PER-01, RF-MET-03 | Esquema 7 observado en la validación inicial; primera entrega añade esquema 8 con cinco índices y corrige firma SQL UF, probado en base temporal. Conservar trazabilidad de la corrección y aplicar migración al actualizar el entorno habitual. |
-| 29 — Router administrativo y dependencias | 100% declarado, con observaciones | RF-MET-03, RF-SAL-03, RNF-VAL-01 | Router integrado bajo `/api/v1/admin`. Conversión UF y registro de tarea manual inproc corregidos en la primera entrega; recorrido distribuido Celery pendiente. |
+| 29 — Router administrativo y dependencias | 100% declarado, con observaciones | RF-MET-03, RF-SAL-03, RNF-VAL-01 | Router integrado bajo `/api/v1/admin`. Conversión UF y registro de tarea manual inproc corregidos; recorrido distribuido Celery/Beat se verificó localmente el 03-11-2026. Aún faltan escenarios negativos/recuperación y aceptación integral. |
 | 30 — Ruta y componentes frontend de demostración | 100% declarado; navegación actual corroborada | EV-05, RF-DAS-01, RF-EMP-01 | La entrega originalmente nombrada `/ops` evolucionó a `/admin`. Registrar la centralización como cambio posterior; conservar funciones de sistemas y procesos. |
 | 32 — Autenticación y acceso administrativo | 100% declarado para configuración básica, con observaciones | RF-SEG-01/02/03, RF-USU-02, RF-BUS-02 | Login y rechazo por rol corroborados en casos probados. RLS real, privilegio mínimo, credenciales seguras y permisos granulares permanecen parciales. Contrastar estos pendientes con el alcance original antes de clasificar ampliaciones. |
 | 36 — Pruebas iniciales y registro de incidencias | 100% declarado; ejecución actual corroborada | RNF-VAL-01, EV-01 | Se ejecutaron pruebas y documentaron fallos. Mantener la actividad terminada; corrección y regresión son trabajo posterior. La evidencia actual no acredita por sí sola las fechas del 21–23 de septiembre. |
@@ -828,8 +885,8 @@ Para las demás actividades declaradas al 100% se mantienen las siguientes obser
 | Actividades del cronograma | Relación con el SRS | Observación para actualizar avance |
 |---|---|---|
 | 39, 41, 44, 45 y 48 — Usuarios/clientes | RF-EMP-01/02, RF-USU-01/02, RF-MET-01/03 | Existe desarrollo adelantado y consultas probadas; conversión UF corregida; metadatos comerciales y validación de mutaciones pendientes. No asignar 100% conjunto por tener pantallas. |
-| 52, 54, 57, 60 y 65 — Procesos e incidentes | RF-SAL-03, RF-AUD-01, RNF-VAL-01 | Listado y ciclo de incidentes tienen implementación; ejecución manual inproc corregida y probada; recorrido Celery pendiente. Precisar también aceptación del reintento y de la vista de historial indicada en el cronograma. |
-| 64, 67, 72 y 74 — Infraestructura/monitoreo condicionado | RF-SAL-02/03, RNF-OPE-01, RF-CLI-09 | Infraestructura local y heartbeat existentes; validar sondas, detección, recuperación y cierre automático. Mantener condición de alcance y explicitar dependencia externa. |
+| 52, 54, 57, 60 y 65 — Procesos e incidentes | RF-SAL-03, RF-AUD-01, RNF-VAL-01 | Listado, ciclo de incidentes y ejecución distribuida Celery/Beat verificados en el entorno local; se unificaron los runners con APScheduler. Restan escenarios negativos, recuperación y aceptación del reintento y de la vista de historial. |
+| 64, 67, 72 y 74 — Infraestructura/monitoreo condicionado | RF-SAL-02/03, RNF-OPE-01, RF-CLI-09 | Heartbeat y sondas locales API/PostgreSQL/Redis-workers/Storage verificados. Restan fallos y recuperación, vencimiento de heartbeat y cierre automático. Azure Blob no se probó para evitar operaciones facturables; mantener explícita la dependencia externa. |
 | 71, 75, 79, 82 y 87 — Métricas comprometidas | RF-MET-01/03, RF-DAS-02 | Fuentes, reglas UF, MRR/ARR, altas/bajas/churn y snapshots requieren aceptación con datos conocidos. Mostrar el indicador no prueba su exactitud. |
 | 86 y 89 — Métricas opcionales | RF-SAL-02, RF-MET-01, DEC-03/07 | No convertir p95/Application Insights, expansión/contracción, NRR por plan o LTV/CAC en obligación por aparecer en una pantalla. Registrar decisión antes de incorporarlos a la entrega comprometida. |
 | 93, 95, 99 y 107 — Integración, seguridad, estabilización y aceptación | RF-SEG-*, RF-AUD-*, RNF-VAL-01 y criterios de sección 10 | Validación final pendiente. Los porcentajes previos no sustituyen pruebas de extremo a extremo ni conformidad del cliente. |
@@ -882,26 +939,26 @@ Para conservar un 100% con observaciones, registrar: número de actividad, alcan
 
 ## 13. Cuadro de resumen del estado general del proyecto
 
-**Corte de estados funcionales generales: 01-10-2026; línea base inicial del 29-09-2026.** Los estados siguientes resumen evidencia y pendientes, no porcentajes nuevos ni aceptación contractual. «Operativo» se limita a los recorridos comprobados; no significa listo para producción. Para la estimación más reciente de las ocho prioridades ADMIN, consultar el corte del 13-10-2026 en `RESUMEN_REQUISITOS_ADMIN.md`; no sustituye ni actualiza por sí solo los estados de aceptación de esta tabla.
+**Corte de estados funcionales generales: 03-11-2026; línea base inicial del 29-09-2026.** Los estados siguientes resumen evidencia y pendientes, no aceptación contractual. «Operativo» se limita a los recorridos comprobados; no significa listo para producción. El avance estimado de cobertura de código de las 37 fichas del SRS es 69,9% (70% redondeado); el promedio de las ocho prioridades ADMIN permanece en 67,5% (68% redondeado). Véase `GAP_ANALYSIS.md` para método, desgloses y límites.
 
 | Área | Estado general | Qué se reconoce como realizado | Observación / pendiente principal | Seguimiento |
 |---|---|---|---|---|
 | Gestión y actividades iniciales | 100% declarado hasta actividad 37, con observaciones | Cronograma e hitos reportados por el equipo. | Adjuntar actas/entregables y acuerdos; separar cierre de actividad de validación del producto. | Sección 12. |
-| Entorno local | Operativo en el alcance comprobado | Siete servicios definidos en Compose; API, esquema y frontend accesibles; build correcto. | Reproducibilidad, credenciales y configuración productiva pendientes. | RNF-REP-01, RNF-OPE-01; PT-03/09. |
+| Entorno local | Verificado en alcance acotado y luego detenido | Migración v12 aplicada/verificada; API, web, PostgreSQL y Redis respondieron; frontend compiló. Después de la validación se detuvieron los servicios a solicitud; datos conservados. | Reproducibilidad, credenciales y configuración productiva pendientes. | RNF-REP-01, RNF-OPE-01; PT-03/09. |
 | Consola ADMIN centralizada | Integrada y navegable | Ocho secciones bajo `/admin`, login y detalle agregado probados. | No se validaron todas las mutaciones ni estados de error desde navegador. | EV-01/05; PT-05/08. |
 | Dashboard global | Parcial | Contadores, acreditación, documentos y actividad. | Precisar universos y crecimiento de adopción; reservar MRR/crecimiento comercial a Métricas SaaS. | RF-DAS-01/02; PT-07. |
 | Gestión de empresas | Lectura validada; aprobación del registro verificada; rechazo/casos límite por validar | Listado y ficha agregada operativos. El registro queda pendiente y ADMIN puede aprobar; empresa y usuario inicial quedan aprobados y conservan rol `company`. | Validar rechazo, transiciones repetidas y auditoría; distinguir ficha agregada del detalle comercial, cuya conversión UF ya fue corregida. | RF-EMP-01/02, RF-MET-03; PT-02/08. |
 | Buscador global | Parcial; clasificación corregida | Búsqueda conectada a API; filtro de trabajadores antes del límite. Alcance funcional definido en DEC-02. | Permisos por categoría/detalle en servidor y validación integral pendientes; comprobar las exclusiones acordadas. | RF-BUS-01/02; PT-04/05. |
 | Métricas SaaS | Parcial; defecto UF corregido | Series e indicadores visibles. | Fecha/fuente UF, definiciones, datos demo y medición estimada de sesiones. | RF-MET-01/02/03; PT-02/07. |
 | Salud de clientes | Parcial | Riesgos de acreditación, vencimientos y alertas. | Empresas sin usuarios habilitados, totales/paginación de bandeja e impacto por empresa no determinado. | RF-SAL-01; PT-06. |
-| Sistemas, procesos e incidentes | Integrado, con correcciones pendientes | Panel, catálogo, heartbeat y funciones de incidentes; aliases `/admin` y `/admin/ops` cubiertos por regresión. El impacto por empresa no se atribuye sin vínculo verificable. | Tarea manual inproc corregida y probada; faltan recorrido Celery y sondas de salud real. | RF-SAL-02/03; PT-02/06; EV-09. |
-| Usuarios y permisos | Parcial; reactivación y cambios auditables de alcance implementados | Listado, roles/alcance, revocación, reactivación y último acceso; cambios de rol/empresa/contrato requieren confirmación y motivo, registran valores anteriores/nuevos e invalidan sesiones. | Creación global, paginación, edición consistente del alcance, validación integral del flujo y recorrido visual. La API exige el esquema actual v11; la actualización de cada entorno debe validarse por separado. | RF-USU-01/02; PT-04/05. |
+| Sistemas, procesos e incidentes | Integrado; validación distribuida local parcial | Celery Beat despachó heartbeat y reportes por Redis; el worker los procesó y el historial registró corridas `ok`. Seis componentes sondeados; impacto por empresa no se atribuye sin vínculo verificable. | Fallos/recuperación, trazabilidad integral y proveedores externos pendientes. Servicios locales detenidos tras validación. | RF-SAL-02/03; PT-02/06; VALIDACION_ACTUAL.md. |
+| Usuarios y permisos | Parcial; reactivación y cambios auditables de alcance implementados | Listado, roles/alcance, revocación, reactivación y último acceso; cambios de rol/empresa/contrato requieren confirmación y motivo, registran valores anteriores/nuevos e invalidan sesiones. | Creación global, paginación, edición consistente del alcance, validación integral del flujo y recorrido visual. El código de la API espera esquema 13; el entorno Compose verificado se detuvo con esquema 12 y no se ha actualizado con esta entrega. | RF-USU-01/02; PT-04/05. |
 | Auditoría | Parcial | Registro y vista de actividad; creación de faenas globales ahora genera evento consultable; solicitudes de descarga con motivo. | Historial de autenticación, cobertura de otros catálogos/operaciones de eliminación, valores anteriores/nuevos, PII en descripciones y lecturas de metadatos sensibles. | RF-AUD-01/02/03; PT-04; EV-09. |
 | Seguridad y aislamiento | Parcial; cierre técnico prioritario | Controles de aplicación y políticas RLS definidas. | Roles sin superusuario, mínimo privilegio, secretos y pruebas negativas; decisión de RLS contractual DEC-10. | RF-SEG-01/02/03, RNF-SEG-01; PT-03/04. |
-| Portal de empresa | Implementado en parte y con validación focalizada | Consultas y suites existentes; el ciclo contractual reversible y el bloqueo de mutaciones históricas se validaron en la regresión focalizada v0.52. En Contratos se integró panel para asignar cuentas existentes como responsables (build EV-10). | Invitaciones nuevas y activación por correo siguen incompletas; faltan recorrido visual, pruebas distribuidas asíncronas y validación de responsables reales. No implica nueva obligación de reconstrucción del portal. | RF-CLI-01 a RF-CLI-09; EV-10; PT-08. |
+| Portal de empresa | Implementado en parte y con validación focalizada | Reportes, programación, cuentas, contratos y operaciones relacionadas cuentan con suites focalizadas; el build frontend pasó. El scheduling distribuido de reportes también se verificó en Compose. | Invitaciones/activación de cuentas, recorridos visuales y aceptación integral siguen pendientes. No implica nueva obligación de reconstrucción del portal. | RF-CLI-01 a RF-CLI-09; PT-08; VALIDACION_ACTUAL.md. |
 | Datos demo para verificación | Población local ampliada | Seed idempotente cubre 16 empresas con contratos, trabajadores, equipos, documentos, alertas y eventos; unicidad de nombres y patentes comprobada. | Son datos sintéticos de demostración, no evidencia de uso real ni población productiva. | RNF-VAL-01; EV-09. |
-| Pruebas y calidad | Regresión focalizada aprobada; aceptación integral pendiente | 363 aprobadas/0 fallidas el 01-10-2026 (EV-09) y 247/247 en ocho suites pertinentes el 08-10-2026 (v0.52), ambas en PostgreSQL temporal. | No sumar ejecuciones superpuestas ni presentarlas como suite completa. Extensiones reales, automatización limpia y recorridos de navegador/Celery distribuido pendientes. | RNF-VAL-01, EV-01/09; PT-01/02/09. |
-| Documentación y alcance | En elaboración, con base disponible | SRS v0.52, plan técnico y registro de validación; registra panel de responsables, límites de invitación/activación, exportación con archivos, ciclo de vida de contratos y propuesta pendiente de vinculación entre empresas. | Incorporar fuentes/aceptación de cambios y completar trazabilidad antes de revisar compromisos. | DEC-01 a DEC-13; actividades 23/100/103/107; EV-10. |
+| Pruebas y calidad | Regresión focalizada aprobada; aceptación integral pendiente | Suite completa previa 399/399 (14-10); suites focalizadas actuales 124/124 en PostgreSQL temporal; build frontend y Compose válidos. | No sumar ejecuciones superpuestas ni presentarlas como suite completa. Extensiones reales, automatización limpia y cobertura de fallo/recuperación siguen pendientes. | RNF-VAL-01; PT-01/02/09; VALIDACION_ACTUAL.md. |
+| Documentación y alcance | Actualizada con corte de avance del 03-11 | SRS v0.64, GAP y registro de validación reflejan evidencia, cambios de alcance y pendientes. | Aprobación de decisiones y aceptación integral siguen pendientes. | DEC-01 a DEC-14; PT-01 a PT-09. |
 | Entrega productiva y aceptación final | Pendiente de validar | Base local funcional disponible. | Seguridad, regresión completa, recuperación y aceptación del cliente todavía no acreditadas. | RNF-REC-01, RNF-VAL-01; PT-09 y actividad 107. |
 
 **Avance del cronograma informado:** 26,73% real acumulado en la actividad 37. Se conserva como dato de gestión suministrado; no se interpreta como porcentaje de requisitos validados. No se modifica el 100% declarado de las actividades iniciales ni se asigna avance a celdas vacías. Las correcciones pendientes siguen abiertas en el SRS y en el plan de trabajo. La suite backend completa aprobada el 01-10-2026 acredita la regresión ejecutada, no sustituye criterios de aceptación, despliegue productivo ni aceptación del cliente.
