@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from ..config import settings
-from ..database import get_db
+from ..database import SessionLocal, get_db
 from ..deps import err, get_current_user, require_admin
 from ..models import User
 from ..models_ops import OpsJob
@@ -110,9 +110,20 @@ def restaurar(backup_id: str, body: RestoreBody,
     # las conexiones al esquema/base que será sustituido.
     db.close()
     try:
-        return restore_backup(backup_id, confirmation=confirmation)
+        result = restore_backup(backup_id, confirmation=confirmation)
     except BackupError as exc:
+        with SessionLocal() as audit_db:
+            ops.auditar(audit_db, "actualizacion",
+                        f"Restauración fallida del respaldo {backup_id}",
+                        user_id=user.id, entidad_tipo="admin_backup")
+            audit_db.commit()
         raise err(409, "RESTAURACION_FALLIDA", str(exc)) from exc
+    with SessionLocal() as audit_db:
+        ops.auditar(audit_db, "actualizacion",
+                    f"Restauración completada del respaldo {backup_id}",
+                    user_id=user.id, entidad_tipo="admin_backup")
+        audit_db.commit()
+    return result
 
 
 @router.get("/export")

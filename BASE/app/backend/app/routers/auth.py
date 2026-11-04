@@ -22,6 +22,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import secrets
+import uuid
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends
@@ -38,6 +39,7 @@ from ..security import (
     validar_rut, verify_password,
 )
 from ..services import actividad
+from ..services.email import EmailDeliveryError, enviar_email
 
 logger = logging.getLogger("acredittia.auth")
 
@@ -124,6 +126,30 @@ def _revocar_refresh(db: Session, user_id, *, excepto_hash: str | None = None) -
     return n
 
 
+def _log_auth(db: Session, tipo: str, user: User | None = None,
+              session_id: uuid.UUID | None = None, motivo: str | None = None) -> None:
+    meta = {"result": "ok" if tipo in ("auth_login_ok", "auth_logout",
+                                       "auth_refresh_rotated", "auth_session_revoked")
+            else "failed"}
+    if session_id:
+        meta["session_id"] = str(session_id)
+    if motivo:
+        meta["reason"] = motivo
+    actividad.log(
+        db, user.company_id if user else None, tipo, "auth",
+        {
+            "auth_login_ok": "Ingreso exitoso",
+            "auth_login_failed": "Ingreso rechazado",
+            "auth_logout": "Cierre de sesión",
+            "auth_refresh_rotated": "Sesión renovada",
+            "auth_refresh_failed": "Renovación rechazada",
+            "auth_session_revoked": "Sesión revocada",
+        }[tipo],
+        user_id=user.id if user else None, entidad_tipo="sesion",
+        entidad_id=session_id, metadata=meta,
+    )
+
+
 def _contrato_out(db: Session, u: User) -> dict | None:
     """Contrato asignado a un contract_admin, para que el frontend lo titule."""
     if u.role != "contract_admin" or not u.contrato_id:
@@ -207,18 +233,29 @@ def login(body: LoginIn):
     with auth_session() as db:
         user = db.scalar(select(User).where(User.email == body.email).with_for_update())
         if not user or not verify_password(body.password, user.password_hash):
+            _log_auth(db, "auth_login_failed", motivo="invalid_credentials")
+            db.commit()
             raise err(401, "CREDENCIALES_INVALIDAS", "Email o contraseña incorrectos")
         if user.status == "pending":
+            _log_auth(db, "auth_login_failed", user, motivo="account_pending")
+            db.commit()
             raise err(403, "ACCOUNT_PENDING", "Tu solicitud está en revisión")
         if user.status == "rejected":
+            _log_auth(db, "auth_login_failed", user, motivo="account_rejected")
+            db.commit()
             raise err(403, "ACCOUNT_REJECTED",
                       "Solicitud rechazada. Contacta a soporte@acredittia.cl")
         if not user.activo:
+            _log_auth(db, "auth_login_failed", user, motivo="account_inactive")
+            db.commit()
             raise err(403, "CUENTA_DESACTIVADA",
                       "Tu cuenta está desactivada. Contacta al administrador de tu empresa")
         raw, h, exp = new_refresh_token()
-        db.add(RefreshToken(user_id=user.id, token_hash=h, expires_at=exp))
+        session_id = uuid.uuid4()
+        db.add(RefreshToken(user_id=user.id, token_hash=h, expires_at=exp,
+                            session_id=session_id))
         user.last_login_at = datetime.now(timezone.utc)
+        _log_auth(db, "auth_login_ok", user, session_id)
         db.commit()
         return {
             "access_token": create_access_token(user.id, user.role, user.company_id, user.auth_version),
@@ -236,6 +273,13 @@ def refresh(body: RefreshIn):
         rt = db.scalar(select(RefreshToken).where(RefreshToken.token_hash == h))
         now = datetime.now(timezone.utc)
         if not rt or rt.revoked_at or rt.expires_at < now:
+            if rt and rt.revoked_at:
+                user = db.get(User, rt.user_id)
+                _log_auth(db, "auth_session_revoked", user, rt.session_id,
+                          motivo="refresh_reused")
+            else:
+                _log_auth(db, "auth_refresh_failed", motivo="invalid_refresh")
+            db.commit()
             raise err(401, "REFRESH_INVALIDO", "Refresh token inválido o expirado")
         user = db.scalar(select(User).where(User.id == rt.user_id).with_for_update())
         # Una revocación pudo confirmar mientras esperábamos el bloqueo del usuario.
@@ -246,7 +290,10 @@ def refresh(body: RefreshIn):
             raise err(401, "REFRESH_INVALIDO", "Usuario no válido o desactivado")
         rt.revoked_at = now  # rotación
         raw, h2, exp = new_refresh_token()
-        db.add(RefreshToken(user_id=user.id, token_hash=h2, expires_at=exp))
+        session_id = rt.session_id or uuid.uuid4()
+        db.add(RefreshToken(user_id=user.id, token_hash=h2, expires_at=exp,
+                            session_id=session_id))
+        _log_auth(db, "auth_refresh_rotated", user, session_id)
         db.commit()
         return {
             "access_token": create_access_token(user.id, user.role, user.company_id, user.auth_version),
@@ -262,6 +309,7 @@ def logout(body: RefreshIn, db: Session = Depends(get_db),
         RefreshToken.token_hash == hash_refresh(body.refresh_token)))
     if rt and rt.user_id == user.id:
         rt.revoked_at = datetime.now(timezone.utc)
+        _log_auth(db, "auth_logout", user, rt.session_id)
         db.commit()
     return {"ok": True}
 
@@ -294,11 +342,19 @@ def password_forgot(body: ForgotIn):
                 expires_at=ahora + timedelta(minutes=settings.reset_ttl_min),
             ))
             db.commit()
-            # TODO(notificaciones §17): enviar el email con el enlace
-            # {frontend}/reset?token=<raw> usando SMTP_* y `email_from`. Hoy no
-            # hay transporte configurado: sin el bloque de desarrollo de abajo el
-            # token quedaría inalcanzable.
             logger.info("token de reset emitido para user=%s", user.id)
+            try:
+                enlace = f"{settings.frontend_url.rstrip('/')}/reset?token={raw}"
+                enviar_email(
+                    user.email,
+                    "Restablece tu contraseña de Acredittia",
+                    "Solicitaste restablecer tu contraseña.\n\n"
+                    f"Abre este enlace: {enlace}\n\n"
+                    "Si no solicitaste este cambio, ignora este correo.",
+                )
+            except EmailDeliveryError:
+                logger.warning("No se pudo enviar el correo de reset al usuario %s",
+                               user.id)
             if settings.auth_dev_reset_token_enabled and settings.app_env != "production":
                 # Activación explícita y prohibida en producción, incluso si se
                 # modifica la configuración después de su validación inicial.

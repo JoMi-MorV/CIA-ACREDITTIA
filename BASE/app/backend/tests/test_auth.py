@@ -6,7 +6,7 @@ import uuid
 import pytest
 
 from app.database import worker_session
-from app.models import RefreshToken, User
+from app.models import Actividad, RefreshToken, User
 
 from tests.conftest import API, CLAVE, crear_contract_admin, rut_valido
 
@@ -133,6 +133,24 @@ def test_login_y_me(app_cliente, empresa_a):
     assert yo["company"]["id"] == empresa_a["company_id"]
     # last_login_at se fija en el login que hizo el fixture.
     assert yo["last_login_at"] is not None
+
+
+def test_login_audita_sesion_sin_guardar_credenciales(app_cliente, empresa_a):
+    with worker_session(is_admin=True) as db:
+        eventos = db.query(Actividad).filter(
+            Actividad.modulo == "auth",
+            Actividad.user_id == uuid.UUID(empresa_a["user_id"]),
+        ).all()
+        assert eventos
+        login_ok = [e for e in eventos if e.tipo == "auth_login_ok"]
+        assert login_ok
+        metadata = login_ok[-1].meta or {}
+        assert metadata["result"] == "ok"
+        assert metadata["session_id"]
+        serializado = str(metadata)
+        assert empresa_a["email"] not in serializado
+        assert CLAVE not in serializado
+        assert empresa_a["refresh_token"] not in serializado
 
 
 def test_me_sin_token(app_cliente):

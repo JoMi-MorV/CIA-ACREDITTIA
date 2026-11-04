@@ -1,7 +1,7 @@
 # Despliegue en Azure
 
 Guía operativa para la versión actual del backend. La API requiere el esquema
-**v13** (`SCHEMA_VERSION_ESPERADA=13`); aplica y verifica las migraciones antes
+**v15** (`SCHEMA_VERSION_ESPERADA=15`); aplica y verifica las migraciones antes
 de desplegar API, worker y beat con la misma imagen.
 
 Cuatro procesos, **una sola imagen**, diferenciados por el `command`. Así un
@@ -50,7 +50,7 @@ de configuración más fácil de cometer y el más difícil de notar.
 DATABASE_URL      postgresql+psycopg://acredittia_app:<pwd>@<host>:5432/acredittia?sslmode=require
 DB_RLS_ENABLED    true
 DB_APPLY_SCHEMA_ON_START  false      # lo hace el job de migración
-SCHEMA_VERSION_ESPERADA   13
+SCHEMA_VERSION_ESPERADA   15
 JWT_SECRET        <secreto de Key Vault>
 CORS_ORIGINS      https://app.acredittia.cl
 PUBLIC_BASE_URL   https://api.acredittia.cl

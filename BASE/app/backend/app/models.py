@@ -49,7 +49,9 @@ _ENUM_VALUES = {
     "alerta_estado": ("nueva", "en_progreso", "bloqueante", "informativa", "resuelta"),
     "alerta_origen": ("vencimiento", "ia", "integracion", "sistema"),
     "actividad_tipo": ("creacion", "actualizacion", "subida_documento", "asignacion",
-                       "alerta_ia", "visualizacion", "comentario"),
+                       "alerta_ia", "visualizacion", "comentario", "auth_login_ok",
+                       "auth_login_failed", "auth_logout", "auth_refresh_rotated",
+                       "auth_refresh_failed", "auth_session_revoked"),
 }
 
 
@@ -117,6 +119,7 @@ class RefreshToken(Base):
     token_hash: Mapped[str] = mapped_column(Text, unique=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    session_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
 
 
@@ -386,6 +389,21 @@ class Actividad(Base):
     entidad_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     plataforma: Mapped[str | None] = mapped_column(Text)
     meta: Mapped[dict] = mapped_column("metadata", JSONB, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+
+
+class AdminAccessGrant(Base):
+    __tablename__ = "admin_access_grants"
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    admin_user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), index=True)
+    granted_by: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+    company_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), index=True)
+    recurso_tipo: Mapped[str] = mapped_column(Text)
+    recurso_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    motivo: Mapped[str] = mapped_column(Text)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    revoked_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
 
 

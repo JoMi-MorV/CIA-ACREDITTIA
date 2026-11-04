@@ -91,8 +91,9 @@ SCHEMA_SCRIPTS = ["01_esquema.sql", "02_indices.sql", "03_triggers.sql",
                   "09_indices_consola.sql", "10_version_sesion.sql",
                   "11_ciclo_vida_contratos.sql",
                   "12_scheduling_operacional.sql",
-                  "13_respaldos_admin.sql"]
-SCHEMA_VERSION = 13
+                  "13_respaldos_admin.sql", "14_auditoria_autenticacion.sql",
+                  "15_acceso_excepcional_admin.sql"]
+SCHEMA_VERSION = 15
 MIGRATION_LOCK_ID = 918273        # clave del pg_advisory_lock de migración
 
 
@@ -343,24 +344,40 @@ def apply_schema(schema_dir: str | None = None) -> int:
                 pendientes = ["09_indices_consola.sql", "10_version_sesion.sql",
                               "11_ciclo_vida_contratos.sql",
                               "12_scheduling_operacional.sql",
-                              "13_respaldos_admin.sql"]
+                              "13_respaldos_admin.sql", "14_auditoria_autenticacion.sql",
+                              "15_acceso_excepcional_admin.sql"]
             elif actual == 8:
                 pendientes = ["10_version_sesion.sql", "11_ciclo_vida_contratos.sql",
                               "12_scheduling_operacional.sql",
-                              "13_respaldos_admin.sql"]
+                              "13_respaldos_admin.sql",
+                              "14_auditoria_autenticacion.sql",
+                              "15_acceso_excepcional_admin.sql"]
             elif actual == 9:
                 pendientes = ["11_ciclo_vida_contratos.sql",
                               "12_scheduling_operacional.sql",
-                              "13_respaldos_admin.sql"]
+                              "13_respaldos_admin.sql",
+                              "14_auditoria_autenticacion.sql",
+                              "15_acceso_excepcional_admin.sql"]
             elif actual == 10:
                 pendientes = ["11_ciclo_vida_contratos.sql",
                               "12_scheduling_operacional.sql",
-                              "13_respaldos_admin.sql"]
+                              "13_respaldos_admin.sql",
+                              "14_auditoria_autenticacion.sql",
+                              "15_acceso_excepcional_admin.sql"]
             elif actual == 11:
                 pendientes = ["12_scheduling_operacional.sql",
-                              "13_respaldos_admin.sql"]
+                              "13_respaldos_admin.sql",
+                              "14_auditoria_autenticacion.sql",
+                              "15_acceso_excepcional_admin.sql"]
             elif actual == 12:
-                pendientes = ["13_respaldos_admin.sql"]
+                pendientes = ["13_respaldos_admin.sql",
+                              "14_auditoria_autenticacion.sql",
+                              "15_acceso_excepcional_admin.sql"]
+            elif actual == 13:
+                pendientes = ["14_auditoria_autenticacion.sql",
+                              "15_acceso_excepcional_admin.sql"]
+            elif actual == 14:
+                pendientes = ["15_acceso_excepcional_admin.sql"]
             else:
                 # Por si viene de otra versión intermedia, aplicamos los scripts desde el 06 en adelante
                 pendientes = SCHEMA_SCRIPTS[4:]

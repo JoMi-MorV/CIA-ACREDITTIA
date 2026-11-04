@@ -2,21 +2,27 @@
 
 ## Estado actual verificado
 
-Actualizado al 03-11-2026, 19:40 -03:00. La pila Compose local está detenida,
-según solicitud; las validaciones focalizadas recientes se ejecutaron sin
-levantar API, frontend, worker, Beat, PostgreSQL ni Redis.
+Actualizado al 04-11-2026.
 
-- Cinco regresiones focalizadas de salud operacional pasaron: API inaccesible
-  mientras los workers siguen activos; heartbeat vencido y recuperación;
-  umbral p95; Redis caído; workers ausentes; y profundidad de cola en el
-  límite y por encima de él. `py_compile` también pasó.
-- La suite completa del backend no se ejecutó en este corte. Su `conftest`
-  necesita iniciar PostgreSQL temporal mediante Docker desde dentro del
-  contenedor, donde el cliente Docker no está disponible.
-- El avance estimado vigente es 70,2% para las 37 fichas SRS y 68,0% para las
-  ocho prioridades ADMIN. Son promedios estimados, no cumplimiento validado ni
-  preparación productiva. Los bloqueos P0 de DEC-08, permisos granulares y
-  auditoría permanecen abiertos.
+- Avance estimado vigente: **74,5%**, redondeado a 75%, para las 37 fichas SRS.
+- Backend: suite completa final con **446 pruebas aprobadas, 0 fallidas y 0 errores**.
+- Frontend: `npm ci` y `npm run build` completaron correctamente.
+- Docker Compose: `docker compose config --quiet` completó correctamente.
+- `npm audit --omit=dev` reportó **1 vulnerabilidad crítica y 2 altas** en
+  Next.js/PostCSS/source-map-js.
+- Respaldos: falta ejecutar restauración real y acreditar RPO/RTO.
+- Producción con datos reales: **NO-GO** por dependencias, DEC-08, roles reales,
+  privacidad, infraestructura y recuperación.
+
+Estos porcentajes son estimaciones de código/evidencia, no cumplimiento
+contractual ni preparación certificada para producción.
+
+Documentos vigentes:
+
+- [Estado de salud general](documentacion/ESTADO_SALUD_GENERAL.md)
+- [Cronograma de cierre de 2 semanas](documentacion/CRONOGRAMA_CIERRE_PRODUCCION.md)
+- [Validación actual](documentacion/VALIDACION_ACTUAL.md)
+- [Requisitos con menor avance](documentacion/REQUISITOS_BAJO_AVANCE.md)
 
 Evidencia histórica ejecutada el 14-10-2026:
 
@@ -25,11 +31,14 @@ Evidencia histórica ejecutada el 14-10-2026:
 - Warning restante entonces: **1**, de compatibilidad del stack
   `starlette.testclient` + `httpx` (sin impacto funcional)
 
-La producción no queda declarada como cerrada ni lista para go-live con datos reales: la revisión P0 de DEC-08, permisos granulares y auditoría siguen siendo bloqueos documentados del SRS.
+La producción no queda declarada como cerrada ni lista para go-live con datos
+reales. DEC-08, permisos granulares, auditoría integral, dependencias
+vulnerables y restauración efectiva siguen bloqueando el paso a producción.
 
 ## Requisitos y planificación
 
 - [SRS del proyecto](documentacion/SRS.md): alcance, actores, requisitos implementados y pendientes, evidencia y criterios de aceptación.
+- [Cronograma de cierre de 2 semanas](documentacion/CRONOGRAMA_CIERRE_PRODUCCION.md): actividades críticas del 5 al 19 de noviembre de 2026.
 - [Plan de trabajo](documentacion/PLAN_DE_TRABAJO.md): entregas propuestas, prioridades, dependencias y condiciones de cierre.
 - [Validación actual](documentacion/VALIDACION_ACTUAL.md): resultados y limitaciones de las comprobaciones ejecutadas.
 - [Gap Analysis](documentacion/GAP_ANALYSIS.md): brechas funcionales, operativas y de seguridad aún abiertas.
@@ -128,6 +137,14 @@ correo sigue pendiente, por lo que aún no hay un flujo productivo completo de
 recuperación. Las pruebas aisladas habilitan estas opciones explícitamente.
 Se poblaron 16 empresas demo con industrias, usuarios y antigüedades diferentes para
 que los filtros y el resumen de clientes se parezcan a un entorno de producción.
+
+Para crear el primer administrador productivo sin ejecutar semillas demo, configurar
+`INITIAL_ADMIN_EMAIL`, `INITIAL_ADMIN_PASSWORD` y opcionalmente
+`INITIAL_ADMIN_NAME`, luego ejecutar desde `BASE/app/backend`:
+
+```bash
+python scripts/provision_admin.py
+```
 Se agregaron planes Básico, Pro y Enterprise con suscripciones activas, en trial,
 morosas y canceladas, además de facturas de ejemplo con estados variados.
 Se agregaron integraciones SIGA, Workmate, Metacontratas, WebControl, WhatsApp y
@@ -709,11 +726,14 @@ su build pasó, pero los flujos aún requieren validación operativa.
   de su fila; solo queda una abierta y se descartan respuestas tardías al
   cambiar la búsqueda o selección.
 - El registro solicita el nombre del usuario inicial, separado de la razón
-    social. «Mi perfil» permite editar nombre, correo y contraseña. Al usar
-    «Ver como empresa», ADMIN ve el perfil de la empresa (nombre y correo
-    editables; RUT y estado solo lectura), no su perfil personal. También puede
-    gestionar responsables de contrato en el contexto seleccionado. La
-    invitación/aceptación de cuentas existentes sigue pendiente.
+    social. «Mi perfil» permite editar nombre, correo y contraseña tanto en
+    el portal (`/perfil`) como en la consola interna ADMIN (`/admin/perfil`).
+    Ambos usan el perfil autenticado de `/auth/me`. Al usar «Ver como empresa»,
+    ADMIN conserva su identidad administrativa, pero la vista de empresa muestra
+    el perfil de esa empresa (nombre y correo editables; RUT y estado solo lectura),
+    no el perfil personal. También puede gestionar responsables de contrato en
+    el contexto seleccionado. La invitación/aceptación de cuentas existentes
+    sigue pendiente.
 - Se acordó incorporar telemetría real del tiempo activo para Métricas SaaS:
   sesión autenticada, pestaña visible e interacción reciente, con pausa tras
   cinco minutos sin actividad y heartbeat cada 60 segundos bajo esas

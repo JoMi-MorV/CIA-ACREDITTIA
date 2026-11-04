@@ -4,7 +4,7 @@ const nextConfig = {
 	async rewrites() {
 		return [
 			{
-				source: "/admin/:view(dashboard|empresas|busqueda|salud|sistemas|auditoria|respaldos)",
+				source: "/admin/:view(dashboard|empresas|busqueda|salud|sistemas|auditoria|respaldos|perfil)",
 				destination: "/ops/:view",
 			},
 			{

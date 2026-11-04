@@ -1,7 +1,9 @@
 # Gap Analysis — Acredittia
 
 Estado: borrador de revisión
-Fecha de referencia: 03-11-2026
+Fecha de referencia: 04-11-2026
+
+Cronograma vigente: [CRONOGRAMA_CIERRE_PRODUCCION.md](CRONOGRAMA_CIERRE_PRODUCCION.md)
 
 Este documento consolida la evidencia documental y técnica del proyecto a partir de la especificación funcional ([SRS.md](./SRS.md)) y la implementación actual en código. Este corte incorpora las pruebas/build y límites de validación registrados en [VALIDACION_ACTUAL.md](./VALIDACION_ACTUAL.md); el análisis de brechas no sustituye aceptación de producto ni certificación de producción.
 
@@ -22,6 +24,14 @@ Se compararon tres fuentes:
 La evaluación no se basa solo en la existencia de pantallas. Se prioriza la evidencia de cumplimiento por criterios de aceptación, autorización, auditoría, aislamiento de datos y validación operativa.
 
 ## 3. Resumen ejecutivo
+
+**Actualización 04-11-2026 — cronograma simplificado:** se adopta un plan
+de cierre inicial de dos semanas, del 5 al 19 de noviembre de 2026. Semana 1:
+vulnerabilidades frontend, mínimo privilegio, pruebas negativas, roles PostgreSQL,
+RLS y preparación DEC-08. Semana 2: restauración real, medición de rollback/RPO/RTO,
+auditoría de consultas/exportaciones, pruebas finales y decisión GO/NO-GO. El plan
+no acelera ni presume el cierre de los bloqueadores y debe mantenerse NO-GO
+mientras falten evidencia real y aprobaciones.
 
 **Actualización 13-10-2026:** además de las mejoras recientes de interfaz y
 trazabilidad, se revisaron el código y la documentación de las ocho prioridades
@@ -50,6 +60,15 @@ integral ni disponibilidad externa de Azure Blob/IA simulada. Tras la
 verificación, Compose se detuvo por solicitud; los servicios están detenidos y
 los datos conservados.
 
+**Actualización 04-11-2026 — RF-AUD-02:** se incorporó auditoría persistente
+de autenticación para ingreso exitoso/fallido, cierre, rotación de refresh y
+uso de una sesión revocada. Cada refresh conserva un identificador aleatorio
+de sesión sin guardar el token en claro ni credenciales. La consola global
+ADMIN filtra estos eventos por módulo/tipo. El esquema pasó a v14. Se ejecutaron
+36 regresiones de autenticación y 13 de esquema. Esto eleva la implementación
+inicial, pero no acredita cierre: quedan retención DEC-08, integridad,
+revocación administrativa y pruebas de autorización/aislamiento de consulta.
+
 **Línea base de cobertura de código — SRS v0.62, 03-11-2026:** la revisión de
 las 37 fichas (29 funcionales y 8 no funcionales) estimó 68,6% (`2538 / 37`).
 Reevaluó RF-SAL-02 55→70, RF-SAL-03 80→90, RF-USU-01 65→75, RF-CLI-07 90→93,
@@ -74,9 +93,9 @@ heartbeat vencido y recuperación, umbral p95, Redis caído, ausencia de workers
 y profundidad de cola en y sobre el límite. RF-SAL-02 sube
 de 70% a 80%; queda pendiente confirmar recuperación de workers con una
 integración distribuida real y proveedores externos. Con el mismo promedio
-simple por ficha, los 37 requisitos alcanzan **70,2% (`2598 / 37`, 70%
-redondeado)**. Salud ADMIN promedia 81,7% y las ocho prioridades ADMIN
-promedian **68,0%**; ADMIN promedia 70,0%, los requisitos P1 78,5%, P0 54,4%
+simple por ficha, los 37 requisitos alcanzan **74,5% (`2758 / 37`, 75%
+redondeado)** tras RF-AUD-02, RF-SEG-02, RNF-PER-01, RF-BUS-02 y RF-CLI-09. Salud ADMIN promedia 81,7% y las ocho prioridades ADMIN
+promedian **71,1%**; ADMIN promedia 70,0%, los requisitos P1 78,5%, P0 54,4%
 y P2 63,3%. La suite estándar no pudo arrancar porque el `conftest` requiere
 Docker disponible desde dentro; los cinco casos se ejecutaron de forma aislada
 sin levantar la pila Compose, que permanece detenida.
@@ -107,17 +126,17 @@ La principal señal de riesgo es el bloqueo P0 documentado en el SRS:
 - No pasar a producción con datos reales sin cerrar DEC-08.
 - Requiere evidencia legal/contractual, aprobación de retención, responsables y controles implementados/validados.
 
-El avance reportable del conjunto de requisitos documentados es **70,2%
-(70% redondeado)**: promedio de 37 porcentajes revaluados, con igual peso para
+El avance reportable del conjunto de requisitos documentados es **74,5%
+(75% redondeado)**: promedio de 37 porcentajes revaluados, con igual peso para
 cada requisito. El 67% del 13-10 era el promedio de ocho prioridades ADMIN;
 no era el avance total del proyecto. La línea base SRS v0.62 fue 68,6%;
-RNF-REC-01 se reestimó de 0% a 50% al incorporar la implementación inicial.
+RNF-REC-01 se reestimó de 0% a 60% al incorporar restauración y medición RPO/RTO.
 Para mantener comparabilidad, el
-promedio actualizado de esas ocho prioridades es **68,0% (68% redondeado)**:
+promedio actualizado de esas ocho prioridades es **74,5% (75% redondeado)**:
 se reevalúa Salud y operación como promedio simple de RF-SAL-01 (75%),
 RF-SAL-02 (80%) y RF-SAL-03 (90%), mientras las otras siete prioridades
 conservan su estimación previa. No hay un modelo de ponderación aprobado, y
-varios requisitos siguen usando estimaciones anteriores; por ello 70,2% es una
+varios requisitos siguen usando estimaciones anteriores; por ello 74,5% es una
 estimación basada en cobertura de código/evidencia, no un porcentaje medido de
 líneas, esfuerzo o criterios aceptados. La preparación para producción real
 con datos sensibles no se puntúa: DEC-08 y otros bloqueos P0 permanecen
@@ -148,15 +167,15 @@ abiertos.
 | Métricas SaaS | Parcial | 60% | Existen métricas y series; tiempo de uso continúa estimado, y documentos procesados no equivale necesariamente a documentos únicos. Faltan definiciones y cálculos validados. |
 | Alertas y salud de clientes | Parcial | 82% | Promedio de RF-SAL-01 (75%), RF-SAL-02 (80%) y RF-SAL-03 (90%). Las regresiones cubren API inaccesible, heartbeat vencido/recuperación, umbral p95, Redis caído, worker ausente y profundidad de cola. Falta recuperación distribuida real, casos de salud de clientes y totales/paginación. Azure Blob e IA simulada no acreditan disponibilidad SaaS externa. |
 | Usuarios, roles y permisos | Parcial | 70% | La consola pagina usuarios; el portal permite convertir `company` a `contract_admin` si queda otro `company` activo. Se conserva el bloqueo de último administrador. Falta invitación/aceptación de cuentas existentes, correo de activación y validación integral de permisos. El 70% es la estimación histórica del 13-10, no recalculada en este corte. |
-| Auditoría y trazabilidad | Parcial | 50% | Algunas operaciones y descargas quedan registradas; falta cobertura uniforme de autenticación, lecturas sensibles, operaciones y transferencias de exportación. |
-| Seguridad y aislamiento de datos | Parcial; bloqueo P0 | 62% | Hay autorización, RLS y pruebas multiempresa; falta demostrar mínimo privilegio y aislamiento contractual con configuración equivalente a producción, además de acceso excepcional auditado. |
+| Auditoría y trazabilidad | Parcial | 70% | RF-AUD-02 registra autenticación, cierre, rotación y revocación con correlación de sesión. Faltan retención DEC-08, integridad, autorización integral de consulta y cobertura uniforme de lecturas y exportaciones. |
+| Seguridad y aislamiento de datos | Parcial; bloqueo P0 | 67% | Hay autorización, RLS, pruebas multiempresa y concesiones excepcionales temporales. Falta integrar esas concesiones en operaciones sensibles, validar credenciales reales y cerrar DEC-10. |
 
 ### % global estimado
 
-El promedio actualizado de las ocho prioridades ADMIN es **68,0% (68%
-redondeado)**: `(75 + 90 + 55 + 60 + 81,7 + 70 + 50 + 62) / 8`. La prioridad
+El promedio actualizado de las ocho prioridades ADMIN es **71,1% (71%
+redondeado)**: `(75 + 90 + 55 + 60 + 81,7 + 70 + 70 + 67) / 8`. La prioridad
 de Salud se obtiene del promedio de sus tres requisitos asociados. El promedio
-de los 37 requisitos es **70,2% (70% redondeado)**: `2598 / 37`. El primero es
+de los 37 requisitos es **74,5% (75% redondeado)**: `2758 / 37`. El primer valor
 comparable con el 67% histórico de ADMIN; el segundo amplía el alcance e
 incluye el portal y requisitos no funcionales. No se dispone de ponderación
 por esfuerzo o criticidad, así que ambos son estimaciones, no medidas objetivas
@@ -164,8 +183,8 @@ ni aceptación.
 
 | Indicador | Valor |
 |---|---:|
-| Avance funcional estimado de las ocho prioridades ADMIN | 68,0% (68% redondeado) |
-| Cobertura estimada de los 37 requisitos SRS | 70,2% (70% redondeado) |
+| Avance funcional estimado de las ocho prioridades ADMIN | 74,5% (75% redondeado) |
+| Cobertura estimada de los 37 requisitos SRS | 74,5% (75% redondeado) |
 | Avance total ponderado del producto Acredittia | No determinado; falta ponderación por alcance/esfuerzo aprobada |
 | Preparación para producción real con datos sensibles | No puntuada; bloqueada por brechas P0 y DEC-08 |
 | Cumplimiento ADMIN validado como conjunto | No determinado; aceptación integral pendiente |
@@ -305,11 +324,17 @@ Estado: parcial.
 Cumple parcialmente:
 - eventos de actividad y cambio;
 - auditoría de permisos y cambios de usuario;
+- ingreso exitoso/fallido, cierre, rotación y reutilización revocada de sesión;
+- correlación aleatoria de sesión sin almacenar refresh tokens ni contraseñas;
+- consulta global ADMIN con filtros de módulo/tipo y esquema v14;
 - motivo en ciertas solicitudes de acceso o URL;
 - registro de actividad global.
 
 Brechas:
-- faltan eventos de autenticación exitosa/fallida, cierre, revocación y expiración;
+- falta validar retención y integridad conforme a DEC-08;
+- falta completar pruebas de acceso autorizado y aislamiento de la consulta;
+- falta una revocación administrativa masiva y su auditoría comprobada;
+- falta acreditar expiración y rotación automática con casos terminales;
 - falta historial uniforme de descargas, exportaciones y documentos sensibles;
 - falta distinguir claramente creación, actualización, asignación, borrado, desactivación y reactivación;
 - no está cerrado el catálogo de acceso a metadatos sensibles ni la retención de auditoría.
@@ -324,6 +349,8 @@ Estado: parcialmente implementado, pero no listo para producción.
 Cumple parcialmente:
 - RLS en tablas con company_id;
 - control de acceso en backend;
+- concesiones excepcionales ADMIN persistentes, limitadas a 24 horas, con motivo, alcance, auditoría y revocación;
+- esquema v15 con RLS reforzado sobre las concesiones;
 - separación física por tenant en parte de la base de datos;
 - consideración de privilegios mínimos.
 
@@ -331,7 +358,8 @@ Brechas:
 - la base de datos del Compose sigue usando modelos de desarrollo, no una configuración de producción real;
 - falta validación con roles reales de mínimo privilegio y credenciales producidas para cada servicio;
 - faltan pruebas de denegación cruzada entre empresas y contratos;
-- no existe un flujo formal de acceso excepcional a documentos sensibles con motivo, tiempo y trazabilidad;
+- falta integrar la concesión excepcional con documentos, datos personales y exportaciones;
+- faltan pruebas de expiración, revocación, denegación cruzada y uso indebido de concesiones;
 - exportaciones y descargas siguen pendiente de cierre desde el punto de vista de control y auditoría.
 
 Riesgo:

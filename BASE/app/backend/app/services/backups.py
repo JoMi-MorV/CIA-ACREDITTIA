@@ -10,6 +10,7 @@ import struct
 import subprocess
 import tarfile
 import tempfile
+import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
@@ -341,6 +342,20 @@ def re_full_id(value: str) -> bool:
     return len(value) == 32 and all(ch in "0123456789abcdef" for ch in value)
 
 
+def backup_recovery_point(backup_id: str, *, restored_at: datetime | None = None) -> float:
+    root = _backup_root()
+    sidecar = root / f"{backup_id}.json"
+    try:
+        info = json.loads(sidecar.read_text(encoding="utf-8"))
+        created_at = datetime.fromisoformat(info["created_at"])
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        raise BackupError("No se pudo calcular el punto de recuperación del respaldo") from exc
+    if created_at.tzinfo is None:
+        created_at = created_at.replace(tzinfo=timezone.utc)
+    restored_at = restored_at or datetime.now(timezone.utc)
+    return max(0.0, (restored_at - created_at.astimezone(timezone.utc)).total_seconds())
+
+
 def verify_backup(backup_id: str) -> dict:
     path = backup_path(backup_id)
     with tempfile.TemporaryDirectory(prefix="acredittia-verify-") as workdir:
@@ -481,6 +496,8 @@ def _replace_uploads(stage: Path) -> None:
 
 def restore_backup(backup_id: str, *, confirmation: str) -> dict:
     """Verifica en una BD aislada y luego sustituye la BD activa."""
+    started_at = time.monotonic()
+    recovery_at = datetime.now(timezone.utc)
     if confirmation != f"RESTAURAR {backup_id}":
         raise BackupError("La confirmación no coincide con el identificador de respaldo")
     if settings.storage_backend != "local":
@@ -586,4 +603,6 @@ def restore_backup(backup_id: str, *, confirmation: str) -> dict:
             raise
     return {"restored_backup_id": backup_id, "pre_restore_backup_id": pre_restore["id"],
             "schema_version": settings.schema_version_esperada,
+            "rto_seconds": round(time.monotonic() - started_at, 3),
+            "rpo_seconds": round(backup_recovery_point(backup_id, restored_at=recovery_at), 3),
             "status": "restored"}

@@ -4,6 +4,23 @@ import pytest
 from tests.conftest import API, patente_valida, rut_valido
 
 
+def concesion_sensible(app_cliente, admin, categoria, empresa=None):
+    cuerpo = {
+        "admin_user_id": admin["user_id"],
+        "recurso_tipo": categoria,
+        "motivo": f"Validar permisos de {categoria} en pruebas",
+        "horas": 1,
+    }
+    if empresa:
+        cuerpo["company_id"] = empresa["company_id"]
+    respuesta = app_cliente.post(
+        f"{API}/admin/access-grants", headers=admin["headers"], json=cuerpo)
+    assert respuesta.status_code == 201, respuesta.text
+    headers = dict(admin["headers"])
+    headers["X-Access-Grant"] = respuesta.json()["id"]
+    return headers
+
+
 @pytest.mark.parametrize("consulta", [None, "", "a", "  ", " a ", "\t\n", "x" * 101])
 def test_busqueda_rechaza_consulta_invalida(app_cliente, admin, consulta):
     params = {} if consulta is None else {"q": consulta}
@@ -126,7 +143,8 @@ def test_busqueda_filtra_categoria_y_encuentra_persona_por_rut(
     assert alta.status_code == 201, alta.text
 
     respuesta = app_cliente.get(
-        f"{API}/admin/search", headers=admin["headers"],
+        f"{API}/admin/search",
+        headers=concesion_sensible(app_cliente, admin, "personal", empresa_a),
         params={"q": rut, "tipo": "trabajador"})
     assert respuesta.status_code == 200, respuesta.text
     assert [item["tipo"] for item in respuesta.json()["items"]] == ["trabajador"]
@@ -142,7 +160,8 @@ def test_busqueda_filtra_categoria_y_encuentra_persona_por_rut(
 def test_busqueda_usuario_por_rut_sin_exponerlo_en_resultado(
         app_cliente, admin, empresa_a):
     respuesta = app_cliente.get(
-        f"{API}/admin/search", headers=admin["headers"],
+        f"{API}/admin/search",
+        headers=concesion_sensible(app_cliente, admin, "usuario", empresa_a),
         params={"q": empresa_a["email"], "tipo": "usuario"})
     assert respuesta.status_code == 200, respuesta.text
     usuario = next(item for item in respuesta.json()["items"]
@@ -160,7 +179,9 @@ def test_busqueda_aplica_filtros_especificos_en_servidor(
     })
     assert persona.status_code == 201, persona.text
 
-    respuesta = app_cliente.get(f"{API}/admin/search", headers=admin["headers"],
+    respuesta = app_cliente.get(f"{API}/admin/search",
+                                headers=concesion_sensible(
+                                    app_cliente, admin, "personal", empresa_a),
                                 params={"q": "Conductora", "tipo": "trabajador",
                                         "cargo": "OperadoraFiltro",
                                         "empresa": empresa_a["nombre"],
@@ -169,13 +190,15 @@ def test_busqueda_aplica_filtros_especificos_en_servidor(
     assert [item["id"] for item in respuesta.json()["items"]] == [persona.json()["id"]]
 
     con_busqueda_vacia = app_cliente.get(
-        f"{API}/admin/search", headers=admin["headers"],
+        f"{API}/admin/search",
+        headers=concesion_sensible(app_cliente, admin, "personal", empresa_a),
         params={"tipo": "trabajador", "cargo": "OperadoraFiltro"})
     assert con_busqueda_vacia.status_code == 200, con_busqueda_vacia.text
     assert [item["id"] for item in con_busqueda_vacia.json()["items"]] == [persona.json()["id"]]
 
     sin_conductor = app_cliente.get(
-        f"{API}/admin/search", headers=admin["headers"],
+        f"{API}/admin/search",
+        headers=concesion_sensible(app_cliente, admin, "personal", empresa_a),
         params={"q": "Conductora", "tipo": "trabajador", "conductor": "false"})
     assert all(item["id"] != persona.json()["id"]
                for item in sin_conductor.json()["items"])
@@ -273,7 +296,8 @@ def test_busqueda_filtra_empresas_contratos_y_usuarios(
     assert [item["id"] for item in contrato.json()["items"]] == [contrato_a["id"]]
 
     usuario = app_cliente.get(
-        f"{API}/admin/search", headers=admin["headers"],
+        f"{API}/admin/search",
+        headers=concesion_sensible(app_cliente, admin, "usuario", empresa_a),
         params={"q": "UsuarioFiltroGlobal", "tipo": "usuario",
                 "empresa": "EmpresaFiltroGlobal", "rol": "company",
                 "estado": "approved"})
@@ -286,6 +310,16 @@ def test_busqueda_rechaza_empresa_y_sin_sesion(app_cliente, empresa_a):
                                      params={"q": "Transportes"})
         assert respuesta.status_code == estado
         assert "items" not in respuesta.json()
+
+
+@pytest.mark.parametrize("categoria", ["trabajador", "usuario"])
+def test_busqueda_sensible_exige_concesion(app_cliente, admin, categoria):
+    respuesta = app_cliente.get(
+        f"{API}/admin/search", headers=admin["headers"],
+        params={"q": "Persona", "tipo": categoria})
+
+    assert respuesta.status_code == 403
+    assert respuesta.json()["error"]["code"] == "PERMISO_INFORMACION_REQUERIDO"
 
 
 @pytest.mark.parametrize("tabla,categoria", [
@@ -305,7 +339,9 @@ def test_busqueda_informa_recorte_por_categoria(
             conexion.execute(text(f"UPDATE {tabla} SET nombre = :nombre WHERE id = :id"),
                              {"nombre": f"RecorteBusqueda {numero}", "id": identificador})
     for limite in (1, 2, 25):
-        respuesta = app_cliente.get(f"{API}/admin/search", headers=admin["headers"],
+        headers = (concesion_sensible(app_cliente, admin, "usuario")
+                   if categoria == "usuario" else admin["headers"])
+        respuesta = app_cliente.get(f"{API}/admin/search", headers=headers,
                                      params={"q": "RecorteBusqueda", "limite": limite,
                                              "tipo": categoria})
         assert respuesta.status_code == 200, respuesta.text

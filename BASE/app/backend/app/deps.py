@@ -3,14 +3,16 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 
 from fastapi import Depends, Header, HTTPException, Query
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import select
 
 from .config import settings
 from .database import auth_session, get_db, set_ctx
-from .models import User
+from .models import AdminAccessGrant, User
 from .security import decode_access_token
 
 oauth2 = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login", auto_error=False)
@@ -61,6 +63,58 @@ def require_admin(user: User = Depends(get_current_user)) -> User:
     if user.role != "admin":
         raise err(403, "SOLO_ADMIN", "Requiere rol administrador")
     return user
+
+
+def autorizar_categoria_informacion(
+    categoria: str,
+    grant_id: uuid.UUID | None,
+    user: User,
+    db: Session,
+) -> AdminAccessGrant | None:
+    """Autoriza categorías ordinarias y exige concesión para información sensible."""
+    if categoria not in {
+        "empresa", "contrato", "trabajador", "equipo", "usuario",
+    }:
+        raise err(400, "CATEGORIA_INVALIDA", "Categoría de información no reconocida")
+
+    if categoria not in {"trabajador", "usuario"}:
+        return None
+    if grant_id is None:
+        raise err(403, "PERMISO_INFORMACION_REQUERIDO",
+                  "Esta categoría requiere una concesión excepcional vigente")
+
+    grant = db.get(AdminAccessGrant, grant_id)
+    recurso = grant.recurso_tipo if grant else ""
+    ahora = datetime.now(timezone.utc)
+    if (
+        not grant
+        or grant.admin_user_id != user.id
+        or grant.revoked_at is not None
+        or grant.expires_at <= ahora
+        or recurso not in {categoria, "personal"}
+        or recurso == "personal" and categoria != "trabajador"
+    ):
+        raise err(403, "PERMISO_INFORMACION_INVALIDO",
+                  "La concesión no autoriza esta categoría o ya no está vigente")
+    return grant
+
+
+def require_sensitive_admin(
+    grant_id: uuid.UUID | None = Header(default=None, alias="X-Access-Grant"),
+    user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> AdminAccessGrant:
+    """Exige una concesión vigente y específica para operar datos sensibles."""
+    if grant_id is None:
+        raise err(403, "ACCESO_EXCEPCIONAL_REQUERIDO",
+                  "Esta operación requiere una concesión excepcional vigente")
+    grant = db.get(AdminAccessGrant, grant_id)
+    now = datetime.now(timezone.utc)
+    if (not grant or grant.admin_user_id != user.id
+            or grant.revoked_at is not None or grant.expires_at <= now):
+        raise err(403, "CONCESION_INVALIDA",
+                  "La concesión no existe, fue revocada o expiró")
+    return grant
 
 
 def require_company(user: User = Depends(get_current_user)) -> User:

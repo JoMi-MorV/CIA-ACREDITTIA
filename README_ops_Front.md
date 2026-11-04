@@ -53,7 +53,8 @@ indicadores, con:
 | `app/ops/accesos/page.tsx` | Vista Usuarios: roles, empresa/contrato, revocación/reactivación y cambios confirmados con motivo |
 | `app/ops/sistemas/page.tsx` | Vista Sistemas: banner, componentes, uptime 90d, incidentes (resolver), procesos (ejecutar/pausar) |
 | `app/ops/indicadores/page.tsx` | Vista Indicadores: KPIs confidenciales, MRR 6/12/24M, flujo, churn vs. objetivo, desglose por plan |
-| `lib/ops/auth.ts` | Sesión JWT (access en memoria + refresh en localStorage) |
+| `app/ops/perfil/page.tsx` | Perfil personal de ADMIN: nombre, correo, contraseña y validación de la sesión actual |
+| `lib/ops/auth.ts` | Sesión JWT compartida con el portal (access en memoria + refresh en localStorage) |
 | `lib/ops/api.ts` | Cliente HTTP de /admin/ops con refresh transparente en 401 |
 | `lib/ops/mock.ts` | Modo demo: datos y mutaciones en memoria |
 | `lib/ops/i18n.tsx` | Diccionarios es/en/pt + formatos Intl |
@@ -85,18 +86,23 @@ indicadores, con:
 Estas instrucciones describen el montaje original de la consola, no una
 instalación independiente de la versión integrada actual. Para ejecutar el
 proyecto vigente, sigue las instrucciones del [README principal](README.md).
-No se debe asumir que `/ops` es una ruta pública disponible.
+No se debe asumir que `/ops` es una ruta pública disponible; las rutas visibles
+se sirven bajo `/admin` mediante rewrites de Next.js. La consola incluye
+`/admin/perfil` para que el ADMIN gestione los datos personales y la contraseña
+de su propia cuenta mediante `GET/PATCH /api/v1/auth/me`. Esta ruta es
+independiente del perfil de empresa mostrado durante la impersonación.
 En modo demo el login acepta `admin@acredittia.cl` con cualquier contraseña.
 
 ## Notas de diseño que conviene conocer
 
-* La consola es un route group **independiente del portal** (`/ops` no usa el
-  Sidebar ni la sesión de `lib/api.ts`): las claves de almacenamiento son
-  propias (`ops_refresh`, `ops_user`, `ops_theme`, `ops_lang`) y no chocan con
-  las del portal en el mismo navegador.
+* La consola integrada comparte la sesión del portal: utiliza las claves
+  `acredittia_token`, `acredittia_refresh` y `acredittia_user` de `lib/api.ts`.
+  Mantiene su propio tema y idioma, pero no establece una segunda identidad de
+  usuario ni un segundo flujo de login.
 * La guardia del layout hace el canje refresh→access **antes** de renderizar
   las vistas; si el refresh no es válido o el rol no es admin, siempre termina
-  en `/ops/login`.
+  en `/login`. Las rutas públicas usan `/admin` y los archivos internos viven
+  bajo `/ops`, resueltos mediante rewrites de Next.js.
 * Los umbrales visuales (colores de estado, pills) son los mismos del
   wireframe aprobado; la paleta categórica azul/cobre/teal/violeta está
   validada para daltonismo en ambos temas.

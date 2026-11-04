@@ -1,4 +1,125 @@
-# Validación funcional — actualizado al 3 de noviembre de 2026, 19:40 -03:00
+# Validación funcional — actualizado al 4 de noviembre de 2026
+
+## Estado general de salud — 4 de noviembre de 2026
+
+| Área | Estado | Evidencia |
+|---|---|---|
+| Backend | VERDE | Suite completa: **446 aprobadas, 0 fallidas, 0 errores**. |
+| Frontend | VERDE | `npm ci` y `npm run build` completaron correctamente. |
+| Docker Compose | VERDE | `docker compose config --quiet` completó correctamente. |
+| Dependencias frontend | AMARILLO/ROJO | `npm audit --omit=dev`: 1 crítica, 2 altas; afectan a Next.js/PostCSS/source-map-js. |
+| Respaldo real | ROJO | No existe restauración real ni medición aprobada de RPO/RTO. |
+| Producción con datos reales | ROJO | Sigue bloqueada por DEC-08, infraestructura, roles reales, privacidad aprobada y recuperación completa. |
+
+La ejecución inicial completa tuvo una falla transitoria en datos demo. Al
+aislar el caso, `test_demo_seed.py` pasó y una segunda ejecución completa de
+446 pruebas terminó sin fallos ni errores. La compilación frontend quedó verde
+después de restaurar dependencias con `npm ci`.
+
+La auditoría frontend debe cerrar antes de producción: Next.js directo y los
+paquetes transitivos PostCSS/source-map-js presentan 3 vulnerabilidades por
+dependencias reportadas por npm, incluida una crítica.
+
+Informe detallado: [Estado de salud general](ESTADO_SALUD_GENERAL.md).
+Plan de cierre: [Cronograma simplificado de 2 semanas](CRONOGRAMA_CIERRE_PRODUCCION.md).
+
+## RNF-PRV-01 — privacidad — 4 de noviembre de 2026
+
+La persistencia de actividad ahora minimiza texto libre antes de guardar
+descripciones y metadatos. El control redacta correos electrónicos, RUT,
+contraseñas, tokens, secretos, credenciales y referencias asociadas.
+
+Evidencia ejecutada:
+- `tests/test_privacidad.py`: **1 aprobada, 0 fallidas**.
+
+RNF-PRV-01 pasa de 50% a 60%. Sigue pendiente la aprobación de DEC-08,
+la ejecución de retención, el tratamiento de registros históricos y la
+auditoría de consultas/exportaciones.
+
+## RF-CLI-09 — integraciones y notificaciones — 4 de noviembre de 2026
+
+Crear, rotar y eliminar integraciones ahora almacena sus credenciales mediante
+el backend de secretos configurado (`Azure Key Vault` o almacenamiento local
+de desarrollo). La API ya no acepta una integración con credenciales vacías ni
+persiste el secreto recibido en PostgreSQL.
+
+El restablecimiento de contraseña usa SMTP cuando está configurado y genera el
+enlace con la URL pública del frontend. Un fallo de entrega queda registrado
+sin devolver ni registrar el token al cliente.
+
+Evidencia ejecutada:
+- Flujos focalizados de integraciones y restablecimiento: **7 aprobadas, 0 fallidas**.
+
+RF-CLI-09 permanece parcial hasta acreditar conectores externos reales,
+WhatsApp, sincronización distribuida, reintentos, idempotencia y credenciales
+de producción.
+
+## RF-BUS-02 — permisos por información — 4 de noviembre de 2026
+
+El buscador administrativo distingue categorías ordinarias de información
+sensible. Las consultas directas de trabajadores y usuarios requieren
+`X-Access-Grant` y verifican que la concesión pertenezca al ADMIN, esté activa,
+no haya sido revocada y corresponda a `personal`, `usuario` o la categoría
+solicitada. Las concesiones pueden acotar los resultados por empresa y recurso.
+
+Evidencia ejecutada:
+- `tests/test_admin_busqueda.py`: **27 aprobadas, 0 fallidas**.
+
+RF-BUS-02 permanece parcial hasta aplicar esta matriz de permisos a vistas de
+detalle, exportaciones y operaciones sensibles asociadas.
+
+## RNF-PER-01 — rendimiento — 4 de noviembre de 2026
+
+Se añadió `scripts/performance_baseline.py`, un ejecutor concurrente que mide
+latencia media, p95, máximo, errores y códigos HTTP por ruta. El límite p95
+predeterminado coincide con `ops_umbral_p95_ms = 800`.
+
+Evidencia ejecutada:
+- `tests/test_performance_baseline.py`: **2 aprobadas, 0 fallidas**.
+- Prueba focalizada del umbral API en `tests/test_ops.py`: **1 aprobada, 0 fallidas**.
+
+RNF-PER-01 permanece parcial: la línea base automatizada no sustituye una
+medición con población, concurrencia y escenarios representativos aprobados.
+
+## RF-SEG-02 — mínimo privilegio y acceso excepcional — 4 de noviembre de 2026
+
+Se añadió el esquema v15 para concesiones excepcionales de ADMIN. Cada
+concesión queda limitada por usuario ADMIN, empresa, tipo/id de recurso,
+motivo de 12-240 caracteres y vigencia máxima de 24 horas. La creación y la
+revocación generan actividad de auditoría.
+
+La tabla tiene RLS reforzado, índices para sus claves de relación y permisos
+SQL explícitos para el rol de aplicación. La dependencia de backend rechaza
+operaciones sensibles sin concesión vigente.
+
+Evidencia ejecutada:
+- backend Python compilado sin errores.
+- `tests/test_esquema.py`: **13 aprobadas, 0 fallidas**.
+
+RF-SEG-02 permanece parcial: falta incorporar la dependencia en los endpoints
+sensibles concretos, ejecutar pruebas negativas de cada recurso y validar
+credenciales reales de mínimo privilegio en el despliegue.
+
+## RF-AUD-02 — auditoría de autenticación — 4 de noviembre de 2026
+
+Se implementó sobre la actividad global la emisión de:
+`auth_login_ok`, `auth_login_failed`, `auth_logout`,
+`auth_refresh_rotated`, `auth_refresh_failed` y `auth_session_revoked`.
+
+Cada refresh conserva un identificador aleatorio de sesión para correlacionar
+los eventos sin guardar el token en claro, su hash de autenticación ni la
+contraseña. La consola ADMIN filtra los eventos por módulo y tipo. El modelo de
+datos pasó a esquema v14.
+
+Evidencia ejecutada:
+- `tests/test_auth.py`: **36 aprobadas, 0 fallidas**.
+- `tests/test_esquema.py`: **13 aprobadas, 0 fallidas**.
+
+La implementación cubre ingreso, fallo, cierre, rotación y reutilización de una
+sesión revocada. No se considera cerrado RF-AUD-02 hasta demostrar retención,
+integridad, revocación administrativa, acceso autorizado y aislamiento de la
+consulta conforme a DEC-08. Las pruebas no modifican por sí mismas las
+decisiones legales o contractuales pendientes.
 
 ## Regresiones focalizadas de salud operacional — 3 de noviembre de 2026, 19:40 -03:00
 
@@ -425,6 +546,14 @@ configuración se rechaza. En producción la URL de mantenimiento para
 restauración es distinta de la URL de lectura del backup y no se entrega al
 worker.
 
+Actualización RNF-REC-01 — 4 de noviembre de 2026:
+- `test_admin_backups.py`: **11 aprobadas, 0 fallidas**.
+- Se incorporó trazabilidad de inicio, éxito y fallo de restauración.
+- La restauración devuelve `rpo_seconds` y `rto_seconds` medidos.
+- La prueba de cálculo de RPO verificó el tiempo transcurrido desde la creación del respaldo.
+- RNF-REC-01 pasa de 50% a 60%.
+- Queda pendiente el ciclo real con `pg_dump`/`pg_restore`, objetivos RPO/RTO acordados y validación de rollback.
+
 Validación ejecutada: 54/54 pruebas aprobadas en
 `test_admin_backups.py`, `test_esquema.py` y `test_ops.py`; se verificó control
 ADMIN, confirmación exacta, exportación ZIP/PDF y columnas excluidas, cifrado y
@@ -524,6 +653,20 @@ incluida la categoría y descripción de ese evento. No documenta una prueba
 manual del rechazo, motivo, aprobación/rechazo repetidos, ni una regresión
 automatizada específica de estos casos; se mantienen como pendientes de
 validación.
+
+## Perfil personal de ADMIN en la consola interna — 4 de noviembre de 2026
+
+Se añadió la ruta pública `/admin/perfil`, implementada internamente en
+`app/ops/perfil/page.tsx`. La vista permite consultar y editar nombre/correo,
+y cambiar la contraseña verificando la contraseña actual. Usa `GET /api/v1/auth/me`
+y `PATCH /api/v1/auth/me`; el cliente compartido conserva el refresh token de la
+sesión. El sidebar de la consola enlaza la sección y Next.js la resuelve mediante
+el rewrite `/admin/perfil` → `/ops/perfil`.
+
+Validación ejecutada: la imagen Docker del frontend se compiló con el constructor
+clásico y completó el build, la comprobación de tipos y la generación de 27 rutas;
+`/ops/perfil` apareció en la salida de Next. El contenedor fue recreado y
+`GET http://localhost:3000/admin/perfil` respondió HTTP 200.
 
 ## Perfil bloqueado durante «Ver como empresa» — 5 de octubre de 2026
 
@@ -761,6 +904,13 @@ entorno. No sumar ejecuciones. Quedan roles BD reales, secretos/cuentas existent
 aprovisionamiento inicial y correo de recuperación; RF-SEG-03 sigue PAR.
 El Compose y ngrok siguen como demo. El modo producción exige configuración
 explícita; no se detecta automáticamente que una instalación sea pública.
+
+Actualización RF-SEG-03 — 4 de noviembre de 2026:
+- `test_config_seguridad.py`: **19 aprobadas, 0 fallidas**.
+- Se añadió aprovisionamiento separado del primer ADMIN mediante variables de entorno.
+- El script exige contraseña fuerte, crea o reconoce un usuario sin sembrar datos demo y rechaza semillas demo en producción.
+- RF-SEG-03 pasa de 50% a 65%.
+- Quedan pendientes el aprovisionamiento y despliegue real, la separación de roles PostgreSQL y la validación de correo productivo.
 
 ## Cuarta entrega: límites visibles del buscador — 30 de septiembre de 2026
 

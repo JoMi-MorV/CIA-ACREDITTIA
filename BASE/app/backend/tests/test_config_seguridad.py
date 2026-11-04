@@ -50,6 +50,13 @@ def test_opciones_demo_desactivadas_por_defecto(monkeypatch):
     assert config.auth_dev_reset_token_enabled is False
 
 
+def test_aprovisionamiento_no_acepta_contrasena_weak(monkeypatch):
+    from scripts.provision_admin import provision_admin
+    monkeypatch.setattr(settings, "seed_demo_enabled", False)
+    with pytest.raises(RuntimeError, match="contraseña debe tener"):
+        provision_admin(email="admin@empresa.cl", password="corta", name="Admin")
+
+
 @pytest.mark.parametrize("entorno,habilitado", [("development", False), ("production", True)])
 def test_semillas_no_acceden_a_bd_sin_autorizacion(monkeypatch, entorno, habilitado):
     monkeypatch.setattr(settings, "app_env", entorno)

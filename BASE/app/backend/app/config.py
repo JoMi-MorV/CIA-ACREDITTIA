@@ -32,7 +32,7 @@ class Settings(BaseSettings):
     # las políticas de RLS del modelo de datos se apliquen de verdad.
     database_url: str = "postgresql+psycopg://postgres:postgres@localhost:5432/acredittia"
     schema_dir: str = "/schema"
-    schema_version_esperada: int = 13       # respaldo local programado
+    schema_version_esperada: int = 15       # concesiones excepcionales ADMIN
     db_apply_schema_on_start: bool = False  # en Azure lo hace el job de migración
     db_rls_enabled: bool = True             # fija app.company_id/is_admin/user_id por request
 
@@ -79,6 +79,7 @@ class Settings(BaseSettings):
     smtp_user: str = ""
     smtp_password: str = ""
     email_from: str = "no-reply@acredittia.cl"
+    frontend_url: str = "http://localhost:3000"
     whatsapp_token: str = ""
     whatsapp_phone_id: str = ""
     whatsapp_verify_token: str = ""

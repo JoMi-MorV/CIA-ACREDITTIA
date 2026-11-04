@@ -146,7 +146,11 @@ Al salir del modo empresa, el administrador vuelve a la consola interna.
 
 La consola interna ofrece **Dashboard global**, **Sistemas y procesos**,
 **Indicadores**, **Gestión de empresas**, **Usuarios**, **Salud de clientes**,
-**Buscador global** y **Auditoría**. Sus funciones incluyen:
+**Buscador global**, **Auditoría**, **Respaldos y exportación** y **Mi perfil**.
+Su acceso público es `/admin/perfil`; la implementación interna vive en
+`app/ops/perfil/page.tsx`. El perfil permite actualizar nombre, correo y
+contraseña de la cuenta administrativa mediante `/auth/me`, sin cambiar rol,
+empresa ni contrato asignado. Sus funciones incluyen:
 
 - Gestión de empresas (cuentas), con industria, estado de cuenta, actividad y
   detalle expandible de usuarios/perfiles y responsables por contrato.

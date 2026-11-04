@@ -40,6 +40,7 @@ from ..models import Integracion, SyncLog, User
 from ..services import actividad
 from ..services.integraciones import (CONECTORES, FRECUENCIAS,
                                       INTEGRACION_TIPOS, NOMBRE_PLATAFORMA,
+                                      CredencialError, get_secret_writer,
                                       ref_de_integracion)
 from ..services.jobs import enqueue
 
@@ -318,13 +319,14 @@ def crear(body: IntegracionIn, db: Session = Depends(get_db),
     ref = ref_de_integracion(cid, tipo)
     tiene_credenciales = bool(body.credenciales)
 
-    # TODO(§16): escribir el secreto en el vault antes de guardar la fila:
-    #   from ..services.integraciones import get_secret_writer
-    #   get_secret_writer().write(ref, body.credenciales)
-    # y si la escritura falla, responder 503 sin crear la integración (mismo
-    # criterio que `routers/plataformas.py::_cifrar`: nunca hay plan B en claro).
-    # Hasta entonces el secreto se descarta aquí mismo y la integración queda
-    # registrada pero sin credenciales utilizables.
+    if not tiene_credenciales:
+        raise err(422, "CREDENCIALES_AUSENTES",
+                  "Debe proporcionar las credenciales de la integración")
+    try:
+        get_secret_writer().write(ref, body.credenciales)
+    except (CredencialError, OSError) as exc:
+        raise err(503, "VAULT_INDISPONIBLE",
+                  "No se pudieron almacenar las credenciales") from exc
     body.credenciales = {}
 
     integ = Integracion(company_id=cid, tipo=tipo, estado="desconectada",
@@ -346,9 +348,7 @@ def crear(body: IntegracionIn, db: Session = Depends(get_db),
 
     salida = _out(integ)
     salida["credenciales_pendientes"] = tiene_credenciales
-    salida["nota"] = ("Las credenciales no se almacenan en la base de datos. La "
-                      "escritura en Key Vault está pendiente, así que la "
-                      "integración queda registrada y desconectada.")
+    salida["nota"] = "Las credenciales se almacenaron fuera de la base de datos."
     return salida
 
 
@@ -400,10 +400,12 @@ def editar(integracion_id: uuid.UUID, body: IntegracionPatch,
         # La referencia es determinista sobre (company_id, tipo): una rotación
         # reescribe el mismo secreto y no deja versiones huérfanas.
         integ.credenciales_ref = ref_de_integracion(cid, integ.tipo)
-        # TODO(§16): rotar el secreto en el vault:
-        #   get_secret_writer().write(integ.credenciales_ref, data["credenciales"])
-        # Mientras siga pendiente, el valor recibido se descarta aquí y no se
-        # escribe en ninguna columna.
+        try:
+            get_secret_writer().write(integ.credenciales_ref,
+                                      data["credenciales"])
+        except (CredencialError, OSError) as exc:
+            raise err(503, "VAULT_INDISPONIBLE",
+                      "No se pudieron almacenar las credenciales nuevas") from exc
         data["credenciales"] = {}
         cambios.append("credenciales")
 
@@ -445,11 +447,12 @@ def eliminar(integracion_id: uuid.UUID, db: Session = Depends(get_db),
         SyncLog.company_id == cid,
         SyncLog.integracion_id == integ.id)) or 0
 
-    # TODO(§16): borrar el secreto del vault antes de perder la referencia:
-    #   get_secret_writer().delete(ref)
-    # Un fallo del vault aquí no debe impedir la desconexión (la integración
-    # deja de usarse igual), pero sí tiene que quedar en el log para poder
-    # limpiar el secreto huérfano a mano.
+    try:
+        if ref:
+            get_secret_writer().delete(ref)
+    except (CredencialError, OSError) as exc:
+        logger.error("No se pudo borrar el secreto huérfano ref=%s: %s",
+                     ref, type(exc).__name__)
     integ.credenciales_ref = None
     db.delete(integ)
 

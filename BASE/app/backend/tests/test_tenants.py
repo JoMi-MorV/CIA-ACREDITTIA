@@ -130,7 +130,8 @@ def _crear_evento(c, emp, contrato) -> str:
 
 def _crear_integracion(c, emp, contrato) -> str:
     r = c.post(f"{API}/integraciones", headers=emp["headers"],
-               json={"tipo": "siga", "config": {}})
+               json={"tipo": "siga", "config": {},
+                     "credenciales": {"usuario": "fixture", "clave": "fixture"}})
     assert r.status_code == 201, r.text
     return r.json()["id"]
 

@@ -90,6 +90,22 @@
 .ops-btn:disabled { opacity: .5; }
 .ops-btn-primary { background: var(--ops-accent); color: #fff; }
 .ops-btn-primary:hover { opacity: .9; }
+.ops-alert {
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 13px;
+}
+.ops-alert-error {
+  border-color: var(--ops-crit);
+  color: var(--ops-crit);
+  background: var(--ops-crit-soft);
+}
+.ops-alert-ok {
+  border-color: var(--ops-ok);
+  color: var(--ops-ok);
+  background: var(--ops-ok-soft);
+}
 .ops-btn-ghost {
   border: 1px solid var(--ops-line); color: var(--ops-mut);
   background: var(--ops-card);

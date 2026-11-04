@@ -107,6 +107,17 @@ def test_encryption_roundtrip_and_tamper_detection(tmp_path, monkeypatch):
         backups._decrypt(encrypted, tmp_path / "damaged.bin")
 
 
+def test_recuperacion_calcula_rpo_desde_fecha_del_respaldo(tmp_path, monkeypatch):
+    monkeypatch.setattr(backups.settings, "backups_dir", str(tmp_path))
+    created = backups.datetime(2026, 11, 4, 3, 0, tzinfo=backups.timezone.utc)
+    (tmp_path / "0123456789abcdef0123456789abcdef.json").write_text(
+        backups.json.dumps({"created_at": created.isoformat()}), encoding="utf-8")
+
+    restored = backups.datetime(2026, 11, 4, 4, 0, tzinfo=backups.timezone.utc)
+    assert backups.backup_recovery_point(
+        "0123456789abcdef0123456789abcdef", restored_at=restored) == 3600.0
+
+
 def test_produccion_no_reutiliza_url_de_lectura_para_restaurar(monkeypatch):
     monkeypatch.setattr(backups.settings, "app_env", "production")
     monkeypatch.setattr(backups.settings, "backup_database_url",

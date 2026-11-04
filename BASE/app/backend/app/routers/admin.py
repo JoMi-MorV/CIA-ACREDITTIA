@@ -22,7 +22,7 @@ import logging
 import uuid
 from datetime import date, datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Header, Query
 from pydantic import BaseModel, Field
 from sqlalchemy import String, and_, cast, delete, func, or_, select, text, update
 from sqlalchemy.exc import DBAPIError, IntegrityError
@@ -30,8 +30,10 @@ from sqlalchemy.orm import Session
 
 from ..config import TIPOS_EQUIPO
 from ..database import get_db
-from ..deps import (Page, aplicar_orden, err, paginacion, require_admin, sobre)
+from ..deps import (Page, aplicar_orden, autorizar_categoria_informacion, err,
+                    paginacion, require_admin, sobre)
 from ..models import (
+    AdminAccessGrant,
     Actividad, Alerta, Company, CompanyFaenaPlataforma, Contrato,
     ContratoPlantillaOverride, ContratoPlataforma, ContratoRequisito,
     CumplimientoSnapshot, DocEjemplo, Documento, DocumentoArchivo,
@@ -56,6 +58,55 @@ router = APIRouter(prefix="/admin", tags=["admin"],
 AMBITOS: tuple[str, ...] = ("empresa", "personal", "equipo", "emsipor")
 TIPOS_REQ: tuple[str, ...] = ("legal", "medico", "capacitacion", "certificacion",
                               "tecnico", "medioambiental")
+
+
+class AccessGrantIn(BaseModel):
+    admin_user_id: uuid.UUID
+    company_id: uuid.UUID | None = None
+    recurso_tipo: str = Field(min_length=2, max_length=80)
+    recurso_id: uuid.UUID | None = None
+    motivo: str = Field(min_length=12, max_length=240)
+    horas: int = Field(default=1, ge=1, le=24)
+
+
+@router.post("/access-grants", status_code=201)
+def create_access_grant(body: AccessGrantIn, admin: User = Depends(require_admin),
+                        db: Session = Depends(get_db)):
+    target = db.get(User, body.admin_user_id)
+    if not target or target.role != "admin":
+        raise err(422, "ADMIN_INVALIDO", "La concesión solo puede asignarse a un ADMIN activo")
+    if not target.activo:
+        raise err(422, "ADMIN_INACTIVO", "El ADMIN objetivo está desactivado")
+    grant = AdminAccessGrant(
+        admin_user_id=target.id, granted_by=admin.id, company_id=body.company_id,
+        recurso_tipo=body.recurso_tipo.strip(), recurso_id=body.recurso_id,
+        motivo=body.motivo.strip(), expires_at=datetime.now(timezone.utc) + timedelta(hours=body.horas),
+    )
+    db.add(grant)
+    actividad.log(db, body.company_id, "creacion", "admin_acceso",
+                  "Concesión excepcional ADMIN creada", user_id=admin.id,
+                  entidad_tipo="concesion_acceso", entidad_id=grant.id,
+                  metadata={"motivo": grant.motivo, "recurso_tipo": grant.recurso_tipo,
+                            "recurso_id": str(grant.recurso_id) if grant.recurso_id else None,
+                            "expires_at": grant.expires_at.isoformat(), "target_admin": str(target.id)})
+    db.commit()
+    return {"id": str(grant.id), "expires_at": grant.expires_at.isoformat()}
+
+
+@router.post("/access-grants/{grant_id}/revoke")
+def revoke_access_grant(grant_id: uuid.UUID, admin: User = Depends(require_admin),
+                        db: Session = Depends(get_db)):
+    grant = db.get(AdminAccessGrant, grant_id)
+    if not grant or grant.revoked_at is not None:
+        raise err(404, "CONCESION_NO_ENCONTRADA", "La concesión no existe o ya fue revocada")
+    grant.revoked_at = datetime.now(timezone.utc)
+    grant.revoked_by = admin.id
+    actividad.log(db, grant.company_id, "actualizacion", "admin_acceso",
+                  "Concesión excepcional ADMIN revocada", user_id=admin.id,
+                  entidad_tipo="concesion_acceso", entidad_id=grant.id,
+                  metadata={"motivo": grant.motivo, "revoked_by": str(admin.id)})
+    db.commit()
+    return {"ok": True}
 ESTADOS_CALC: tuple[str, ...] = ("ok", "porvenc", "venc", "falta")
 
 ORDEN_COMPANIES = {"nombre", "rut", "status", "created_at", "updated_at"}
@@ -355,6 +406,9 @@ def global_search(q: str | None = Query(None, max_length=100),
                   anio: int | None = Query(None, ge=1900, le=2100),
                   rol: str | None = Query(None, max_length=30),
                   es_demo: bool | None = Query(None),
+                  access_grant: uuid.UUID | None = Header(
+                      default=None, alias="X-Access-Grant"),
+                  admin: User = Depends(require_admin),
                   db: Session = Depends(get_db)):
     """Busca entidades globales con un alcance de permisos explícito.
 
@@ -364,6 +418,28 @@ def global_search(q: str | None = Query(None, max_length=100),
     """
     if tipo is not None and tipo not in SEARCH_PERMISSIONS:
         raise err(400, "TIPO_INVALIDO", "Tipo de búsqueda no reconocido")
+    tipos_consulta = {tipo} if tipo else set(SEARCH_PERMISSIONS)
+    concesiones = {}
+    if tipo is not None and tipo in ("trabajador", "usuario"):
+        concesiones[tipo] = autorizar_categoria_informacion(
+            tipo, access_grant, admin, db)
+    elif tipo is None:
+        if access_grant is not None:
+            grant = db.get(AdminAccessGrant, access_grant)
+            categorias_grant = {
+                "trabajador": {"trabajador", "personal"},
+                "usuario": {"usuario"},
+            }
+            for categoria, recursos in categorias_grant.items():
+                if grant and grant.recurso_tipo in recursos:
+                    concesiones[categoria] = autorizar_categoria_informacion(
+                        categoria, access_grant, admin, db)
+    if tipo is not None:
+        tipos_consulta = {
+            categoria for categoria in tipos_consulta
+            if categoria not in ("trabajador", "usuario")
+            or concesiones.get(categoria) is not None
+        }
     q = (q or "").strip()
     terminos = q.split() or [""]
 
@@ -442,9 +518,18 @@ def global_search(q: str | None = Query(None, max_length=100),
             Sujeto.es_conductor.is_(conductor))
     if estado:
         consulta_trabajadores = consulta_trabajadores.where(Sujeto.estado == estado)
+    concesion_trabajador = concesiones.get("trabajador")
+    if concesion_trabajador:
+        if concesion_trabajador.company_id is not None:
+            consulta_trabajadores = consulta_trabajadores.where(
+                Sujeto.company_id == concesion_trabajador.company_id)
+        if concesion_trabajador.recurso_id is not None:
+            consulta_trabajadores = consulta_trabajadores.where(
+                Sujeto.id == concesion_trabajador.recurso_id)
     trabajadores = (db.execute(consulta_trabajadores.order_by(Sujeto.nombre, Sujeto.id)
                                .limit(limite + 1)).all()
-                    if tipo in (None, "trabajador") else [])
+                    if tipo in (None, "trabajador")
+                    and "trabajador" in tipos_consulta else [])
     for sujeto, company_name in trabajadores[:limite]:
         resultados.append({
             "tipo": "trabajador", "id": str(sujeto.id),
@@ -507,9 +592,18 @@ def global_search(q: str | None = Query(None, max_length=100),
         consulta_usuarios = consulta_usuarios.where(User.role == rol)
     if estado:
         consulta_usuarios = consulta_usuarios.where(User.status == estado)
+    concesion_usuario = concesiones.get("usuario")
+    if concesion_usuario:
+        if concesion_usuario.company_id is not None:
+            consulta_usuarios = consulta_usuarios.where(
+                User.company_id == concesion_usuario.company_id)
+        if concesion_usuario.recurso_id is not None:
+            consulta_usuarios = consulta_usuarios.where(
+                User.id == concesion_usuario.recurso_id)
     usuarios = (db.execute(consulta_usuarios.order_by(User.nombre, User.id)
                            .limit(limite + 1)).all()
-                if tipo in (None, "usuario") else [])
+                if tipo in (None, "usuario")
+                and "usuario" in tipos_consulta else [])
     for user, company_name in usuarios[:limite]:
         resultados.append({
             "tipo": "usuario", "id": str(user.id),

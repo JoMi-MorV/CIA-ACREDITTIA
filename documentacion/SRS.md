@@ -1,6 +1,6 @@
 # SRS — Acredittia
 
-Especificación de requisitos de software · versión 0.65 · 03-11-2026
+Especificación de requisitos de software · versión 0.66 · 04-11-2026
 
 **Estado documental:** validado con pruebas focalizadas en PostgreSQL temporal y ejecución local distribuida de Celery; permanecen pendientes criterios funcionales, de seguridad y aceptación integral. No constituye certificación de producción ni cierre legal de DEC-08.
 
@@ -9,6 +9,8 @@ Especificación de requisitos de software · versión 0.65 · 03-11-2026
 > **Evidencia de respaldos/exportaciones (03-11-2026):** 54 pruebas focalizadas previas aprobaron backup, migración/esquema y procesos operativos; se verificaron los builds de frontend/backend y se aplicó/verificó esquema 13 en Compose local. La ruta ADMIN de respaldos y exportaciones quedó desplegada. El PDF integral incluye KPI/series SaaS, dashboard de cumplimiento, salud de clientes, gráficos vectoriales y tablas de usuarios, contratos, disponibilidad, incidentes, procesos y actividad; una descarga autenticada real produjo HTTP 200, 16 páginas y timestamp ISO exacto en `America/Santiago` (UTC−03:00). No se ejecutó `pg_dump` ni restauración real: falta `BACKUP_ENCRYPTION_KEY`, por lo que la programación continúa pausada y la creación/restauración de respaldos está bloqueada.
 
 > **BLOQUEO P0 — NO PASAR A PRODUCCIÓN CON DATOS REALES SIN CERRAR DEC-08.** Antes de autorizar el go-live, debe existir evidencia documentada de la revisión legal y contractual de privacidad y auditoría, de la aprobación de los plazos definitivos de retención y de la asignación de responsables. La evidencia debe identificar revisor/instancia, fecha, alcance, decisiones y aprobaciones; además, debe confirmar que los controles acordados están implementados y validados. La propuesta actual de plazos no constituye aprobación. Hasta entonces, DEC-08 permanece abierta y el paso a producción con datos reales queda bloqueado.
+
+> **Actualización 04-11-2026:** se incorpora un cronograma de cierre simplificado a dos semanas, del 5 al 19 de noviembre de 2026. Prioriza vulnerabilidades frontend, mínimo privilegio, roles PostgreSQL/RLS, DEC-08, restauración real y decisión GO/NO-GO. El cronograma es una fase inicial de preparación y no demuestra por sí mismo que los bloqueadores estén cerrados; consulte [CRONOGRAMA_CIERRE_PRODUCCION.md](CRONOGRAMA_CIERRE_PRODUCCION.md).
 
 ## 1. Propósito y alcance
 
@@ -202,9 +204,16 @@ ejecución aislada: API inaccesible mientras los workers siguen activos,
 heartbeat vencido y recuperación, umbral p95, Redis caído, ausencia de workers
 y límites de profundidad de cola. RF-SAL-02 se reestima de 70% a 80%; siguen
 pendientes la recuperación de workers en un recorrido distribuido real y la
-disponibilidad de proveedores externos. La media simple actualizada es 70,2%
-(`2598 / 37`), y la de las ocho prioridades ADMIN es 68,0%. No equivale a
+disponibilidad de proveedores externos. La media simple actualizada al incorporar RF-AUD-02, RF-SEG-02, RNF-PER-01, RF-BUS-02, RF-CLI-09, RNF-PRV-01, RNF-REC-01 y RF-SEG-03 es 74,5%
+(`2758 / 37`), y la de las ocho prioridades ADMIN es 74,5%. No equivale a
 aceptación integral ni preparación productiva.
+
+La versión 0.66 consolida al 04-11-2026 el cronograma simplificado de cierre
+en dos semanas (5-19 de noviembre de 2026), el avance estimado de 74,5%, las
+446 pruebas backend aprobadas, el build frontend y el NO-GO vigente por
+vulnerabilidades, privacidad DEC-08, roles reales, restauración y objetivos
+RPO/RTO pendientes. Las fechas y responsables del cronograma deben actualizarse
+mediante evidencia real antes de modificar el avance o el estado de un requisito.
 
 Se conservan los **100% declarados en el cronograma** como cierre de la actividad en su alcance y fecha originales. Se permite registrar **«Completada con observaciones»** cuando existen ajustes posteriores o evidencia por adjuntar. Esta convención de seguimiento no certifica aceptación del cliente ni convierte una funcionalidad parcial en validada.
 
@@ -375,12 +384,12 @@ Todas las rutas de API de esta sección son relativas a `/api/v1`. Cada requisit
 
 - **Estado técnico:** PAR.
 - **Prioridad:** P0.
-- **Avance estimado:** 45 % (propuesta inicial).
-- **Fundamento del avance:** Rol ADMIN y minimización existentes; falta autorización efectiva por categoría.
+- **Avance estimado:** 65 % (reevaluado el 04-11-2026).
+- **Fundamento del avance:** El buscador separa categorías ordinarias y sensibles en backend; trabajadores y usuarios requieren concesión excepcional activa.
 - **Comportamiento esperado:** El buscador autoriza cada categoría y su detalle en servidor según capacidades del actor; las etiquetas de permisos devueltas no sustituyen los controles efectivos.
-- **Estado actual:** se exige ADMIN y se minimiza la respuesta. Las etiquetas `admin.*.read` no se evalúan como permisos independientes.
-- **Pendientes / mejoras:** implementar en backend la matriz de permisos por operación, categoría y alcance; aplicar las restricciones de búsqueda y acceso excepcional de DEC-01/02.
-- **Validación:** Parcial: consultar evidencia de la sección 4; no se acredita el cierre de todos los criterios.
+- **Estado actual:** Se exige ADMIN. En consulta explícita, trabajadores y usuarios exigen `X-Access-Grant`, vigente, perteneciente al ADMIN y compatible con la categoría. La concesión puede limitar empresa y recurso.
+- **Pendientes / mejoras:** Integrar la matriz en consultas directas de detalle/exportación y cubrir rotación, revocación y alcance cruzado de recursos sensibles.
+- **Validación:** Parcial: 27 pruebas del buscador aprobadas, incluyendo denegación sin concesión; falta validar detalle y exportaciones.
 - **Criterio de aceptación:** un actor sin permiso de categoría no obtiene sus resultados ni su detalle al invocar directamente la API; respuesta no contiene tokens, contraseñas, RUT ni contenido documental. Los permisos se comprueban en cada petición.
 
 
@@ -521,12 +530,12 @@ Todas las rutas de API de esta sección son relativas a `/api/v1`. Cada requisit
 
 - **Estado técnico:** PAR.
 - **Prioridad:** P1.
-- **Avance estimado:** 25 % (propuesta inicial).
-- **Fundamento del avance:** Último acceso y tokens aportan una base; falta historial completo de autenticación.
+- **Avance estimado:** 70 % (implementación inicial validada).
+- **Fundamento del avance:** Implementación persistente validada de eventos de autenticación y correlación; faltan controles finales de producción, acceso, retención e integridad.
 - **Comportamiento esperado:** Conservar un historial consultable de autenticación, cierre y revocación sin sobrescribir eventos anteriores al actualizar last_login_at.
-- **Estado actual:** `last_login_at` y refresh tokens; no hay historial explícito completo de ingresos/salidas.
-- **Pendientes / mejoras:** Último acceso y tokens aportan una base; falta historial completo de autenticación. Completar la validación del criterio de aceptación.
-- **Validación:** Parcial: consultar evidencia de la sección 4; no se acredita el cierre de todos los criterios.
+- **Estado actual:** Se registran ingresos exitosos/fallidos, cierre, rotación, reutilización de refresh revocado y correlación por sesión. La consola global filtra estos eventos por módulo y tipo.
+- **Pendientes / mejoras:** Completar revocación administrativa masiva, pruebas de aislamiento de consulta, política de retención DEC-08 y evidencia de integridad.
+- **Validación:** Parcial: 36 pruebas de autenticación y 13 de esquema pasaron. Esta evidencia acredita el registro y la minimización básica, pero no retención, integridad, revocación administrativa ni aislamiento integral de consulta.
 - **Criterio de aceptación:** registrar ingreso exitoso, fallo de autenticación sin revelar existencia de cuenta al solicitante, cierre y revocación, con correlación de sesión y resultado; no registrar tokens o contraseñas. Aplicar retención y acceso conforme a la propuesta de DEC-08, una vez revisada y materializada.
 
 
@@ -563,12 +572,12 @@ Todas las rutas de API de esta sección son relativas a `/api/v1`. Cada requisit
 
 - **Estado técnico:** PAR.
 - **Prioridad:** P0.
-- **Avance estimado:** 30 % (propuesta inicial).
-- **Fundamento del avance:** Agregados minimizados existentes; falta flujo de privilegio excepcional limitado.
+- **Avance estimado:** 55 % (implementación inicial).
+- **Fundamento del avance:** Existe la infraestructura persistente de concesiones excepcionales, RLS y revocación; falta integrarla en operaciones sensibles y probar credenciales reales.
 - **Comportamiento esperado:** ADMIN opera con permisos por capacidad y alcance; el acceso sensible excepcional requiere autorización y motivo, sin que seleccionar una empresa conceda por sí mismo acceso ilimitado.
-- **Estado actual:** agregados minimizados, pero ADMIN puede seleccionar contexto de empresa y conserva privilegio global. No hay un flujo excepcional completo.
-- **Pendientes / mejoras:** Agregados minimizados existentes; falta flujo de privilegio excepcional limitado. Completar la validación del criterio de aceptación.
-- **Validación:** Parcial: consultar evidencia de la sección 4; no se acredita el cierre de todos los criterios.
+- **Estado actual:** existen concesiones excepcionales ADMIN persistentes, limitadas a 24 horas, con usuario, alcance, motivo, expiración, auditoría y revocación. El esquema v15 aplica RLS y mínimo privilegio a esta tabla. Falta integrar la cabecera de concesión en operaciones sensibles y probar denegaciones.
+- **Pendientes / mejoras:** Integrar la concesión en documentos, datos personales y exportaciones; probar expiración/revocación y denegación entre recursos; validar roles PostgreSQL reales.
+- **Validación:** Parcial: el esquema v15 y las migraciones desde v7-v14 están cubiertos por pruebas. Falta uso efectivo de la concesión en los endpoints y pruebas negativas de expiración, revocación, alcance y aislamiento SQL.
 - **Criterio de aceptación:** acceso sensible exige permiso específico, motivo y alcance temporal/recurso según DEC-01; toda concesión y utilización se audita; la autorización se verifica en servidor; el dashboard no necesita descargar documentos personales.
 
 
@@ -576,12 +585,12 @@ Todas las rutas de API de esta sección son relativas a `/api/v1`. Cada requisit
 
 - **Estado técnico:** PAR.
 - **Prioridad:** P0.
-- **Avance estimado:** 50 % (propuesta inicial).
-- **Fundamento del avance:** Login, refresh y rechazo por rol comprobados; añadidos controles de configuración y semillas opt-in. Se conserva el 50 % previo hasta validar despliegue y recuperación real.
+- **Avance estimado:** 65 %.
+- **Fundamento del avance:** Login, refresh, rechazo por rol, configuración segura y semillas opt-in están comprobados. Existe aprovisionamiento separado del primer ADMIN sin datos demo; falta validarlo en despliegue real.
 - **Comportamiento esperado:** Autenticación y despliegue sin credenciales demo. Cumplir las condiciones detalladas en el criterio de aceptación.
-- **Estado actual:** `APP_ENV=production` rechaza JWT dev-* o menor de 32 bytes sin espacios exteriores, semillas demo, tokens de recuperación en respuestas, RLS desactivado y migraciones al arranque. Semillas y exposición de token quedan desactivadas por defecto; Compose local activa solo semillas explícitamente. El handler comprueba además que no sea producción antes de devolver `_dev_token`. Errores de configuración ocultan valores de entrada.
-- **Pendientes / mejoras:** Separar roles BD reales, aprovisionar administrador/catálogos productivos sin semillas demo, gestionar secretos y cuentas existentes y validar entrega de correo. El Compose y su overlay ngrok siguen siendo de demostración; el modo seguro requiere `APP_ENV=production` explícito. No se aplicaron cambios al entorno habitual.
-- **Validación:** Parcial: consultar evidencia de la sección 4; no se acredita el cierre de todos los criterios.
+- **Estado actual:** `APP_ENV=production` rechaza JWT dev-* o menor de 32 bytes sin espacios exteriores, semillas demo, tokens de recuperación en respuestas, RLS desactivado y migraciones al arranque. Semillas y exposición de token quedan desactivadas por defecto. Existe un aprovisionamiento operativo separado para crear el primer ADMIN sin sembrar datos demo, con contraseña fuerte e idempotencia.
+- **Pendientes / mejoras:** Separar roles BD reales, aprovisionar catálogos productivos sin semillas demo, gestionar secretos y cuentas existentes y validar entrega de correo. El Compose y su overlay ngrok siguen siendo de demostración; el modo seguro requiere `APP_ENV=production` explícito.
+- **Validación:** Configuración, arranque, recuperación opaca y aprovisionamiento cuentan con pruebas focalizadas; falta despliegue y validación de cuentas y roles reales.
 - **Criterio de aceptación:** despliegue público rechaza configuración de secreto de desarrollo, no crea cuentas con claves conocidas y no devuelve tokens de recuperación en respuestas; semillas demo requieren activación explícita; flujo de recuperación productivo se valida con el canal acordado.
 
 - **Evidencia PT-03-01:** pruebas de configuración inválida, arranque sin semillas, guardas de siembra y respuesta de recuperación opaca en `test_config_seguridad.py`; regresión de autenticación/aislamiento en EV-01, 30-09-2026. Es validación aislada, no prueba de despliegue público.
@@ -690,11 +699,11 @@ Esta sección requiere profundización posterior. Las fuentes principales son EV
 
 - **Estado técnico:** PAR.
 - **Prioridad:** P2.
-- **Avance estimado:** 45 % (propuesta inicial).
-- **Fundamento del avance:** Integraciones, credenciales y notificaciones; routers/servicios existentes, `test_vault.py`. Inventariar conectores y completar canales reales acordados; distinguir configuración, simulación e integración.
+- **Avance estimado:** 65 % (reevaluado el 04-11-2026).
+- **Fundamento del avance:** El vault local/Key Vault gestiona credenciales de integraciones y el SMTP entrega correo de restablecimiento. Los conectores externos siguen sin implementación protocolaria real.
 - **Comportamiento esperado:** Integraciones, credenciales y notificaciones.
-- **Estado actual:** Integraciones, credenciales y notificaciones; routers/servicios existentes, `test_vault.py`.
-- **Pendientes / mejoras:** Inventariar conectores y completar canales reales acordados; distinguir configuración, simulación e integración.
+- **Estado actual:** Crear, rotar y desconectar integraciones persiste credenciales fuera de PostgreSQL. SMTP configurable entrega correo sin incluir el secreto en el registro.
+- **Pendientes / mejoras:** Implementar los protocolos acordados, WhatsApp y sincronización; agregar reintentos, idempotencia y secretos de producción validados.
 - **Validación:** Parcial: revisión e inventario de la línea base; falta acreditar el flujo completo con los criterios indicados.
 - **Criterio de aceptación:** Documentar por conector si es simulado/configurado/real; verificar cifrado, rol de lectura de secretos, reintentos y errores sin exponer credenciales. No declarar integración productiva solo por seeds.
 
@@ -718,12 +727,12 @@ Esta sección requiere profundización posterior. Las fuentes principales son EV
 
 - **Estado técnico:** PAR.
 - **Prioridad:** P0.
-- **Avance estimado:** 50 % (propuesta inicial).
-- **Fundamento del avance:** Existen respuestas agregadas minimizadas, pero falta controlar PII incrustada en descripciones y comprobar todos los consumidores; se conserva el 50 % como estimación de gestión previa.
+- **Avance estimado:** 60 %.
+- **Fundamento del avance:** Existe un punto central de persistencia que redacta email, RUT y credenciales en descripciones y metadatos; falta aprobar la política y controlar consumidor, retención y registros históricos.
 - **Comportamiento esperado:** Minimizar datos personales en respuesta y logs; redactar secretos; definir retención y acceso a auditoría.
-- **Estado actual:** La minimización es parcial. company.py incluye emails en descripciones de invitación y modificación de usuarios; admin.py devuelve descripciones en actividad/auditoría. Esto acredita presencia de PII, no una fuga entre empresas o a actores no autorizados. DEC-08 propone los campos y plazos iniciales; faltan revisión legal/contractual, implementación y tratamiento histórico.
+- **Estado actual:** La minimización es parcial. Las descripciones y metadatos de auditoría pasan por redacción centralizada antes de persistirse. DEC-08 propone los campos y plazos iniciales; faltan revisión legal/contractual, implementación de retención, consultas auditables y tratamiento histórico.
 - **Pendientes / mejoras:** Clasificar campos y destinatarios; minimizar o redactar PII innecesaria en textos libres, feeds, logs y exportaciones. Revisar registros históricos y definir tratamiento/retención sin modificar indiscriminadamente la trazabilidad existente.
-- **Validación:** Parcial: revisión e inventario de la línea base; falta acreditar el flujo completo con los criterios indicados.
+- **Validación:** Parcial: prueba focalizada verifica que email, RUT y secretos no quedan en texto persistido. Falta acreditar el flujo completo con los consumidores, exportaciones y registros históricos.
 - **Criterio de aceptación:** CA-01: cada vista y exportación expone únicamente los datos necesarios según rol. CA-02: descripciones con email/RUT/secretos de prueba no revelan información prohibida al consumidor, tampoco incrustada en texto libre. CA-03: acceso al registro y retención siguen DEC-08. CA-04: el tratamiento de registros históricos se documenta y respeta su integridad. No se presume una obligación legal específica.
 
 **RNF-REP-01 — Reproducibilidad**
@@ -754,12 +763,13 @@ Esta sección requiere profundización posterior. Las fuentes principales son EV
 
 - **Estado técnico:** PAR.
 - **Prioridad:** P2.
-- **Avance estimado:** 40 % (propuesta inicial).
-- **Fundamento del avance:** Revisar consultas por fila y listas truncadas. Objetivo de latencia/concurrencia pendiente DEC-07; no se declara SLA sin medición.
+- **Avance estimado:** 55 % (reevaluado el 04-11-2026).
+- **Fundamento del avance:** Existe telemetría API en proceso/Redis, umbral p95 configurable de 800 ms y pruebas focalizadas. Se añadió una línea base HTTP concurrente con percentiles por ruta; falta población representativa y medición aprobada.
 - **Comportamiento esperado:** Listados paginados, totales coherentes y tiempos medidos con volumen representativo.
-- **Estado actual:** Revisar consultas por fila y listas truncadas. Objetivo de latencia/concurrencia pendiente DEC-07; no se declara SLA sin medición.
-- **Pendientes / mejoras:** Revisar consultas por fila y listas truncadas. Objetivo de latencia/concurrencia pendiente DEC-07; no se declara SLA sin medición.
-- **Validación:** Parcial: revisión e inventario de la línea base; falta acreditar el flujo completo con los criterios indicados.
+- **Estado actual:** Configuración y medición automatizable disponibles; objetivos de concurrencia y volumen representativo siguen pendientes de aprobación.
+- **Pendientes / mejoras:** Ejecutar escenarios representativos con datos controlados, revisar consultas lentas identificadas y automatizar la regresión.
+- **Ejecución de línea base:** `python scripts/performance_baseline.py --base-url http://localhost:8000 --paths "/health,/api/v1/dashboard" --requests 100 --concurrency 10`.
+- **Validación:** Parcial: telemetría y pruebas de umbral aprobadas; falta acreditación mediante carga representativa.
 - **Criterio de aceptación:** Listados paginados, totales coherentes y tiempos medidos con volumen representativo. Revisar consultas por fila y listas truncadas. Objetivo de latencia/concurrencia pendiente DEC-07; no se declara SLA sin medición.
 
 **RNF-OPE-01 — Operación observable**
@@ -778,12 +788,12 @@ Esta sección requiere profundización posterior. Las fuentes principales son EV
 
 - **Estado técnico:** ISV.
 - **Prioridad:** P1.
-- **Avance estimado:** 50 % (reevaluado el 03-11-2026).
-- **Fundamento del avance:** existe código para copia cifrada de PostgreSQL y archivos locales, retención, verificación aislada y reemplazo de la base activa con copia previa; no se ha completado una restauración real.
+- **Avance estimado:** 60 % (reevaluado el 04-11-2026).
+- **Fundamento del avance:** existe código para copia cifrada de PostgreSQL y archivos locales, retención, verificación aislada y reemplazo de la base activa con copia previa. La respuesta de restauración informa RPO y RTO medidos; falta acreditar la restauración real.
 - **Comportamiento esperado:** Respaldar y restaurar PostgreSQL y archivos locales mediante paquetes cifrados; verificar el contenido en una base aislada antes del reemplazo, exigir confirmación explícita y crear un respaldo previo. La clave de cifrado se administra fuera del código y del paquete; las claves del vault/JWE no se incluyen y deben recuperarse por un procedimiento externo. Este mecanismo no sustituye la exportación autorizada ni el ciclo de vida histórico del contrato.
-- **Estado actual:** La API ADMIN y el proceso semanal están implementados para `STORAGE_BACKEND=local`; el job queda pausado hasta que se configure y se active, y no se admite Azure Blob en este alcance. El código exige `BACKUP_DATABASE_URL`, `BACKUP_ENCRYPTION_KEY` y herramientas PostgreSQL; en producción la restauración requiere además `BACKUP_RESTORE_DATABASE_URL` y `BACKUP_RESTORE_ROLE`. La credencial de mantenimiento se separa de la credencial de lectura que usa el worker. Build web, pruebas focalizadas y configuración Compose validados; la restauración real, los fallos/rollback y la operación productiva no están acreditados.
+- **Estado actual:** La API ADMIN y el proceso semanal están implementados para `STORAGE_BACKEND=local`; el job queda pausado hasta que se configure y se active, y no se admite Azure Blob en este alcance. El código exige `BACKUP_DATABASE_URL`, `BACKUP_ENCRYPTION_KEY` y herramientas PostgreSQL; en producción la restauración requiere además `BACKUP_RESTORE_DATABASE_URL` y `BACKUP_RESTORE_ROLE`. La credencial de mantenimiento se separa de la credencial de lectura que usa el worker. El inicio, éxito y fallo de restauración quedan auditados y la operación mide RPO/RTO. Build web, pruebas focalizadas y configuración Compose validados; la restauración real, los fallos/rollback y la operación productiva no están acreditados.
 - **Pendientes / mejoras:** Ejecutar pruebas backend y restauración de extremo a extremo en entorno aislado; validar permisos/roles PostgreSQL y fallos de swap/rollback; definir RPO/RTO en DEC-07; recuperar externamente las claves del vault; aprobar almacenamiento fuera del entorno antes de considerar resiliencia ante pérdida del servidor.
-- **Validación:** 54 pruebas focalizadas de backup/migración/operaciones aprobadas y build web correcto; no se ejecutó restauración real ni se aportó evidencia de recuperación extremo a extremo.
+- **Validación:** 11 pruebas focalizadas de backup/exportación aprobadas, incluida cifrado, detección de manipulación y cálculo del punto de recuperación; no se ejecutó restauración real ni se aportó evidencia de recuperación extremo a extremo.
 - **Criterio de aceptación:** Restaurar base y archivos desde un paquete autenticado en una base aislada; demostrar integridad, compatibilidad de esquema, confirmación, respaldo previo y recuperación ante fallos. Las claves excluidas deben estar recuperables por un procedimiento externo probado. Acordar RPO/RTO y validar en el entorno destino.
 
 **RNF-UX-01 — Experiencia de usuario**
@@ -948,7 +958,7 @@ Para conservar un 100% con observaciones, registrar: número de actividad, alcan
 
 ## 13. Cuadro de resumen del estado general del proyecto
 
-**Corte de estados funcionales generales: 03-11-2026; línea base inicial del 29-09-2026.** Los estados siguientes resumen evidencia y pendientes, no aceptación contractual. «Operativo» se limita a los recorridos comprobados; no significa listo para producción. El avance estimado de cobertura de código de las 37 fichas del SRS es 70,2% (70% redondeado); el promedio de las ocho prioridades ADMIN es 68,0% (68% redondeado). Véase `GAP_ANALYSIS.md` para método, desgloses y límites.
+**Corte de estados funcionales generales: 04-11-2026; línea base inicial del 29-09-2026.** Los estados siguientes resumen evidencia y pendientes, no aceptación contractual. «Operativo» se limita a los recorridos comprobados; no significa listo para producción. Tras incorporar RF-AUD-02 al 70%, RF-SEG-02 al 55%, RNF-PER-01 al 55%, RF-BUS-02 al 65%, RF-CLI-09 al 65%, RNF-PRV-01 al 60%, RNF-REC-01 al 60% y RF-SEG-03 al 65%, el avance estimado de cobertura de las 37 fichas del SRS es 74,5% (75% redondeado). El promedio recalculable de las ocho prioridades ADMIN es 74,5% (75% redondeado). Ambos porcentajes no son medición de esfuerzo ni aceptación integral; DEC-08, DEC-10, integración excepcional y preparación productiva siguen bloqueando producción.
 
 | Área | Estado general | Qué se reconoce como realizado | Observación / pendiente principal | Seguimiento |
 |---|---|---|---|---|

@@ -33,6 +33,11 @@ export default function AuditoriaPage() {
           <option value="creacion">Creación</option><option value="actualizacion">Actualización</option>
           <option value="subida_documento">Subida</option><option value="visualizacion">Acceso</option>
           <option value="asignacion">Asignación</option><option value="alerta_ia">IA</option>
+          <option value="auth_login_ok">Ingreso</option>
+          <option value="auth_login_failed">Ingreso fallido</option>
+          <option value="auth_logout">Cierre</option>
+          <option value="auth_refresh_rotated">Renovación</option>
+          <option value="auth_session_revoked">Revocación</option>
         </select>
         <input className="ops-input" type="date" value={desde}
           onChange={(event) => setDesde(event.target.value)} aria-label="Desde" />
