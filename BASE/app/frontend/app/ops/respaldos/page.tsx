@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { ChangeEvent, useCallback, useEffect, useRef, useState } from "react";
 import { Card, Pill } from "@/components/ops/ui";
-import { opsApi, opsDownload } from "@/lib/ops/api";
+import { opsApi, opsDownload, opsUpload } from "@/lib/ops/api";
 import { useI18n } from "@/lib/ops/i18n";
 
 type BackupStatus = {
@@ -46,6 +46,7 @@ export default function RespaldosPage() {
   const [error, setError] = useState("");
   const [restoreId, setRestoreId] = useState<string | null>(null);
   const [confirmation, setConfirmation] = useState("");
+  const importInput = useRef<HTMLInputElement>(null);
 
   const reload = useCallback(async () => {
     try {
@@ -79,12 +80,34 @@ export default function RespaldosPage() {
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement("a");
       anchor.href = url;
-      anchor.download = filename;
+      const resolvedFilename = filename.toLowerCase().endsWith(".acb")
+        ? filename
+        : path.includes("/backups/") && path.includes("/download")
+          ? `${filename}.acb`
+          : filename;
+      anchor.download = resolvedFilename;
       anchor.click();
       URL.revokeObjectURL(url);
     } catch (e) {
       setError(e instanceof Error ? e.message : t("respaldos.error"));
     } finally { setBusy(false); }
+  };
+
+  const importar = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    setBusy(true);
+    setError("");
+    try {
+      await opsUpload("/backups/import", file);
+      setMessage(t("respaldos.importado"));
+      await reload();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t("respaldos.error"));
+    } finally {
+      setBusy(false);
+    }
   };
 
   const crear = async () => {
@@ -108,6 +131,23 @@ export default function RespaldosPage() {
     try {
       await opsApi(`/backups/${id}/verify`, { method: "POST", body: {} });
       setMessage(t("respaldos.verificado"));
+      await reload();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t("respaldos.error"));
+    } finally { setBusy(false); }
+  };
+
+  const eliminar = async (id: string) => {
+    const confirmation = window.prompt(t("respaldos.eliminar_confirmacion", { id }));
+    if (confirmation !== `ELIMINAR ${id}`) return;
+    setBusy(true);
+    setError("");
+    try {
+      await opsApi(`/backups/${id}`, {
+        method: "DELETE",
+        body: { confirmation },
+      });
+      setMessage(t("respaldos.eliminado"));
       await reload();
     } catch (e) {
       setError(e instanceof Error ? e.message : t("respaldos.error"));
@@ -216,6 +256,14 @@ export default function RespaldosPage() {
             style={{ background: "var(--ops-accent)", color: "white" }}>
             {t("respaldos.crear_ahora")}
           </button>
+          <button disabled={busy || !configurado}
+            onClick={() => importInput.current?.click()}
+            className="rounded-lg border px-3 py-2 text-sm font-semibold disabled:opacity-50"
+            style={{ borderColor: "var(--ops-line)", color: "var(--ops-ink)" }}>
+            {t("respaldos.importar")}
+          </button>
+          <input ref={importInput} type="file"
+            onChange={(event) => void importar(event)} className="hidden" />
           <button disabled={busy || !run || (!run.activo && !configurado)}
             onClick={() => void pausar()}
             className="rounded-lg border px-3 py-2 text-sm font-semibold disabled:opacity-50"
@@ -281,6 +329,10 @@ export default function RespaldosPage() {
                         className="font-semibold underline" style={{ color: "var(--ops-crit)" }}>
                         {t("respaldos.restaurar")}
                       </button>
+                      <button disabled={busy} onClick={() => void eliminar(item.id)}
+                        className="underline" style={{ color: "var(--ops-crit)" }}>
+                        {t("respaldos.eliminar")}
+                      </button>
                     </div></td>
                   </tr>
                 ))}
@@ -301,6 +353,15 @@ export default function RespaldosPage() {
             <p className="mt-3 break-all rounded bg-black/5 p-2 text-xs">{restoreId}</p>
             <label className="mt-4 block text-sm">
               {t("respaldos.confirmar_label")}
+              <button
+                type="button"
+                onClick={() => void navigator.clipboard.writeText(`RESTAURAR ${restoreId}`)}
+                className="mt-2 block max-w-full rounded-md px-3 py-2 font-mono text-xs"
+                style={{ background: "var(--ops-line)", color: "var(--ops-ink)" }}
+                title={t("respaldos.confirmar_copiar")}
+              >
+                RESTAURAR {restoreId}
+              </button>
               <input value={confirmation} onChange={(event) => setConfirmation(event.target.value)}
                 className="mt-1 w-full rounded-md border bg-transparent px-3 py-2"
                 style={{ borderColor: "var(--ops-line)" }}

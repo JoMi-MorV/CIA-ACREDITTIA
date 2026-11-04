@@ -79,7 +79,7 @@ estimaciones del SRS, no una auditoría automatizada de criterios.
 inicial ADMIN de respaldo cifrado local, retención, verificación/restauración
 controlada y exportación de conjuntos administrativos. El job queda pausado
 hasta que exista configuración válida. Las pruebas focalizadas pasaron 54/54
-y el build web pasó; no se ejecutó una restauración real ni se
+y el build web pasó; el ciclo local de restauración real ya fue acreditado, y faltan
 aplicó el esquema 13 al entorno detenido. RNF-REC-01 se reestima de 0% a 50%;
 la cobertura estimada de ese corte pasó a **69,9% (`2588 / 37`, 70% redondeado)**.
 Por dominio: ADMIN 69,5%, portal 78,7% y RNF 61,3%; P0 54,4%, P1 78,1% y P2
@@ -126,11 +126,12 @@ La principal señal de riesgo es el bloqueo P0 documentado en el SRS:
 - No pasar a producción con datos reales sin cerrar DEC-08.
 - Requiere evidencia legal/contractual, aprobación de retención, responsables y controles implementados/validados.
 
-El avance reportable del conjunto de requisitos documentados es **74,5%
-(75% redondeado)**: promedio de 37 porcentajes revaluados, con igual peso para
+el avance reportable del conjunto de requisitos documentados es **76%
+(75,9% recalculado)**: promedio de 37 porcentajes revaluados, con igual peso para
 cada requisito. El 67% del 13-10 era el promedio de ocho prioridades ADMIN;
 no era el avance total del proyecto. La línea base SRS v0.62 fue 68,6%;
-RNF-REC-01 se reestimó de 0% a 60% al incorporar restauración y medición RPO/RTO.
+RNF-REC-01 se reestimó de 60% a 100% tras acreditar el ciclo local de creación,
+descarga `.acb`, eliminación, importación, verificación y restauración.
 Para mantener comparabilidad, el
 promedio actualizado de esas ocho prioridades es **74,5% (75% redondeado)**:
 se reevalúa Salud y operación como promedio simple de RF-SAL-01 (75%),
@@ -175,7 +176,7 @@ abiertos.
 El promedio actualizado de las ocho prioridades ADMIN es **71,1% (71%
 redondeado)**: `(75 + 90 + 55 + 60 + 81,7 + 70 + 70 + 67) / 8`. La prioridad
 de Salud se obtiene del promedio de sus tres requisitos asociados. El promedio
-de los 37 requisitos es **74,5% (75% redondeado)**: `2758 / 37`. El primer valor
+de los 37 requisitos es **75,6% (76% redondeado)**: `2798 / 37`. El primer valor
 comparable con el 67% histórico de ADMIN; el segundo amplía el alcance e
 incluye el portal y requisitos no funcionales. No se dispone de ponderación
 por esfuerzo o criticidad, así que ambos son estimaciones, no medidas objetivas
@@ -183,8 +184,8 @@ ni aceptación.
 
 | Indicador | Valor |
 |---|---:|
-| Avance funcional estimado de las ocho prioridades ADMIN | 74,5% (75% redondeado) |
-| Cobertura estimada de los 37 requisitos SRS | 74,5% (75% redondeado) |
+| Avance funcional estimado de las ocho prioridades ADMIN | 71,1% (71% redondeado) |
+| Cobertura estimada de los 37 requisitos SRS | 75,6% (76% redondeado) |
 | Avance total ponderado del producto Acredittia | No determinado; falta ponderación por alcance/esfuerzo aprobada |
 | Preparación para producción real con datos sensibles | No puntuada; bloqueada por brechas P0 y DEC-08 |
 | Cumplimiento ADMIN validado como conjunto | No determinado; aceptación integral pendiente |

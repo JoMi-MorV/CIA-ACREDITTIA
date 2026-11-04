@@ -22,18 +22,18 @@ producción con datos reales** hasta cerrar los bloqueadores de este informe.
 | Frontend | 🟢 Verde | Compilación Next.js aprobada. |
 | Docker Compose | 🟢 Verde | Configuración válida. |
 | Dependencias frontend | 🔴 Rojo | 1 vulnerabilidad crítica y 2 altas reportadas por npm. |
-| Respaldos y recuperación | 🟡 Amarillo | Implementación parcial; falta ciclo real y objetivos RPO/RTO aprobados. |
+| Respaldos y recuperación | 🟡 Amarillo | Ciclo local cifrado acreditado; faltan RPO/RTO aprobados y recuperación ante pérdida total. |
 | Privacidad y auditoría | 🟡 Amarillo | Controles parciales; retención y aprobación DEC-08 pendientes. |
 | Seguridad productiva | 🔴 Rojo | Roles reales, despliegue y controles operativos aún incompletos. |
 | Producción con datos reales | 🔴 No GO | Bloqueada por riesgos P0 y decisiones pendientes. |
 
 ## 1. Cobertura y avance
 
-La cobertura estimada de los 37 requisitos del SRS es **74,5%**, equivalente a
-**75% redondeado**. El cálculo usa promedio simple y igual peso entre fichas:
+La cobertura estimada de los 37 requisitos del SRS es **75,6%**, equivalente a
+**76% redondeado**. El cálculo usa promedio simple y igual peso entre fichas:
 
 ```text
-2758 / 37 = 74,5%
+2798 / 37 = 75,6%
 ```
 
 Esta cifra representa avance estimado de código/evidencia. No acredita pruebas

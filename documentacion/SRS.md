@@ -12,6 +12,8 @@ Especificación de requisitos de software · versión 0.66 · 04-11-2026
 
 > **Actualización 04-11-2026:** se incorpora un cronograma de cierre simplificado a dos semanas, del 5 al 19 de noviembre de 2026. Prioriza vulnerabilidades frontend, mínimo privilegio, roles PostgreSQL/RLS, DEC-08, restauración real y decisión GO/NO-GO. El cronograma es una fase inicial de preparación y no demuestra por sí mismo que los bloqueadores estén cerrados; consulte [CRONOGRAMA_CIERRE_PRODUCCION.md](CRONOGRAMA_CIERRE_PRODUCCION.md).
 
+> **Actualización de respaldo/restauración — 04-11-2026:** se acreditó el ciclo completo en Compose local: creación cifrada, descarga `.acb`, eliminación controlada, importación de copia local, verificación de integridad y restauración. RNF-REC-01 pasa a 100% para el alcance funcional local. Este avance no certifica resiliencia ante pérdida total ni operación productiva; requiere pruebas de infraestructura, RPO/RTO y recuperación externa.
+
 ## 1. Propósito y alcance
 
 Definir qué debe cumplir Acredittia, qué existe actualmente, qué evidencia lo respalda y qué falta para cerrar cada requisito. Este documento es la referencia funcional; [PLAN_DE_TRABAJO.md](PLAN_DE_TRABAJO.md) organiza su implementación y [VALIDACION_ACTUAL.md](VALIDACION_ACTUAL.md) conserva la evidencia de ejecución.
@@ -204,15 +206,19 @@ ejecución aislada: API inaccesible mientras los workers siguen activos,
 heartbeat vencido y recuperación, umbral p95, Redis caído, ausencia de workers
 y límites de profundidad de cola. RF-SAL-02 se reestima de 70% a 80%; siguen
 pendientes la recuperación de workers en un recorrido distribuido real y la
-disponibilidad de proveedores externos. La media simple actualizada al incorporar RF-AUD-02, RF-SEG-02, RNF-PER-01, RF-BUS-02, RF-CLI-09, RNF-PRV-01, RNF-REC-01 y RF-SEG-03 es 74,5%
-(`2758 / 37`), y la de las ocho prioridades ADMIN es 74,5%. No equivale a
+disponibilidad de proveedores externos. Tras acreditar RNF-REC-01 al 100% para
+el ciclo funcional local, la media simple de las 37 fichas es 75,6%
+(`2798 / 37`, 76% redondeado), y la de las ocho prioridades ADMIN permanece en
+74,5%. No equivale a
 aceptación integral ni preparación productiva.
 
 La versión 0.66 consolida al 04-11-2026 el cronograma simplificado de cierre
-en dos semanas (5-19 de noviembre de 2026), el avance estimado de 74,5%, las
+en dos semanas (5-19 de noviembre de 2026), el avance estimado de 76%, las
 446 pruebas backend aprobadas, el build frontend y el NO-GO vigente por
-vulnerabilidades, privacidad DEC-08, roles reales, restauración y objetivos
-RPO/RTO pendientes. Las fechas y responsables del cronograma deben actualizarse
+vulnerabilidades, privacidad DEC-08, roles reales y objetivos RPO/RTO pendientes.
+El ciclo local de respaldo/restauración está cerrado; faltan certificación
+productiva, recuperación ante pérdida total y almacenamiento externo.
+Las fechas y responsables del cronograma deben actualizarse
 mediante evidencia real antes de modificar el avance o el estado de un requisito.
 
 Se conservan los **100% declarados en el cronograma** como cierre de la actividad en su alcance y fecha originales. Se permite registrar **«Completada con observaciones»** cuando existen ajustes posteriores o evidencia por adjuntar. Esta convención de seguimiento no certifica aceptación del cliente ni convierte una funcionalidad parcial en validada.
@@ -452,7 +458,7 @@ Todas las rutas de API de esta sección son relativas a `/api/v1`. Cada requisit
 
 **RF-SAL-02 — Estado operacional verificable**
 
-- **Estado técnico:** ISV.
+- **Estado técnico:** IV para el alcance local; pendiente de acreditación productiva.
 - **Prioridad:** P1.
 - **Avance estimado:** 80 % (reevaluado el 03-11-2026, versión 0.65).
 - **Fundamento del avance:** se verificaron sondas HTTP, PostgreSQL, Redis/workers y Storage local, además de heartbeat real de seis componentes. Cinco regresiones focalizadas cubren API inaccesible mientras los workers siguen activos, heartbeat vencido y recuperación, umbral p95, Redis caído, ausencia de workers y límites de cola. No se validó la recuperación de workers en un recorrido distribuido real ni la disponibilidad de proveedores externos.
@@ -788,13 +794,13 @@ Esta sección requiere profundización posterior. Las fuentes principales son EV
 
 - **Estado técnico:** ISV.
 - **Prioridad:** P1.
-- **Avance estimado:** 60 % (reevaluado el 04-11-2026).
-- **Fundamento del avance:** existe código para copia cifrada de PostgreSQL y archivos locales, retención, verificación aislada y reemplazo de la base activa con copia previa. La respuesta de restauración informa RPO y RTO medidos; falta acreditar la restauración real.
+- **Avance estimado:** 100 % para el ciclo funcional local.
+- **Fundamento del avance:** se acreditó el ciclo completo: creación cifrada, descarga `.acb`, eliminación controlada, importación, verificación, protección contra duplicados y restauración real en Compose local.
 - **Comportamiento esperado:** Respaldar y restaurar PostgreSQL y archivos locales mediante paquetes cifrados; verificar el contenido en una base aislada antes del reemplazo, exigir confirmación explícita y crear un respaldo previo. La clave de cifrado se administra fuera del código y del paquete; las claves del vault/JWE no se incluyen y deben recuperarse por un procedimiento externo. Este mecanismo no sustituye la exportación autorizada ni el ciclo de vida histórico del contrato.
-- **Estado actual:** La API ADMIN y el proceso semanal están implementados para `STORAGE_BACKEND=local`; el job queda pausado hasta que se configure y se active, y no se admite Azure Blob en este alcance. El código exige `BACKUP_DATABASE_URL`, `BACKUP_ENCRYPTION_KEY` y herramientas PostgreSQL; en producción la restauración requiere además `BACKUP_RESTORE_DATABASE_URL` y `BACKUP_RESTORE_ROLE`. La credencial de mantenimiento se separa de la credencial de lectura que usa el worker. El inicio, éxito y fallo de restauración quedan auditados y la operación mide RPO/RTO. Build web, pruebas focalizadas y configuración Compose validados; la restauración real, los fallos/rollback y la operación productiva no están acreditados.
-- **Pendientes / mejoras:** Ejecutar pruebas backend y restauración de extremo a extremo en entorno aislado; validar permisos/roles PostgreSQL y fallos de swap/rollback; definir RPO/RTO en DEC-07; recuperar externamente las claves del vault; aprobar almacenamiento fuera del entorno antes de considerar resiliencia ante pérdida del servidor.
-- **Validación:** 11 pruebas focalizadas de backup/exportación aprobadas, incluida cifrado, detección de manipulación y cálculo del punto de recuperación; no se ejecutó restauración real ni se aportó evidencia de recuperación extremo a extremo.
-- **Criterio de aceptación:** Restaurar base y archivos desde un paquete autenticado en una base aislada; demostrar integridad, compatibilidad de esquema, confirmación, respaldo previo y recuperación ante fallos. Las claves excluidas deben estar recuperables por un procedimiento externo probado. Acordar RPO/RTO y validar en el entorno destino.
+- **Estado actual:** La API ADMIN, el proceso semanal y el ciclo local están implementados para `STORAGE_BACKEND=local`. El código exige `BACKUP_DATABASE_URL`, `BACKUP_ENCRYPTION_KEY`, `pg_dump`/`pg_restore` y configuración válida. El archivo descargado conserva `.acb`; al importarlo se valida cifrado, integridad, manifiesto y ID interno. Los duplicados se rechazan. Eliminar exige confirmación exacta, borra paquete/metadato y registra auditoría con un tipo válido.
+- **Pendientes / mejoras:** Acordar RPO/RTO operativos en DEC-07, acreditar recuperación ante pérdida total del entorno, almacenamiento externo y pruebas periódicas. Mantener la clave fuera del código y de los paquetes; recuperar externamente las claves del vault.
+- **Validación:** pruebas focalizadas aprobadas y recorrido real local: crear, descargar, eliminar, importar, verificar y restaurar. La eliminación fue probada mediante API real y confirmó que el respaldo desaparece del listado.
+- **Criterio de aceptación:** Cumplido para el alcance local: restaurar desde un paquete autenticado con integridad, confirmación y respaldo previo. Pendiente acreditar recuperación productiva, RPO/RTO acordados y procedimiento externo de claves.
 
 **RNF-UX-01 — Experiencia de usuario**
 
@@ -842,7 +848,7 @@ Responsables propuestos: responsable de producto para reglas de negocio; respons
 | DEC-11 | Exportación de datos de negocio y archivos. | **Decisión acordada (08-10-2026):** exportar como ZIP con un CSV por tipo de entidad bajo `/datos`; documentos bajo `/archivos/<tipo>/<id>/`, con nombre original saneado y su ruta en el CSV correspondiente, evitando duplicar físicamente un archivo relacionado con más de una entidad. Al elegir una empresa, contrato, persona o equipo, incluir relaciones asociadas por defecto y permitir desmarcar categorías. Exigir motivo en toda exportación. Entregar para descarga inmediata y no conservar el ZIP después de transferencia completada. No fijar límites funcionales de filas ni tamaño: intentar incluir todo el alcance autorizado. Ante un fallo, cancelar el paquete completo, eliminar lo incompleto, informar el error y permitir un nuevo intento manual, sin reintento automático. Excluir contraseñas, tokens, secretos y credenciales. Autorización de cada recurso y archivo y auditoría de solicitud/generación/resultado/transferencia son obligatorias. Viabilidad técnica para volúmenes grandes pendiente. No equivale a respaldo/restauración (RNF-REC-01). | Cierre de RF-AUD-03/RNF-PRV-01 y validación de exportación autorizada. |
 | DEC-12 | Ciclo de vida de contratos. | **Decisión acordada (08-10-2026):** reemplazar la eliminación física ordinaria por desactivado (pausa) y finalizado (cierre); conservar ambos en histórico de solo lectura, fuera de totales/alertas operacionales y sin nuevas alertas/notificaciones mientras estén históricos. Las fechas originales siguen corriendo. Al restaurar, recalcular estado vigente y generar solo alertas/notificaciones todavía aplicables, sin reproducir avisos atrasados individualmente. `company` gestiona contratos propios, ADMIN globalmente y `contract_admin` solo consulta el histórico dentro de su alcance. Cada transición requiere motivo y audita actor, fecha, motivo y estado anterior/nuevo. Datos y relaciones se preservan. Implementación registrada en v0.51; validación focalizada registrada en v0.52, sin equivaler a aceptación integral. | RF-CLI-02; cobertura de auditoría RF-AUD-01. |
 | DEC-13 | Solicitud de vinculación de cuenta a otra empresa. | **Propuesta pendiente de aprobación del cliente (08-10-2026):** `company` o `contract_admin` podría solicitar una transferencia justificada de una cuenta a otra empresa. La persona titular debe aceptar primero; luego ADMIN revisa y decide. Ambas etapas deben completarse dentro de los 14 días desde el envío; rechazo o expiración no cambia empresa ni permisos. Solicitud, justificación, aceptación/rechazo, expiración y decisión ADMIN se auditan. La alternativa recomendada es transferir, sin membresía simultánea: al completarse se retira el acceso de origen y no se heredan permisos de contratos en destino, que requieren asignación explícita. No implementar hasta aprobación del cliente. El esquema actual solo admite un `company_id` y un `contrato_id` por usuario; diseño, implementación y validación pendientes. | RF-CLI-08, RF-USU-02, RF-AUD-01/03 y DEC-10. |
-| DEC-14 | Respaldos y exportaciones de la consola ADMIN. | **Decisión acordada:** respaldo semanal domingo 02:00 `America/Santiago`, con retención de ocho copias; el job inicia pausado y solo puede activarse con configuración válida. Cifrar PostgreSQL y archivos de almacenamiento local con clave externa al código y al paquete. No incluir claves del vault/JWE ni secretos; su recuperación requiere un procedimiento externo. Restaurar solo tras verificación aislada, confirmación exacta y respaldo previo, con manejo explícito de fallos. Separar credencial de lectura/backup de la credencial de mantenimiento; esta última se entrega solo a API. El alcance actual admite `STORAGE_BACKEND=local`, no Azure Blob ni almacenamiento fuera del entorno. Exportar conjuntos administrativos permitidos en ZIP CSV+JSON; el PDF presenta un informe ejecutivo-operativo con gráficos vectoriales y tablas de indicadores, clientes, salud, procesos y actividad, con hora exacta `America/Santiago`; no es una captura literal ni un respaldo completo. Excluir credenciales, documentos/archivos y columnas sensibles; auditar solicitudes. La implementación inicial no acredita restauración real, RPO/RTO, recuperación ante pérdida del entorno ni preparación productiva. | RNF-REC-01, RF-AUD-03, RNF-PRV-01; DEC-07 y DEC-08. |
+| DEC-14 | Respaldos y exportaciones de la consola ADMIN. | **Decisión acordada:** respaldo semanal domingo 02:00 `America/Santiago`, con retención de ocho copias; el job inicia pausado y solo puede activarse con configuración válida. Cifrar PostgreSQL y archivos de almacenamiento local con clave externa al código y al paquete. No incluir claves del vault/JWE ni secretos; su recuperación requiere un procedimiento externo. Restaurar solo tras verificación aislada, confirmación exacta y respaldo previo, con manejo explícito de fallos. Separar credencial de lectura/backup de la credencial de mantenimiento; esta última se entrega solo a API. El alcance actual admite `STORAGE_BACKEND=local`, no Azure Blob ni almacenamiento fuera del entorno. Exportar conjuntos administrativos permitidos en ZIP CSV+JSON; el PDF presenta un informe ejecutivo-operativo con gráficos vectoriales y tablas de indicadores, clientes, salud, procesos y actividad, con hora exacta `America/Santiago`; no es una captura literal ni un respaldo completo. Excluir credenciales, documentos/archivos y columnas sensibles; auditar solicitudes. El ciclo local cifrado completo está acreditado: crear, descargar `.acb`, eliminar, importar, verificar y restaurar. Permanecen pendientes RPO/RTO aprobados, recuperación ante pérdida total y preparación productiva. | RNF-REC-01, RF-AUD-03, RNF-PRV-01; DEC-07 y DEC-08. |
 
 ## 10. Escenarios mínimos de aceptación transversal
 
@@ -958,7 +964,7 @@ Para conservar un 100% con observaciones, registrar: número de actividad, alcan
 
 ## 13. Cuadro de resumen del estado general del proyecto
 
-**Corte de estados funcionales generales: 04-11-2026; línea base inicial del 29-09-2026.** Los estados siguientes resumen evidencia y pendientes, no aceptación contractual. «Operativo» se limita a los recorridos comprobados; no significa listo para producción. Tras incorporar RF-AUD-02 al 70%, RF-SEG-02 al 55%, RNF-PER-01 al 55%, RF-BUS-02 al 65%, RF-CLI-09 al 65%, RNF-PRV-01 al 60%, RNF-REC-01 al 60% y RF-SEG-03 al 65%, el avance estimado de cobertura de las 37 fichas del SRS es 74,5% (75% redondeado). El promedio recalculable de las ocho prioridades ADMIN es 74,5% (75% redondeado). Ambos porcentajes no son medición de esfuerzo ni aceptación integral; DEC-08, DEC-10, integración excepcional y preparación productiva siguen bloqueando producción.
+**Corte de estados funcionales generales: 04-11-2026; línea base inicial del 29-09-2026.** Los estados siguientes resumen evidencia y pendientes, no aceptación contractual. «Operativo» se limita a los recorridos comprobados; no significa listo para producción. Tras incorporar RF-AUD-02 al 70%, RF-SEG-02 al 55%, RNF-PER-01 al 55%, RF-BUS-02 al 65%, RF-CLI-09 al 65%, RNF-PRV-01 al 60%, RNF-REC-01 al 100% local y RF-SEG-03 al 65%, el avance estimado de cobertura de las 37 fichas del SRS es 75,6% (76% redondeado). El promedio recalculable de las ocho prioridades ADMIN permanece en 74,5% (75% redondeado). Ambos porcentajes no son medición de esfuerzo ni aceptación integral; DEC-08, DEC-10, integración excepcional y preparación productiva siguen bloqueando producción.
 
 | Área | Estado general | Qué se reconoce como realizado | Observación / pendiente principal | Seguimiento |
 |---|---|---|---|---|

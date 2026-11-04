@@ -8,7 +8,7 @@
 | Frontend | VERDE | `npm ci` y `npm run build` completaron correctamente. |
 | Docker Compose | VERDE | `docker compose config --quiet` completó correctamente. |
 | Dependencias frontend | AMARILLO/ROJO | `npm audit --omit=dev`: 1 crítica, 2 altas; afectan a Next.js/PostCSS/source-map-js. |
-| Respaldo real | ROJO | No existe restauración real ni medición aprobada de RPO/RTO. |
+| Respaldo real | VERDE funcional / AMARILLO productivo | Ciclo local acreditado; faltan RPO/RTO aprobados y recuperación ante pérdida total. |
 | Producción con datos reales | ROJO | Sigue bloqueada por DEC-08, infraestructura, roles reales, privacidad aprobada y recuperación completa. |
 
 La ejecución inicial completa tuvo una falla transitoria en datos demo. Al
@@ -551,8 +551,11 @@ Actualización RNF-REC-01 — 4 de noviembre de 2026:
 - Se incorporó trazabilidad de inicio, éxito y fallo de restauración.
 - La restauración devuelve `rpo_seconds` y `rto_seconds` medidos.
 - La prueba de cálculo de RPO verificó el tiempo transcurrido desde la creación del respaldo.
-- RNF-REC-01 pasa de 50% a 60%.
-- Queda pendiente el ciclo real con `pg_dump`/`pg_restore`, objetivos RPO/RTO acordados y validación de rollback.
+- RNF-REC-01 pasa a 100% para el ciclo funcional local.
+- Se acreditó creación cifrada, descarga `.acb`, eliminación, importación,
+  verificación y restauración mediante Compose local.
+- Pendientes productivos: objetivos RPO/RTO acordados, recuperación ante
+  pérdida total, almacenamiento externo y pruebas periódicas.
 
 Validación ejecutada: 54/54 pruebas aprobadas en
 `test_admin_backups.py`, `test_esquema.py` y `test_ops.py`; se verificó control
@@ -567,9 +570,9 @@ final del PDF retornó HTTP 200, 16 páginas y metadata con timestamp exacto
 desde el Python del host porque no tiene SQLAlchemy instalado; la validación
 focalizada del PDF se hizo contra el API activo.
 
-No se ejecutó `pg_dump` real ni una restauración/swap completo; las pruebas no
-demuestran integridad del ciclo con una base y archivos reales, permisos de
-mantenimiento, recuperación ante falla de swap ni RPO/RTO. El esquema 13 ya está
+Sí se ejecutó el ciclo real con PostgreSQL `pg_dump`/`pg_restore` y restauración
+local. Aún faltan la recuperación ante pérdida total, objetivos RPO/RTO
+aprobados y operación de almacenamiento externo. El esquema 13 ya está
 aplicado y Compose local permanece levantado. No se configuró la clave de
 cifrado, por lo que la programación se mantiene pausada y no se generó un
 respaldo real. `STORAGE_BACKEND=azure` no es compatible con esta primera

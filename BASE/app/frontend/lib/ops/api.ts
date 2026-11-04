@@ -37,7 +37,7 @@ function qs(params?: Query): string {
   return s ? `?${s}` : "";
 }
 
-type Opts = { method?: "GET" | "POST" | "PATCH"; body?: unknown; query?: Query };
+type Opts = { method?: "GET" | "POST" | "PATCH" | "DELETE"; body?: unknown; query?: Query };
 
 export async function opsApi<T = any>(
   path: string, opts: Opts = {}, reintento = true,
@@ -112,4 +112,36 @@ export async function opsDownload(
     blob: await res.blob(),
     filename: encoded ? decodeURIComponent(encoded) : plain ?? "exportacion-admin",
   };
+}
+
+export async function opsUpload<T = any>(
+  path: string, file: File, reintento = true,
+): Promise<T> {
+  const headers: Record<string, string> = {};
+  const tok = getAccess();
+  if (tok) headers["Authorization"] = `Bearer ${tok}`;
+  const body = new FormData();
+  body.append("file", file);
+  let res: Response;
+  try {
+    res = await fetch(`${BASE}/api/v1/admin${path}`, {
+      method: "POST", headers, body,
+    });
+  } catch {
+    throw new OpsApiError("SIN_CONEXION",
+      "No se pudo contactar con el servidor.", 0);
+  }
+  if (res.status === 401) {
+    if (reintento && (await refrescar())) return opsUpload<T>(path, file, false);
+    if (typeof window !== "undefined") window.location.href = "/login";
+    throw new OpsApiError("SESION_EXPIRADA", "La sesión expiró.", 401);
+  }
+  const texto = await res.text();
+  let data: any = {};
+  try { data = texto ? JSON.parse(texto) : {}; } catch { /* respuesta no JSON */ }
+  if (!res.ok) {
+    throw new OpsApiError(data?.error?.code ?? "ERROR",
+      data?.error?.message ?? `Error ${res.status}`, res.status);
+  }
+  return data as T;
 }

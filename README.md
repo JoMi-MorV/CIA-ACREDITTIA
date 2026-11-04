@@ -4,13 +4,15 @@
 
 Actualizado al 04-11-2026.
 
-- Avance estimado vigente: **74,5%**, redondeado a 75%, para las 37 fichas SRS.
+- Avance estimado vigente: **75,9%**, redondeado a 76%, para las 37 fichas SRS.
 - Backend: suite completa final con **446 pruebas aprobadas, 0 fallidas y 0 errores**.
 - Frontend: `npm ci` y `npm run build` completaron correctamente.
 - Docker Compose: `docker compose config --quiet` completó correctamente.
 - `npm audit --omit=dev` reportó **1 vulnerabilidad crítica y 2 altas** en
   Next.js/PostCSS/source-map-js.
-- Respaldos: falta ejecutar restauración real y acreditar RPO/RTO.
+- Respaldos: ciclo funcional local 100% acreditado (crear, descargar `.acb`,
+  eliminar, importar, verificar y restaurar). Faltan RPO/RTO aprobados y
+  recuperación ante pérdida total del entorno.
 - Producción con datos reales: **NO-GO** por dependencias, DEC-08, roles reales,
   privacidad, infraestructura y recuperación.
 
@@ -839,7 +841,9 @@ su build pasó, pero los flujos aún requieren validación operativa.
   [la guía de ngrok](documentacion/LANZAMIENTO_NGROK.md) para una exposición
   temporal.
 - La invitación completa de usuarios por correo, la recuperación productiva de
-  contraseña, algunas integraciones externas, Celery distribuido y los procesos
-  coordinados de respaldo/restauración siguen pendientes.
+  contraseña, algunas integraciones externas y Celery distribuido siguen pendientes.
+- El ciclo local cifrado de respaldos y restauración está cerrado: crear,
+  descargar `.acb`, eliminar, importar, verificar y restaurar. RPO/RTO,
+  recuperación ante pérdida total y almacenamiento externo siguen pendientes.
 - El borrado actual de contratos es destructivo y elimina información asociada;
   el archivo y la restauración de contratos todavía no están implementados.

@@ -18,7 +18,6 @@ Los porcentajes siguientes son estimaciones de cobertura de código/evidencia pr
 | 4 | **RF-BUS-02 — Restricciones por información** | 65% | PAR | P0 | Integrar la matriz en detalle y exportaciones. |
 | 5 | **RF-CLI-09 — Integraciones, credenciales y notificaciones** | 65% | PAR | P2 | Conectores externos, WhatsApp, sincronización e idempotencia. |
 | 6 | **RNF-PRV-01 — Privacidad** | 60% | PAR | P0 | Retención, aprobación de privacidad, tratamiento histórico y acceso auditado. |
-| 7 | **RNF-REC-01 — Respaldos y restauración** | 60% | PAR | P0 | Restauración real, objetivos RPO/RTO validados, claves y recuperación completa. |
 | 8 | **RF-SEG-03 — Autenticación sin credenciales demo** | 65% | PAR | P0 | Despliegue seguro, roles reales y administración inicial sin semillas demo. |
 | 9 | **RF-AUD-01 — Cambios administrativos** | 55% | PAR | P1 | Cobertura uniforme de operaciones administrativas y cambios. |
 | 10 | **RNF-SEG-01 — Seguridad de infraestructura** | 55% | PAR | P0 | Roles reales, mínimo privilegio, secretos y despliegue equivalente a producción. |

@@ -338,8 +338,93 @@ def backup_path(backup_id: str) -> Path:
     return path
 
 
+def delete_backup(backup_id: str) -> dict:
+    path = backup_path(backup_id)
+    root = _backup_root()
+    sidecar = root / f"{backup_id}.json"
+    try:
+        path.unlink()
+        sidecar.unlink()
+    except OSError as exc:
+        raise BackupError("No se pudo eliminar completamente el respaldo") from exc
+    return {"id": backup_id, "deleted": True}
+
+
 def re_full_id(value: str) -> bool:
     return len(value) == 32 and all(ch in "0123456789abcdef" for ch in value)
+
+
+def import_backup(source: Path, original_filename: str = "backup.acb") -> dict:
+    """Importa y valida un paquete cifrado generado por Acredittia."""
+    _key()
+    if source.stat().st_size > 2 * 1024**3:
+        raise BackupError("El respaldo supera el límite de importación de 2 GiB")
+    with tempfile.TemporaryDirectory(prefix="acredittia-import-") as workdir:
+        archive_path = Path(workdir) / "package.tar.gz"
+        _decrypt(source, archive_path)
+        try:
+            with tarfile.open(archive_path, "r:gz") as archive:
+                for member in archive.getmembers():
+                    _safe_member(member)
+                manifest_file = archive.extractfile("manifest.json")
+                dump_file = archive.extractfile("database.dump")
+                if manifest_file is None or dump_file is None:
+                    raise BackupError("El paquete no contiene manifiesto o dump de PostgreSQL")
+                manifest = json.load(manifest_file)
+                digest_builder = hashlib.sha256()
+                for chunk in iter(lambda: dump_file.read(_CHUNK_SIZE), b""):
+                    digest_builder.update(chunk)
+                if digest_builder.hexdigest() != manifest.get("database_dump_sha256"):
+                    raise BackupError("El dump no coincide con su huella de integridad")
+                file_count = sum(
+                    1 for member in archive.getmembers()
+                    if member.isfile() and member.name.startswith("uploads/")
+                )
+        except (tarfile.TarError, OSError, json.JSONDecodeError) as exc:
+            raise BackupError(f"El paquete está dañado: {exc}") from exc
+
+    backup_id = manifest.get("id")
+    if not isinstance(backup_id, str) or not re_full_id(backup_id):
+        raise BackupError("El respaldo contiene un identificador inválido")
+    if manifest.get("format") != _FORMAT:
+        raise BackupError("El formato de respaldo no es compatible")
+    root = _backup_root()
+    sidecar = root / f"{backup_id}.json"
+    if sidecar.exists():
+        raise BackupError(
+            "Este respaldo ya existe en este servidor. "
+            "La importación solo permite añadir una copia que todavía no esté registrada aquí."
+        )
+
+    filename = f"acredittia-import-{backup_id[:12]}-{uuid.uuid4().hex[:8]}.acb"
+    destination = root / filename
+    os.chmod(source, 0o600)
+    shutil.copyfile(source, destination)
+    os.chmod(destination, 0o600)
+    created_at = manifest.get("created_at")
+    if not isinstance(created_at, str):
+        destination.unlink(missing_ok=True)
+        raise BackupError("El respaldo no contiene una fecha válida")
+    summary = {
+        "id": backup_id,
+        "file": filename,
+        "created_at": created_at,
+        "schema_version": manifest.get("schema_version"),
+        "size_bytes": destination.stat().st_size,
+        "files": file_count,
+        "status": "ready",
+        "reason": f"importado desde {Path(original_filename).name[:120]}",
+    }
+    sidecar_tmp = root / f".{backup_id}.json.partial"
+    try:
+        sidecar_tmp.write_text(json.dumps(summary, ensure_ascii=False), encoding="utf-8")
+        os.chmod(sidecar_tmp, 0o600)
+        os.replace(sidecar_tmp, sidecar)
+    except Exception:
+        sidecar_tmp.unlink(missing_ok=True)
+        destination.unlink(missing_ok=True)
+        raise
+    return summary
 
 
 def backup_recovery_point(backup_id: str, *, restored_at: datetime | None = None) -> float:

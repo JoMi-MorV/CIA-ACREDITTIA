@@ -13,16 +13,18 @@ Celery, sondas locales, el módulo inicial de respaldos/exportaciones ADMIN y
 cinco regresiones focalizadas de sondas y umbrales. El avance de las ocho
 prioridades ADMIN se estima en **74,5% (75% redondeado)**. La
 cobertura media actual de los 37 requisitos SRS, incluidos portal y requisitos
-no funcionales, es **74,5% (75% redondeado)**; RNF-REC-01 se estima en 60%.
+no funcionales, es **75,6% (76% redondeado)**; RNF-REC-01 alcanza 100% para
+su ciclo funcional local.
 Ninguna cifra mide preparación productiva.
 
 La ampliación de Reportes del portal documentada el 14-10-2026 no forma parte
 de la estimación de las prioridades ADMIN.
 
-La sección `/ops/respaldos` incorpora creación/verificación/restauración
-controlada y exportación ZIP CSV+JSON/PDF. La estimación de Auditoría y
-trazabilidad (50%) se conserva hasta validar el registro de eventos y su
-cobertura completa; la restauración productiva no se ha ejecutado. Véase
+La sección `/ops/respaldos` incorpora creación, descarga `.acb`,
+eliminación, importación, verificación, duplicados y restauración controlada,
+además de exportación ZIP CSV+JSON/PDF. El ciclo completo fue acreditado en
+Compose local. La aceptación productiva, RPO/RTO, almacenamiento externo y
+recuperación ante pérdida total siguen pendientes. Véase
 DEC-14 en el SRS y los límites en GAP/VALIDACION_ACTUAL.
 
 La actualización del 15-10-2026 registra cambios del portal de empresa:
@@ -55,7 +57,7 @@ ponderaciones acordadas por criticidad o esfuerzo. No es porcentaje de pruebas
 aprobadas, aceptación contractual ni preparación para producción.
 
 La cobertura estimada actual de los 37 requisitos (29 funcionales y 8 no funcionales)
-es **74,5% (75% redondeado)**. Este es el porcentaje de avance de código más
+es **75,6% (76% redondeado)**. Este es el porcentaje de avance de código más
 amplio que se puede reportar con el inventario actual del SRS; no incluye una
 ponderación aprobada por esfuerzo ni convierte criterios pendientes en
 completados. No se asigna un porcentaje de «listo para producción con datos

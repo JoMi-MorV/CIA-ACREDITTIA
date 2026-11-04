@@ -107,6 +107,23 @@ def test_encryption_roundtrip_and_tamper_detection(tmp_path, monkeypatch):
         backups._decrypt(encrypted, tmp_path / "damaged.bin")
 
 
+def test_delete_backup_removes_package_and_sidecar(tmp_path, monkeypatch):
+    monkeypatch.setattr(backups.settings, "backups_dir", str(tmp_path))
+    backup_id = "0123456789abcdef0123456789abcdef"
+    package = tmp_path / "acredittia-test.acb"
+    package.write_bytes(b"encrypted backup")
+    (tmp_path / f"{backup_id}.json").write_text(
+        backups.json.dumps({"id": backup_id, "file": package.name}),
+        encoding="utf-8",
+    )
+
+    result = backups.delete_backup(backup_id)
+
+    assert result == {"id": backup_id, "deleted": True}
+    assert not package.exists()
+    assert not (tmp_path / f"{backup_id}.json").exists()
+
+
 def test_recuperacion_calcula_rpo_desde_fecha_del_respaldo(tmp_path, monkeypatch):
     monkeypatch.setattr(backups.settings, "backups_dir", str(tmp_path))
     created = backups.datetime(2026, 11, 4, 3, 0, tzinfo=backups.timezone.utc)

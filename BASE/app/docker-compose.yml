@@ -41,8 +41,10 @@ services:
       DATABASE_URL: postgresql+psycopg://postgres:postgres@db:5432/acredittia
       SCHEMA_DIR: /schema
       BACKUPS_DIR: /data/backups
-      BACKUP_DATABASE_URL: postgresql://postgres:postgres@db:5432/acredittia
+      BACKUP_DATABASE_URL: ${BACKUP_DATABASE_URL:-postgresql://postgres:postgres@db:5432/acredittia}
       BACKUP_RESTORE_ROLE: postgres
+      BACKUP_RESTORE_DATABASE_URL: ${BACKUP_RESTORE_DATABASE_URL:-postgresql://postgres:postgres@db:5432/acredittia}
+      BACKUP_ENCRYPTION_KEY: ${BACKUP_ENCRYPTION_KEY:?Configure BACKUP_ENCRYPTION_KEY}
     volumes:
       - ../modelo_datos:/schema:ro
 
@@ -68,6 +70,10 @@ services:
       PUBLIC_BASE_URL: http://localhost:8000
       STORAGE_BACKEND: local          # azure en producción
       STORAGE_DIR: /data/uploads
+      BACKUPS_DIR: /data/backups
+      BACKUP_DATABASE_URL: ${BACKUP_DATABASE_URL:-postgresql://postgres:postgres@db:5432/acredittia}
+      BACKUP_RESTORE_DATABASE_URL: ${BACKUP_RESTORE_DATABASE_URL:-postgresql://postgres:postgres@db:5432/acredittia}
+      BACKUP_ENCRYPTION_KEY: ${BACKUP_ENCRYPTION_KEY:?Configure BACKUP_ENCRYPTION_KEY}
       QUEUE_BACKEND: celery           # inproc para ejecutar sin Redis
       REDIS_URL: redis://redis:6379/0
       JWE_BACKEND: local              # keyvault en producción
@@ -97,8 +103,10 @@ services:
       DATABASE_URL: postgresql+psycopg://postgres:postgres@db:5432/acredittia
       SCHEMA_DIR: /schema
       BACKUPS_DIR: /data/backups
-      BACKUP_DATABASE_URL: postgresql://postgres:postgres@db:5432/acredittia
+      BACKUP_DATABASE_URL: ${BACKUP_DATABASE_URL:-postgresql://postgres:postgres@db:5432/acredittia}
       BACKUP_RESTORE_ROLE: postgres
+      BACKUP_RESTORE_DATABASE_URL: ${BACKUP_RESTORE_DATABASE_URL:-postgresql://postgres:postgres@db:5432/acredittia}
+      BACKUP_ENCRYPTION_KEY: ${BACKUP_ENCRYPTION_KEY:?Configure BACKUP_ENCRYPTION_KEY}
       QUEUE_BACKEND: celery
       REDIS_URL: redis://redis:6379/0
       OPS_API_HEALTH_URL: http://api:8000/health

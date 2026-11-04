@@ -4,10 +4,13 @@ from __future__ import annotations
 import os
 import shutil
 from datetime import datetime, timezone
+import tempfile
+from pathlib import Path
 from starlette.background import BackgroundTask
-from fastapi import APIRouter, Depends, Query, Response
+from fastapi import APIRouter, Depends, File, Query, Response, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from ..config import settings
@@ -16,8 +19,8 @@ from ..deps import err, get_current_user, require_admin
 from ..models import User
 from ..models_ops import OpsJob
 from ..services import ops
-from ..services.backups import (BackupError, backup_configured, backup_path, list_backups,
-                                restore_backup, verify_backup)
+from ..services.backups import (BackupError, backup_configured, backup_path, delete_backup,
+                                import_backup, list_backups, restore_backup, verify_backup)
 from ..services.console_exports import create_console_export
 
 router = APIRouter(prefix="/admin/backups", tags=["admin"],
@@ -25,6 +28,10 @@ router = APIRouter(prefix="/admin/backups", tags=["admin"],
 
 
 class RestoreBody(BaseModel):
+    confirmation: str = Field(min_length=1, max_length=80)
+
+
+class DeleteBody(BaseModel):
     confirmation: str = Field(min_length=1, max_length=80)
 
 
@@ -65,6 +72,34 @@ def respaldos():
         raise err(503, "RESPALDOS_NO_DISPONIBLES", str(exc)) from exc
 
 
+@router.post("/import")
+async def importar_respaldo(file: UploadFile = File(...),
+                            db: Session = Depends(get_db),
+                            user: User = Depends(get_current_user)):
+    if not file.filename or not file.filename.lower().endswith(".acb"):
+        raise err(422, "FORMATO_RESPALDO_INVALIDO", "Seleccione un archivo .acb cifrado")
+    with tempfile.NamedTemporaryFile(prefix="acredittia-upload-", suffix=".acb",
+                                     delete=False) as uploaded:
+        temporary_path = os.path.abspath(uploaded.name)
+        try:
+            while chunk := await file.read(1024 * 1024):
+                uploaded.write(chunk)
+        except Exception as exc:
+            os.unlink(temporary_path)
+            raise err(422, "CARGA_RESPALDO_FALLIDA", "No se pudo recibir el archivo") from exc
+    try:
+        result = import_backup(Path(temporary_path), file.filename)
+    except BackupError as exc:
+        raise err(422, "RESPALDO_NO_IMPORTADO", str(exc)) from exc
+    finally:
+        Path(temporary_path).unlink(missing_ok=True)
+    ops.auditar(db, "creacion",
+                f"Respaldo importado {result['id']} desde {file.filename}",
+                user_id=user.id, entidad_tipo="admin_backup")
+    db.commit()
+    return result
+
+
 @router.get("/{backup_id}/download")
 def descargar_respaldo(backup_id: str, db: Session = Depends(get_db),
                        user: User = Depends(get_current_user)):
@@ -75,8 +110,14 @@ def descargar_respaldo(backup_id: str, db: Session = Depends(get_db),
     ops.auditar(db, "visualizacion", f"Descarga de respaldo cifrado {backup_id}",
                 user_id=user.id, entidad_tipo="admin_backup")
     db.commit()
-    return FileResponse(path, filename=path.name,
-                        media_type="application/octet-stream")
+    download_name = path.name
+    if not download_name.lower().endswith(".acb"):
+        download_name = f"{download_name}.acb"
+    return FileResponse(
+        path,
+        filename=download_name,
+        media_type="application/octet-stream",
+    )
 
 
 @router.post("/{backup_id}/verify")
@@ -96,11 +137,29 @@ def verificar(backup_id: str, db: Session = Depends(get_db),
     return result
 
 
+@router.delete("/{backup_id}")
+def eliminar(backup_id: str, body: DeleteBody, db: Session = Depends(get_db),
+             user: User = Depends(get_current_user)):
+    expected = f"ELIMINAR {backup_id}"
+    if body.confirmation != expected:
+        raise err(409, "CONFIRMACION_INCORRECTA",
+                  f"Escribe exactamente la confirmación: {expected}")
+    try:
+        result = delete_backup(backup_id)
+    except BackupError as exc:
+        raise err(404, "RESPALDO_NO_ENCONTRADO", str(exc)) from exc
+    ops.auditar(db, "actualizacion", f"Respaldo eliminado {backup_id}",
+                user_id=user.id, entidad_tipo="admin_backup")
+    db.commit()
+    return result
+
+
 @router.post("/{backup_id}/restore")
 def restaurar(backup_id: str, body: RestoreBody,
               db: Session = Depends(get_db),
               user: User = Depends(get_current_user)):
     confirmation = body.confirmation
+    restore_started_at = datetime.now(timezone.utc)
     ops.auditar(
         db, "actualizacion",
         f"Inicio de restauración del respaldo {backup_id}; requiere corte de servicio",
@@ -119,6 +178,15 @@ def restaurar(backup_id: str, body: RestoreBody,
             audit_db.commit()
         raise err(409, "RESTAURACION_FALLIDA", str(exc)) from exc
     with SessionLocal() as audit_db:
+        audit_db.execute(text("""
+            UPDATE ops_job_runs
+               SET status = 'timeout',
+                       finished_at = COALESCE(finished_at, now()),
+                       mensaje = COALESCE(mensaje, 'Ejecución abierta restaurada desde el snapshot')
+             WHERE job_clave = 'admin_backup'
+               AND status IN ('queued', 'running')
+               AND created_at < :restore_started_at
+        """), {"restore_started_at": restore_started_at})
         ops.auditar(audit_db, "actualizacion",
                     f"Restauración completada del respaldo {backup_id}",
                     user_id=user.id, entidad_tipo="admin_backup")
