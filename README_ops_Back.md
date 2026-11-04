@@ -1,6 +1,14 @@
 # Consola Interna de Administración — código backend
 
-Estado actual validado: la base backend quedó validada con PostgreSQL temporal en Docker. El resultado verificado del 14-10-2026 es **399 pruebas aprobadas, 0 fallidas** en `BASE/app/backend`, con **1 warning residual** de compatibilidad del stack `starlette.testclient` + `httpx`.
+Actualizado al 03-11-2026, 19:40 -03:00: cinco regresiones focalizadas de
+salud operacional pasaron en ejecución aislada (API inaccesible con workers
+activos, heartbeat vencido/recuperación, umbral p95, Redis caído, worker ausente
+y profundidad de cola). La suite completa no se ejecutó en este corte: su
+`conftest` requiere Docker dentro del contenedor. El resultado histórico del
+14-10-2026 fue **399 pruebas aprobadas, 0 fallidas**, con un warning de
+compatibilidad `starlette.testclient` + `httpx`. La pila local permanece
+detenida; el estado y los límites detallados están en
+`documentacion/VALIDACION_ACTUAL.md`.
 
 Esta guía conserva la documentación de la **Especificación de API — Consola Interna v1.0** y la implementación heredada (`Acredittia_Especificacion_API_Consola_Interna.docx`), pero no debe interpretarse como un estado de producción certificado. La evidencia actual y el SRS mantienen como bloqueo P0 la revisión legal/contractual de DEC-08, los permisos granulares y la auditoría con datos sensibles.
 

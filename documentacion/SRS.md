@@ -1,6 +1,6 @@
 # SRS — Acredittia
 
-Especificación de requisitos de software · versión 0.64 · 03-11-2026
+Especificación de requisitos de software · versión 0.65 · 03-11-2026
 
 **Estado documental:** validado con pruebas focalizadas en PostgreSQL temporal y ejecución local distribuida de Celery; permanecen pendientes criterios funcionales, de seguridad y aceptación integral. No constituye certificación de producción ni cierre legal de DEC-08.
 
@@ -197,6 +197,15 @@ páginas. Es una representación de los datos consultados, no una captura de
 pantalla ni una exportación completa de archivos/documentos. Se mantienen las
 exclusiones de credenciales, tokens y secretos.
 
+La versión 0.65 registra cinco regresiones de salud operacional aprobadas en
+ejecución aislada: API inaccesible mientras los workers siguen activos,
+heartbeat vencido y recuperación, umbral p95, Redis caído, ausencia de workers
+y límites de profundidad de cola. RF-SAL-02 se reestima de 70% a 80%; siguen
+pendientes la recuperación de workers en un recorrido distribuido real y la
+disponibilidad de proveedores externos. La media simple actualizada es 70,2%
+(`2598 / 37`), y la de las ocho prioridades ADMIN es 68,0%. No equivale a
+aceptación integral ni preparación productiva.
+
 Se conservan los **100% declarados en el cronograma** como cierre de la actividad en su alcance y fecha originales. Se permite registrar **«Completada con observaciones»** cuando existen ajustes posteriores o evidencia por adjuntar. Esta convención de seguimiento no certifica aceptación del cliente ni convierte una funcionalidad parcial en validada.
 
 Se mantienen dos estados independientes:
@@ -222,7 +231,7 @@ El avance del requisito es independiente del porcentaje declarado de la activida
 
 **Corte de cobertura de código — 03-11-2026:** se revisaron las 37 fichas
 vigentes del SRS (29 funcionales y 8 no funcionales). Tras la versión 0.63, la
-media simple de sus estimaciones es 69,9% (`2588 / 37`), redondeada a 70%.
+media simple de sus estimaciones fue 69,9% (`2588 / 37`), redondeada a 70%.
 Por dominio: ADMIN 69,5% (20 requisitos), portal de empresa 78,7% (9) y
 requisitos no funcionales 61,3% (8). Por prioridad técnica: P0 54,4% (9
 requisitos), P1 78,1% (22) y P2 63,3% (6). Todos los requisitos pesan igual porque no existe
@@ -436,12 +445,12 @@ Todas las rutas de API de esta sección son relativas a `/api/v1`. Cada requisit
 
 - **Estado técnico:** ISV.
 - **Prioridad:** P1.
-- **Avance estimado:** 70 % (reevaluado el 03-11-2026).
-- **Fundamento del avance:** se verificaron sondas HTTP, PostgreSQL, Redis/workers y Storage local, además de heartbeat real de seis componentes. No se validaron todos los escenarios de fallo/recuperación ni la disponibilidad de proveedores externos.
+- **Avance estimado:** 80 % (reevaluado el 03-11-2026, versión 0.65).
+- **Fundamento del avance:** se verificaron sondas HTTP, PostgreSQL, Redis/workers y Storage local, además de heartbeat real de seis componentes. Cinco regresiones focalizadas cubren API inaccesible mientras los workers siguen activos, heartbeat vencido y recuperación, umbral p95, Redis caído, ausencia de workers y límites de cola. No se validó la recuperación de workers en un recorrido distribuido real ni la disponibilidad de proveedores externos.
 - **Comportamiento esperado:** Estado operacional verificable. Cumplir las condiciones detalladas en el criterio de aceptación.
 - **Estado actual:** la sonda HTTP consulta `OPS_API_HEALTH_URL` cuando está configurada y reporta la latencia de esa verificación; la API recoge conteos, errores 5xx y latencia de solicitudes en una ventana acotada. Las sondas comprueban PostgreSQL con `SELECT 1`, Redis y workers Celery mediante ping/inspección (no solo profundidad de cola), y Storage local mediante escritura/lectura/eliminación de un objeto canario. Azure Blob se presenta como `no_verificado` porque no se realizan operaciones potencialmente facturables. La sonda IA identifica explícitamente el modo simulado, que no equivale a disponibilidad SaaS real. En la ejecución local del 03-11 se completó el heartbeat de seis componentes.
-- **Pendientes / mejoras:** probar indisponibilidad HTTP aunque worker siga activo, pérdida de Redis/worker, vencimiento de heartbeat y recuperación; documentar/validar umbrales y clasificación de estados en esos casos. No atribuir métricas del backend IA simulado ni del Storage Azure no probado como disponibilidad externa. El impacto empresarial permanece `indeterminado` si no existe relación verificable.
-- **Validación:** parcial, ejecución distribuida local y evidencia de corridas `ok` en [VALIDACION_ACTUAL.md](VALIDACION_ACTUAL.md); falta validar los escenarios negativos y cierre integral.
+- **Pendientes / mejoras:** probar API inaccesible mientras worker sigue activo, pérdida de Redis/worker y recuperación; documentar/validar umbrales y clasificación de estados en esos casos. No atribuir métricas del backend IA simulado ni del Storage Azure no probado como disponibilidad externa. El impacto empresarial permanece `indeterminado` si no existe relación verificable.
+- **Validación:** parcial; ejecución distribuida local, corridas `ok` y cinco regresiones focalizadas aprobadas en [VALIDACION_ACTUAL.md](VALIDACION_ACTUAL.md). No equivale al cierre integral del requisito.
 - **Criterio de aceptación:** API inaccesible se detecta aunque el worker siga funcionando; cola vacía no certifica worker activo; heartbeat vencido muestra estado no verificable o caído según regla documentada; latencia sin fuente no se presenta como medida real.
 - **Dependencia:** RNF-OPE-01; tiempos objetivo por decidir en DEC-07.
 
@@ -939,7 +948,7 @@ Para conservar un 100% con observaciones, registrar: número de actividad, alcan
 
 ## 13. Cuadro de resumen del estado general del proyecto
 
-**Corte de estados funcionales generales: 03-11-2026; línea base inicial del 29-09-2026.** Los estados siguientes resumen evidencia y pendientes, no aceptación contractual. «Operativo» se limita a los recorridos comprobados; no significa listo para producción. El avance estimado de cobertura de código de las 37 fichas del SRS es 69,9% (70% redondeado); el promedio de las ocho prioridades ADMIN permanece en 67,5% (68% redondeado). Véase `GAP_ANALYSIS.md` para método, desgloses y límites.
+**Corte de estados funcionales generales: 03-11-2026; línea base inicial del 29-09-2026.** Los estados siguientes resumen evidencia y pendientes, no aceptación contractual. «Operativo» se limita a los recorridos comprobados; no significa listo para producción. El avance estimado de cobertura de código de las 37 fichas del SRS es 70,2% (70% redondeado); el promedio de las ocho prioridades ADMIN es 68,0% (68% redondeado). Véase `GAP_ANALYSIS.md` para método, desgloses y límites.
 
 | Área | Estado general | Qué se reconoce como realizado | Observación / pendiente principal | Seguimiento |
 |---|---|---|---|---|

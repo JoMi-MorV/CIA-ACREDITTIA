@@ -9,8 +9,9 @@ mismo patrón que usa test_reportes.py.
 """
 from __future__ import annotations
 
+import json
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -233,6 +234,27 @@ def test_estado_ciego_luego_operativo(app_cliente, admin):
                for c in componentes.values())
 
 
+def test_heartbeat_expirado_se_clasifica_como_caido(monkeypatch):
+    from app.services import ops
+
+    store = ops._MemStore()
+    monkeypatch.setattr(ops, "_store", store)
+    ts = datetime.now(timezone.utc) - timedelta(
+        seconds=ops.ops_settings.ops_heartbeat_ttl_s + 1)
+    store.set(ops._k("api"), json.dumps({
+        "estado": "operativo", "metricas": {"ping_ms": 1},
+        "ts": ts.isoformat(),
+    }))
+
+    assert ops.estado_componente("api") == ("caido", None, None)
+
+    ops.guardar_latido("api", "operativo", {"ping_ms": 2})
+    estado, metricas, desde = ops.estado_componente("api")
+    assert estado == "operativo"
+    assert metricas == {"ping_ms": 2}
+    assert desde is not None
+
+
 def test_sonda_api_mide_latencia_y_respuestas_5xx(monkeypatch):
     from app.services import ops_probes
 
@@ -250,6 +272,148 @@ def test_sonda_api_mide_latencia_y_respuestas_5xx(monkeypatch):
     assert metricas["tasa_error_5xx_pct"] == 5
     assert metricas["latencia_p95_ms"] == 19
     ops_probes.reset_metricas_api()
+
+
+def test_sonda_api_inaccesible_se_clasifica_como_caida(monkeypatch):
+    from app.services import ops_probes
+
+    monkeypatch.setattr(
+        ops_probes.ops_settings, "ops_api_health_url",
+        "http://api.test/health")
+    monkeypatch.setattr(ops_probes, "_resumen_api", lambda: {
+        "solicitudes_5m": 0, "errores_5xx_5m": 0,
+        "latencia_p95_ms": None, "ventana_segundos": 300,
+        "metodo_percentil": "sin muestras",
+    })
+
+    def api_inaccesible(*args, **kwargs):
+        raise ops_probes.urllib.error.URLError("sin conexión")
+
+    monkeypatch.setattr(
+        ops_probes.urllib.request, "urlopen", api_inaccesible)
+    estado, metricas = ops_probes.sonda_api(None)
+
+    assert estado == "caido"
+    assert metricas["verificacion_http"] == "fallo"
+    assert metricas["detalle"] == "La API no respondió al health check HTTP"
+
+
+def test_sonda_api_aplica_umbral_p95(monkeypatch):
+    from app.services import ops_probes
+
+    monkeypatch.setattr(ops_probes.settings, "queue_backend", "inproc")
+    monkeypatch.setattr(ops_probes.ops_settings, "ops_api_health_url", "")
+    monkeypatch.setattr(
+        ops_probes.ops_settings, "ops_umbral_p95_ms", 800)
+    ops_probes.reset_metricas_api()
+    ops_probes.registrar_solicitud_api(800, 200)
+    assert ops_probes.sonda_api(None)[0] == "operativo"
+
+    ops_probes.reset_metricas_api()
+    ops_probes.registrar_solicitud_api(801, 200)
+    estado, metricas = ops_probes.sonda_api(None)
+    assert estado == "degradado"
+    assert metricas["latencia_p95_ms"] == 801
+    ops_probes.reset_metricas_api()
+
+
+def test_sonda_workers_detecta_redis_caido(monkeypatch):
+    import redis
+
+    from app.services import ops_probes
+
+    class RedisCaido:
+        def ping(self):
+            raise redis.ConnectionError("Redis no disponible")
+
+    monkeypatch.setattr(ops_probes.settings, "queue_backend", "celery")
+    monkeypatch.setattr(
+        redis.Redis, "from_url", lambda *args, **kwargs: RedisCaido())
+
+    estado, metricas = ops_probes.sonda_workers(None)
+    assert estado == "caido"
+    assert "Redis no disponible" in metricas["error"]
+
+
+def test_sonda_workers_distingue_worker_y_umbral_de_cola(monkeypatch):
+    import celery
+    import redis
+
+    from app.services import ops_probes
+
+    class RedisTemporal:
+        def __init__(self):
+            self.profundidad = 500
+
+        def ping(self):
+            return True
+
+        def llen(self, nombre):
+            return self.profundidad
+
+        def close(self):
+            pass
+
+    class Inspector:
+        workers = {}
+
+        def ping(self):
+            return self.workers
+
+        def active_queues(self):
+            return {"worker-1": [{"name": "celery"}]} if self.workers else {}
+
+        def active(self):
+            return {"worker-1": []} if self.workers else {}
+
+    class CeleryTemporal:
+        control = type("Control", (), {
+            "inspect": lambda self, timeout: Inspector(),
+        })()
+
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def close(self):
+            pass
+
+    redis_temporal = RedisTemporal()
+    monkeypatch.setattr(ops_probes.settings, "queue_backend", "celery")
+    monkeypatch.setattr(redis.Redis, "from_url",
+                        lambda *args, **kwargs: redis_temporal)
+    monkeypatch.setattr(celery, "Celery", CeleryTemporal)
+    monkeypatch.setattr(ops_probes.ops_settings, "ops_umbral_cola", 500)
+    monkeypatch.setattr(
+        ops_probes.ops_settings, "ops_api_health_url",
+        "http://api.test/health")
+    monkeypatch.setattr(ops_probes, "_resumen_api", lambda: {
+        "solicitudes_5m": 0, "errores_5xx_5m": 0,
+        "latencia_p95_ms": None, "ventana_segundos": 300,
+        "metodo_percentil": "sin muestras",
+    })
+
+    def api_inaccesible(*args, **kwargs):
+        raise ops_probes.urllib.error.URLError("API no disponible")
+
+    monkeypatch.setattr(
+        ops_probes.urllib.request, "urlopen", api_inaccesible)
+
+    Inspector.workers = {}
+    estado, metricas = ops_probes.sonda_workers(None)
+    assert estado == "caido"
+    assert metricas["workers_activos"] == 0
+
+    Inspector.workers = {"worker-1": {"ok": "pong"}}
+    estado, metricas = ops_probes.sonda_workers(None)
+    assert estado == "operativo"
+    assert metricas["colas"] == {"celery": 500}
+    estado_api, _ = ops_probes.sonda_api(None)
+    assert estado_api == "caido"
+
+    redis_temporal.profundidad = 501
+    estado, metricas = ops_probes.sonda_workers(None)
+    assert estado == "degradado"
+    assert metricas["colas"] == {"celery": 501}
 
 
 def test_sonda_api_comparte_histograma_redis(monkeypatch):

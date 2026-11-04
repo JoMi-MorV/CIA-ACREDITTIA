@@ -1,6 +1,12 @@
 # Consola Interna — frontend (/ops)
 
-Estado actual validado: la capa frontend de la consola ha sido revisada y el build de la app sigue pasando; además, el backend quedó validado con pruebas reales. La evidencia actual en el repositorio registra que la suite backend completa pasó con **399 pruebas aprobadas, 0 fallidas**; no se declara producción ni go-live con datos reales, porque DEC-08 y la seguridad operativa siguen bloqueados en la documentación de requisitos.
+La última validación del frontend fue el build de producción del 03-11-2026,
+que pasó. La suite backend completa registró históricamente **399 pruebas
+aprobadas, 0 fallidas** el 14-10-2026; no se volvió a ejecutar en el corte más
+reciente. El 03-11-2026 se aprobaron cinco regresiones focalizadas de salud
+operacional. No se declara producción ni go-live con datos reales: DEC-08 y
+otras brechas de seguridad siguen abiertas. La evidencia actualizada y sus
+límites están en `documentacion/VALIDACION_ACTUAL.md`.
 
 Este documento conserva la implementación original de la consola de administración en **React (Next.js 14 App Router + TypeScript + Tailwind)**, pero la navegación pública actual del proyecto ya no se limita a `/ops`. Las rutas visibles vigentes quedan bajo `/admin` (por ejemplo, `/admin/usuarios`, `/admin/sistemas`, `/admin/metricas`), y la API administrativa se publica bajo `/api/v1/admin`. Se conservan rutas Ops anteriores bajo `/api/v1/admin/ops` por compatibilidad histórica.
 

@@ -1,4 +1,22 @@
-# Validación funcional — actualizado al 3 de noviembre de 2026, 13:39 -03:00
+# Validación funcional — actualizado al 3 de noviembre de 2026, 19:40 -03:00
+
+## Regresiones focalizadas de salud operacional — 3 de noviembre de 2026, 19:40 -03:00
+
+Se añadieron cinco regresiones a `tests/test_ops.py`: heartbeat vencido seguido
+de recuperación; health check HTTP inaccesible; latencia p95 exactamente en el
+umbral de 800 ms y sobre él; pérdida de conexión a Redis; ausencia de workers
+Celery; y profundidad de cola en 500 (operativa) y 501 (degradada). Se comprobó
+además que, con los workers activos, una API inaccesible se clasifica `caido`
+sin marcar como caído al worker. Las cinco funciones se ejecutaron de forma
+aislada en el contenedor backend y pasaron.
+
+La suite estándar no pudo arrancar porque su `conftest` necesita lanzar
+PostgreSQL mediante Docker desde dentro del contenedor, donde el cliente de
+Docker no está disponible. Este resultado no representa una ejecución completa
+de `test_ops.py`. No se inició ningún servicio de la pila; Compose permanece
+detenido. Siguen pendientes las pruebas de pérdida de Redis/worker,
+recuperación distribuida real, umbrales de riesgo de clientes y proveedores
+externos.
 
 ## Despliegue local de procesos programados — 3 de noviembre de 2026
 

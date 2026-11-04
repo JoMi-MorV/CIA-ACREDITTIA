@@ -1,7 +1,7 @@
 # Resumen de requisitos ADMIN
 
 **Corte ADMIN:** 03 de noviembre de 2026  
-**Base documental:** SRS versión 0.63, GAP y `VALIDACION_ACTUAL.md`.
+**Base documental:** SRS versión 0.65, GAP y `VALIDACION_ACTUAL.md`.
 **Propósito:** resumir el estado técnico de las ocho prioridades ADMIN, distinguir lo implementado de lo validado y proponer criterios concretos para revisar su cierre.
 
 Este documento es una guía de revisión, no una aceptación contractual ni una certificación de producción. Los estados reflejan los requisitos y la evidencia descritos en el [SRS](SRS.md) y en [VALIDACION_ACTUAL.md](VALIDACION_ACTUAL.md). `IV` significa implementado y validado dentro del alcance probado; `ISV`, implementado sin validación completa; `PAR`, parcial; `COR`, requiere corrección; y `PEN`, pendiente. Los porcentajes estimados del SRS no equivalen a porcentaje de cumplimiento validado.
@@ -9,12 +9,12 @@ Este documento es una guía de revisión, no una aceptación contractual ni una 
 La actualización del 13-10-2026 registra mejoras de interfaz y auditoría
 descritas abajo y una revisión de código/documentación de las ocho prioridades.
 La actualización del 03-11-2026 incorpora pruebas de ejecución distribuida
-Celery, sondas locales y el módulo inicial de respaldos/exportaciones ADMIN.
-El avance de las ocho prioridades ADMIN se estima en **67,5% (68% redondeado)**
-y no se repondera por esta entrega. La cobertura media actual de los 37
-requisitos SRS, incluidos portal y requisitos no funcionales, es **69,9% (70%
-redondeado)**; RNF-REC-01 sube a 50% estimado. Ninguna cifra mide preparación
-productiva.
+Celery, sondas locales, el módulo inicial de respaldos/exportaciones ADMIN y
+cinco regresiones focalizadas de sondas y umbrales. El avance de las ocho
+prioridades ADMIN se estima en **68,0% (68% redondeado)**. La
+cobertura media actual de los 37 requisitos SRS, incluidos portal y requisitos
+no funcionales, es **70,2% (70% redondeado)**; RNF-REC-01 se estima en 50%.
+Ninguna cifra mide preparación productiva.
 
 La ampliación de Reportes del portal documentada el 14-10-2026 no forma parte
 de la estimación de las prioridades ADMIN.
@@ -41,21 +41,21 @@ final siguen pendientes; evidencia en `VALIDACION_ACTUAL.md`.
 | 2 | Gestión global de empresas | **90%** | **IV en alcance verificado; rechazo/casos límite pendientes** — RF-EMP-01/02 | Tabla «Empresas (cuentas)» con industria y estado de cuenta; detalle de perfiles y responsables por contrato. Flujo normal de registro/aprobación verificado; falta validar rechazo y transiciones repetidas. |
 | 3 | Buscador global | **55%** | **PAR** — RF-BUS-01/02 | Botones despliegan listas por categoría; el backend exige ADMIN, pero no aplica permisos independientes por categoría/detalle. La autorización granular y la validación visual integral siguen pendientes. |
 | 4 | Métricas SaaS | **60%** | **PAR** — RF-MET-01/02/03 | Hay métricas de clientes/usuarios, sesiones y series mensuales; baja actividad y uso/adopción aparecen en Salud. El tiempo de uso sigue siendo estimado y las revisiones de IA no equivalen necesariamente a documentos únicos. |
-| 5 | Alertas y salud de clientes | **78%** | **Mixto:** RF-SAL-01 **PAR**; RF-SAL-02 **ISV**; RF-SAL-03 **ISV** | Se verificaron heartbeat, sondas locales y ejecución distribuida. Faltan escenarios negativos/recuperación, umbrales y casos límite, totales/paginación y verificación de proveedores externos. |
+| 5 | Alertas y salud de clientes | **82%** | **Mixto:** RF-SAL-01 **PAR**; RF-SAL-02 **ISV**; RF-SAL-03 **ISV** | Cinco regresiones cubren API inaccesible, heartbeat vencido/recuperación, umbral p95, Redis caído, worker ausente y profundidad de cola. Falta recuperación distribuida real, validar riesgos de clientes y totales/paginación. |
 | 6 | Usuarios, roles y permisos | **70%** | **PAR** — RF-USU-01/02 | El listado ADMIN pagina usuarios y los cambios de alcance invalidan sesiones. El portal permite convertir `company` en `contract_admin` si queda otro `company` activo; siguen pendientes invitación/aceptación de cuentas existentes, historial completo de acceso y validación integral. El porcentaje es el estimado histórico del 13-10. |
 | 7 | Auditoría y trazabilidad | **50%** | **PAR** — RF-AUD-01/02/03 | Se auditan cambios seleccionados y la emisión de URL documental requiere motivo. Falta cobertura uniforme de autenticación, lecturas sensibles, operaciones y exportaciones; una URL emitida no prueba transferencia efectiva. |
 | 8 | Seguridad y aislamiento | **62%** | **PAR** — RF-SEG-01/02/03, RNF-SEG-01 | Hay controles de autorización, RLS y pruebas de aislamiento multiempresa. Falta demostrar mínimo privilegio en configuración equivalente a producción, cerrar el acceso excepcional y validar el alcance contractual, aplicado mayormente en API. |
 
 ### Estimación global del corte
 
-**Avance funcional ADMIN estimado: 67,5% (68% redondeado)**, promedio simple
+**Avance funcional ADMIN estimado: 68,0% (68% redondeado)**, promedio simple
 de las ocho prioridades, donde Salud y operación es el promedio de sus tres
-requisitos: `(75 + 90 + 55 + 60 + 78,3 + 70 + 50 + 62) / 8 = 67,5%`. No hay
+requisitos: `(75 + 90 + 55 + 60 + 81,7 + 70 + 50 + 62) / 8 = 68,0%`. No hay
 ponderaciones acordadas por criticidad o esfuerzo. No es porcentaje de pruebas
 aprobadas, aceptación contractual ni preparación para producción.
 
 La cobertura estimada actual de los 37 requisitos (29 funcionales y 8 no funcionales)
-es **69,9% (70% redondeado)**. Este es el porcentaje de avance de código más
+es **70,2% (70% redondeado)**. Este es el porcentaje de avance de código más
 amplio que se puede reportar con el inventario actual del SRS; no incluye una
 ponderación aprobada por esfuerzo ni convierte criterios pendientes en
 completados. No se asigna un porcentaje de «listo para producción con datos

@@ -1,6 +1,6 @@
 # Plan de trabajo — Acredittia
 
-Versión 4.3 · 03-11-2026 · propuesta de ejecución vinculada a [SRS.md](SRS.md) versión 0.63.
+Versión 4.3 · 03-11-2026 · propuesta de ejecución vinculada a [SRS.md](SRS.md) versión 0.65.
 
 **Actualización al 08-10-2026:** los avances de PT-05, PT-06, PT-07 y PT-08
 incorporan cambios posteriores a la versión 0.5, incluida la implementación
@@ -49,7 +49,7 @@ pasó; la invitación de cuentas existentes sigue pendiente.
 **Actualización al 03-11-2026:** se verificaron los procesos programados bajo
 Celery/Beat y APScheduler unificado, las sondas locales de salud y ejecuciones
 reales de heartbeat y reportes. La pila Compose fue detenida después de
-validar, a petición del usuario. La estimación actual es 69,9% para las 37
+validar, a petición del usuario. En ese corte la estimación fue 69,9% para las 37
 fichas SRS y 67,5% para las ocho prioridades ADMIN; consulte
 [GAP_ANALYSIS.md](GAP_ANALYSIS.md) para fórmula, desgloses y limitaciones.
 Persisten pruebas de fallos/recuperación, integración SaaS externa y criterios
@@ -65,6 +65,14 @@ incluye herramientas PostgreSQL 16.15; falta demostrar restauración real, fallo
 configuración productiva. El alcance no admite Azure Blob ni respalda claves
 del vault; exige clave de cifrado externa. El esquema 13 no se aplicó al
 entorno detenido.
+
+**Actualización de salud operacional — 03-11-2026:** se añadieron dos pruebas
+focalizadas aprobadas para API inaccesible y heartbeat vencido. Luego se
+ampliaron a cinco regresiones: API inaccesible, heartbeat vencido/recuperación,
+umbral p95, Redis caído, ausencia de workers y profundidad de cola. El avance
+estimado actual es 70,2% para las 37 fichas SRS y 68,0% para las ocho
+prioridades ADMIN. Persisten la recuperación distribuida real, los casos de
+salud de clientes y los proveedores externos; la pila local no se reactivó.
 
 **Corrección al 15-10-2026, 13:52:46 -03:00:** se restaura la conversión de
 cualquier cuenta `company` a `contract_admin`, incluida la cuenta inicial,

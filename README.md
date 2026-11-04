@@ -2,13 +2,28 @@
 
 ## Estado actual verificado
 
-El proyecto está en estado funcional para la suite completa del backend con PostgreSQL temporal en Docker.
+Actualizado al 03-11-2026, 19:40 -03:00. La pila Compose local está detenida,
+según solicitud; las validaciones focalizadas recientes se ejecutaron sin
+levantar API, frontend, worker, Beat, PostgreSQL ni Redis.
 
-Evidencia ejecutada el 14-10-2026:
+- Cinco regresiones focalizadas de salud operacional pasaron: API inaccesible
+  mientras los workers siguen activos; heartbeat vencido y recuperación;
+  umbral p95; Redis caído; workers ausentes; y profundidad de cola en el
+  límite y por encima de él. `py_compile` también pasó.
+- La suite completa del backend no se ejecutó en este corte. Su `conftest`
+  necesita iniciar PostgreSQL temporal mediante Docker desde dentro del
+  contenedor, donde el cliente Docker no está disponible.
+- El avance estimado vigente es 70,2% para las 37 fichas SRS y 68,0% para las
+  ocho prioridades ADMIN. Son promedios estimados, no cumplimiento validado ni
+  preparación productiva. Los bloqueos P0 de DEC-08, permisos granulares y
+  auditoría permanecen abiertos.
+
+Evidencia histórica ejecutada el 14-10-2026:
 
 - `cd BASE/app/backend; python -m pytest -q`
-- Resultado verificado: **399 pruebas aprobadas, 0 fallidas**
-- Warning restante: **1**, de compatibilidad del stack `starlette.testclient` + `httpx` (sin impacto funcional)
+- Resultado de ese corte: **399 pruebas aprobadas, 0 fallidas**
+- Warning restante entonces: **1**, de compatibilidad del stack
+  `starlette.testclient` + `httpx` (sin impacto funcional)
 
 La producción no queda declarada como cerrada ni lista para go-live con datos reales: la revisión P0 de DEC-08, permisos granulares y auditoría siguen siendo bloqueos documentados del SRS.
 
@@ -36,7 +51,7 @@ Bash
 cd BASE/app
 docker compose up --build
 
-### Actualización de esquema 12
+### Actualización de esquema 13
 
 Las migraciones `09_indices_consola.sql` y `10_version_sesion.sql` crean índices
 administrativos y añaden `users.auth_version`. `11_ciclo_vida_contratos.sql`
@@ -44,8 +59,9 @@ añade estado de ciclo, motivo, actor y fecha de transición, preservando el est
 operacional existente del contrato.
 `12_scheduling_operacional.sql` cambia el despachador de reportes programados a
 una revisión cada minuto, necesaria para respetar el minuto de sus expresiones cron.
-Desde `BASE/app`,
-actualizar las imágenes y aplicar la migración antes de recrear los servicios:
+`13_respaldos_admin.sql` incorpora el esquema del módulo inicial de respaldos y
+exportaciones ADMIN. Desde `BASE/app`, actualizar las imágenes y aplicar la
+migración antes de recrear los servicios:
 
 ```bash
 docker compose build api worker beat migrate
@@ -53,10 +69,11 @@ docker compose run --rm migrate
 docker compose up -d api worker beat
 ```
 
-Si se configuró `SCHEMA_VERSION_ESPERADA` externamente, usar `12`. La migración
-12 conserva los datos y actualiza la frecuencia del despachador; la validación
-automatizada se realiza en PostgreSQL temporal y no aplica cambios a la base
-habitual.
+Si se configuró `SCHEMA_VERSION_ESPERADA` externamente, usar `13`. Las
+migraciones conservan los datos; la validación automatizada se realiza en
+PostgreSQL temporal y no aplica cambios a la base habitual. En el entorno local
+el esquema 13 fue aplicado durante la validación del 03-11; la pila permanece
+detenida hasta que se solicite iniciarla.
 
 En Usuarios, las cuentas revocadas tienen la acción **Reactivar** con confirmación.
 Conserva identidad, rol y alcance. Revocar o cambiar el estado activo desde ADMIN
