@@ -1,7 +1,7 @@
 # Resumen de requisitos ADMIN
 
 **Corte ADMIN:** 10 de noviembre de 2026  
-**Base documental:** SRS versión 0.73, GAP, `VALIDACION_ACTUAL.md` y el [cronograma de cierre de 2 semanas](CRONOGRAMA_CIERRE_PRODUCCION.md).
+**Base documental:** SRS versión 0.74, GAP, `VALIDACION_ACTUAL.md` y el [cronograma de cierre de 2 semanas](CRONOGRAMA_CIERRE_PRODUCCION.md).
 **Propósito:** resumir el estado técnico de las ocho prioridades ADMIN, distinguir lo implementado de lo validado y proponer criterios concretos para revisar su cierre.
 
 Este documento es una guía de revisión, no una aceptación contractual ni una certificación de producción. Los estados reflejan los requisitos y la evidencia descritos en el [SRS](SRS.md) y en [VALIDACION_ACTUAL.md](VALIDACION_ACTUAL.md). `IV` significa implementado y validado dentro del alcance probado; `ISV`, implementado sin validación completa; `PAR`, parcial; `COR`, requiere corrección; y `PEN`, pendiente. Los porcentajes estimados del SRS no equivalen a porcentaje de cumplimiento validado.
@@ -10,11 +10,12 @@ La actualización del 13-10-2026 registra mejoras de interfaz y auditoría
 descritas abajo y una revisión de código/documentación de las ocho prioridades.
 La actualización del 03-11-2026 incorpora pruebas de ejecución distribuida
 Celery, sondas locales, el módulo inicial de respaldos/exportaciones ADMIN y
-cinco regresiones focalizadas de sondas y umbrales. El avance de las ocho
-prioridades ADMIN se estima en **73,7% (74% redondeado)**. La
-cobertura media actual de los 37 requisitos SRS, incluidos portal y requisitos
-no funcionales, es **76,6% (77% redondeado)**; RNF-REC-01 alcanza 100% para
-su ciclo funcional local.
+cinco regresiones focalizadas de sondas y umbrales. El corte del 10-11-2026
+registra RF-BUS-01 al 100% (IV) por confirmación manual del usuario y RF-BUS-02
+al 100% (IV/P0) tras 83 pruebas focalizadas de autorización, alcance, ficha y
+exportación. El promedio de las ocho prioridades ADMIN es **77,1% (77%
+redondeado)** y la cobertura media de los 37 requisitos SRS es **78,1% (78%
+redondeado)**; RNF-REC-01 alcanza 100% para su ciclo funcional local.
 Ninguna cifra mide preparación productiva.
 
 La ampliación de Reportes del portal documentada el 14-10-2026 no forma parte
@@ -40,13 +41,18 @@ usuario de que las mutaciones acordadas están revisadas y aparecen en auditorí
 RF-AUD-01 se fija en 90%, PAR/P0, con un único pendiente: revisar valores
 anterior/nuevo para permisos/estados y pausa de procesos cuando corresponda.
 
+RF-BUS-02 se cierra IV/P0 al 100% para búsqueda, ficha vinculada y
+exportaciones probadas: 83 pruebas focalizadas aprobaron y el build frontend
+pasó. El listado administrativo independiente de usuarios continúa en RF-USU
+y no queda incluido en este cierre. No se realizó recorrido manual de navegador.
+
 ## Resumen ejecutivo
 
 | # | Prioridad | Avance estimado | Estado actual | En síntesis |
 |---|---|---:|---|---|
 | 1 | Dashboard global | **75%** | **PAR** — RF-DAS-01/02 | Muestra contadores, acreditación, estados documentales y actividad por eventos. Falta aplicar y validar universos, denominadores y crecimiento de empresas/usuarios. |
 | 2 | Gestión global de empresas | **90%** | **IV en alcance verificado; rechazo/casos límite pendientes** — RF-EMP-01/02 | Tabla «Empresas (cuentas)» con industria y estado de cuenta; detalle de perfiles y responsables por contrato. Flujo normal de registro/aprobación verificado; falta validar rechazo y transiciones repetidas. |
-| 3 | Buscador global | **55%** | **PAR** — RF-BUS-01/02 | Botones despliegan listas por categoría; el backend exige ADMIN, pero no aplica permisos independientes por categoría/detalle. La autorización granular y la validación visual integral siguen pendientes. |
+| 3 | Buscador global | **100%** | **RF-BUS-01 IV (100%); RF-BUS-02 IV/P0 (100%)** | Autorización por categoría, detalle directo y exportación ZIP con concesiones y alcance validados por pruebas focalizadas. El listado administrativo independiente de usuarios queda en RF-USU. |
 | 4 | Métricas SaaS | **60%** | **PAR** — RF-MET-01/02/03 | Hay métricas de clientes/usuarios, sesiones y series mensuales; baja actividad y uso/adopción aparecen en Salud. El tiempo de uso sigue siendo estimado y las revisiones de IA no equivalen necesariamente a documentos únicos. |
 | 5 | Alertas y salud de clientes | **82%** | **Mixto:** RF-SAL-01 **PAR**; RF-SAL-02 **ISV**; RF-SAL-03 **ISV** | Cinco regresiones cubren API inaccesible, heartbeat vencido/recuperación, umbral p95, Redis caído, worker ausente y profundidad de cola. Falta recuperación distribuida real, validar riesgos de clientes y totales/paginación. |
 | 6 | Usuarios, roles y permisos | **70%** | **PAR** — RF-USU-01/02 | El listado ADMIN pagina usuarios y los cambios de alcance invalidan sesiones. El portal permite convertir `company` en `contract_admin` si queda otro `company` activo; siguen pendientes invitación/aceptación de cuentas existentes, historial completo de acceso y validación integral. El porcentaje es el estimado histórico del 13-10. |
@@ -55,14 +61,14 @@ anterior/nuevo para permisos/estados y pausa de procesos cuando corresponda.
 
 ### Estimación global del corte
 
-**Avance funcional ADMIN estimado: 73,7% (74% redondeado)**. Incluye la
-actualización de RF-SEG-03 al 65% y los avances documentados de salud,
-auditoría, privacidad, respaldos e integraciones. No hay
+**Avance funcional ADMIN estimado: 77,1% (77% redondeado)**. Incluye la
+actualización de RF-BUS-01 y RF-BUS-02 al 100%, RF-SEG-03 al 65% y los
+avances documentados de salud, auditoría, privacidad, respaldos e integraciones. No hay
 ponderaciones acordadas por criticidad o esfuerzo. No es porcentaje de pruebas
 aprobadas, aceptación contractual ni preparación para producción.
 
 La cobertura estimada actual de los 37 requisitos (29 funcionales y 8 no funcionales)
-es **76,6% (77% redondeado)**. Este es el porcentaje de avance de código más
+es **78,1% (78% redondeado)**. Este es el porcentaje de avance de código más
 amplio que se puede reportar con el inventario actual del SRS; no incluye una
 ponderación aprobada por esfuerzo ni convierte criterios pendientes en
 completados. No se asigna un porcentaje de «listo para producción con datos
@@ -128,7 +134,7 @@ presentarse como estimación vigente.
 
 ## 3. Buscador global
 
-**Estado:** PAR — RF-BUS-01 y RF-BUS-02.
+**Estado:** RF-BUS-01 **IV (100%)**; RF-BUS-02 **IV/P0 (100%)**.
 
 **Lo que hace hoy**
 
@@ -136,14 +142,14 @@ presentarse como estimación vigente.
 - Incluye búsqueda por RUT para empresas y sujetos; no asigna RUT propio a las cuentas de acceso ni devuelve el RUT en los resultados.
 - Los botones por categoría despliegan las listas de resultados; el panel de referencias permite activar/desactivar empresas, cargos, contratos, tipos y marcas de equipo. Los filtros activos se muestran como chips removibles y se combinan con texto libre. El catálogo limita a 100 los valores dinámicos por categoría e indica si hay más; no muestra datos personales.
 - La ficha agregada se abre debajo de la fila concreta elegida; solo se mantiene una abierta y se descartan respuestas tardías al cambiar búsqueda/fila o cerrar.
-- El alcance de DEC-02 ya está acordado: cinco categorías, sin administradores de plataforma ni usuarios sin empresa, y fichas sin documentos. Sigue pendiente aplicar y validar permisos efectivos por categoría/detalle en el servidor.
+- El alcance de DEC-02 ya está acordado: cinco categorías, sin administradores de plataforma ni usuarios sin empresa, y fichas sin documentos. El usuario confirmó el funcionamiento de RF-BUS-01 y que la búsqueda no revela tokens ni información sensible. RF-BUS-02 quedó validado en servidor para permisos por categoría, concesiones (titular, vigencia, revocación y alcance), ficha directa y exportación ZIP filtrada. Las pruebas focalizadas aprobaron 83/83 y el build frontend pasó. El listado independiente `GET /admin/users` continúa bajo RF-USU; no se realizó recorrido manual de navegador.
 
 **Sugerencias y criterios a considerar**
 
-1. Definir la matriz actor × categoría × operación (búsqueda, ficha y campos visibles); aplicar autorización en servidor en cada solicitud.
-2. Acordar el tratamiento de usuarios sin empresa y otras cuentas globales; no incluirlos/excluirlos silenciosamente.
-3. Probar directamente la API como actor sin permiso, además de ocultar o deshabilitar controles en la interfaz.
-4. Validar resultados multi-término, límites de resultados y del catálogo, categorías sin valores, activación/deselección de chips y cambios rápidos de búsqueda con respuestas tardías.
+1. Validar la matriz actor × categoría × operación (búsqueda, ficha y campos visibles) en servidor en cada solicitud.
+2. Verificar que se mantenga la exclusión acordada en DEC-02 de administradores globales y usuarios sin empresa; gestionar estos últimos en sus vistas específicas.
+3. Completar pruebas directas de la API y detalles con actores/concesiones válidos e inválidos, y validar alcance, expiración y revocación.
+4. Probar exportaciones y confirmar que aplican las mismas restricciones de acceso.
 5. Mantener la minimización: sin RUT, documentos, tokens ni campos personales que no sean necesarios para identificar el resultado.
 
 **Para considerar el punto validado:** autorización efectiva y negativa por API para cada categoría y detalle, resultados correctos y minimizados, y recorrido de interfaz probado para filtros, límites y apertura/cierre.

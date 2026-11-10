@@ -804,6 +804,7 @@ export type Empresa = {
 };
 
 export type EmpresaDetalle = Empresa & {
+  datos_usuarios_restringidos: boolean;
   ultimo_evento: {
     created_at: string;
     tipo: string;
@@ -936,7 +937,6 @@ export type ResultadoBusquedaGlobal = {
 };
 
 export type BusquedaGlobal = {
-  query: string;
   /** Cantidad devuelta, no total de coincidencias. */
   total: number;
   limite_por_categoria: number;

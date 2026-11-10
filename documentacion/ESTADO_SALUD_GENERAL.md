@@ -18,6 +18,7 @@ La evaluación actual se mantiene en **NO GO** para producción. La mejora más 
 | Seguridad técnica | 🟡 Amarillo | Hay guardas de RLS, JWT y producción; falta validación real en entorno objetivo. |
 | Privacidad / RNF-PRV-01 | 🔴 Rojo / P0 | `ops_retencion` está activo y el usuario reporta ejecución local `ok` el 10-11-2026 00:18:52 (0 filas podadas); faltan Log Analytics, revisión histórica documentada y aprobación de producción. |
 | Auditoría administrativa / RF-AUD-01 | 🟡 Parcial, 90% / P0 | 71 pruebas de `test_ops.py` y `test_contratos.py` pasaron; el usuario confirmó las mutaciones acordadas registradas. Pendiente único: comprobar valores anterior/nuevo para permisos/estados y pausa de procesos cuando corresponda. |
+| Buscador global | 🟢 RF-BUS-01 y RF-BUS-02 cerrados (IV, 100%) | 83 pruebas focalizadas validan autorización por categoría, concesiones (titular, vigencia, revocación y alcance), ficha directa y exportación ZIP limitada; build frontend aprobado. El listado administrativo independiente de usuarios continúa bajo RF-USU. No se realizó recorrido manual de navegador. |
 | Recuperación y continuidad | 🔴 Rojo | Faltan pruebas de restauración real y objetivos RPO/RTO certificados. |
 | Documentación y arquitectura | 🟡 Amarillo | Buena cobertura documental, pero con drift de versiones y rutas heredadas. |
 | Producción con datos reales | 🔴 No GO | Bloqueado por seguridad, continuidad, controles de privacidad y validación operativa. |

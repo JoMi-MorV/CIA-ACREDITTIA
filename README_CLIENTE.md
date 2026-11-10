@@ -859,8 +859,11 @@ Falta o debe reforzarse:
      negativas por empresa/contrato.
 2. **Auditoria:** login, cambios administrativos, lecturas sensibles,
      descargas, impersonacion y exportaciones.
-3. **Buscador global:** cerrar alcance/permisos por categoria y validar
-     filtros, ficha y limites.
+3. **Buscador global:** RF-BUS-01/02 cerrados técnicamente en las rutas
+     probadas; autorización, alcance, ficha y exportación ZIP cuentan con
+     regresión automatizada. El listado administrativo independiente de
+     usuarios sigue su validación en RF-USU; no se realizó recorrido manual
+     del buscador en navegador.
 4. **Salud de clientes y operacion:** umbrales, listas completas, sondas
      verificables y recorrido distribuido Celery.
 5. **Metricas y dashboard:** acordar universos/definiciones, completar fuente

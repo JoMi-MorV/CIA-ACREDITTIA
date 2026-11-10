@@ -3,7 +3,7 @@
 Estado: borrador de revisión
 Fecha de referencia: 10-11-2026
 
-Cronograma vigente: [CRONOGRAMA_CIERRE_PRODUCCION.md](CRONOGRAMA_CIERRE_PRODUCCION.md)
+
 
 Este documento consolida la evidencia documental y técnica del proyecto a partir de la especificación funcional ([SRS.md](./SRS.md)) y la implementación actual en código. Este corte incorpora las pruebas/build y límites de validación registrados en [VALIDACION_ACTUAL.md](./VALIDACION_ACTUAL.md); el análisis de brechas no sustituye aceptación de producto ni certificación de producción.
 
@@ -78,7 +78,29 @@ de cambios de permisos/estados y pausa de procesos muestran valores
 anterior/nuevo cuando corresponda. El borrado físico de contratos está
 deshabilitado (HTTP 410). Con este ajuste, la media de 37 fichas es **76,6%
 (`2833 / 37`, 77% redondeado)**; la prioridad Auditoría y trazabilidad se
-recalcula a 73,3% y el promedio de las ocho prioridades ADMIN a 73,7%.
+recalcula a 73,3% y el promedio de las ocho prioridades ADMIN a 73,7% en ese
+corte.
+
+**Corte previo 10-11-2026 — RF-BUS-01/02:** el usuario confirmó que probó y
+verificó el funcionamiento de RF-BUS-01, que pasa a IV (100%). También confirmó
+que la búsqueda no revela tokens ni información sensible. RF-BUS-02 permanece
+PAR/P0 al 65% hasta validar autorización granular, acceso directo a detalle/API,
+alcance y ciclo de vida de concesiones y exportaciones. El promedio de las 37
+fichas pasa a **77,1% (`2853 / 37`)** y el de las ocho prioridades ADMIN a
+**74,9% (75% redondeado)**.
+
+**Cierre técnico RF-BUS-02 — 10-11-2026:** se validaron en servidor las
+concesiones por titular, categoría, vencimiento, revocación, empresa y recurso;
+la redacción de la ficha directa; y la denegación/filtrado de la exportación ZIP.
+La salida PDF revisada es agregada. Las pruebas focalizadas de buscador,
+administración, respaldos y privacidad pasaron **83/83**, y el build frontend
+pasó. RF-BUS-02 queda IV/P0 al 100% en las rutas de búsqueda, ficha vinculada y
+exportación probadas. El listado administrativo independiente de usuarios se
+mantiene bajo RF-USU y fuera de este cierre. Las métricas se recalculan a
+**78,1% (`2888 / 37`)** para los 37 requisitos, **77,1%** para las ocho
+prioridades ADMIN y **61,1%** para los nueve requisitos P0. No se realizó un
+recorrido manual de navegador; el proyecto conserva su NO-GO general de
+producción por otros bloqueos.
 
 **Línea base de cobertura de código — SRS v0.62, 03-11-2026:** la revisión de
 las 37 fichas (29 funcionales y 8 no funcionales) estimó 68,6% (`2538 / 37`).
@@ -137,20 +159,20 @@ La principal señal de riesgo es el bloqueo P0 documentado en el SRS:
 - DEC-08 quedó acordada como política interna el 09-11-2026; no pasar a producción con datos reales hasta confirmar su aplicabilidad.
 - En PostgreSQL, el usuario confirmó versión máxima de migración 16 y `effective_at=2026-11-09 03:00:00+00` (medianoche local UTC−03). También confirmó `ops_retencion` activo y reportó ejecución manual local `ok` el 10-11-2026 a las 00:18:52, con 0 filas podadas y 0 ejecuciones marcadas timeout. Esto acredita ejecución sin error, no la configuración de todas las fuentes. No se acreditaron la retención de 90 días en Log Analytics, el inventario/revisión de registros históricos ni la aprobación de aplicabilidad por producción.
 
-el avance reportable del conjunto de requisitos documentados es **77%
-(76,6% recalculado)**: promedio de 37 porcentajes revaluados, con igual peso para
+el avance reportable del conjunto de requisitos documentados es **78,1%
+(78% redondeado)**: promedio de 37 porcentajes revaluados, con igual peso para
 cada requisito. El 67% del 13-10 era el promedio de ocho prioridades ADMIN;
 no era el avance total del proyecto. La línea base SRS v0.62 fue 68,6%;
 RNF-REC-01 se reestimó de 60% a 100% tras acreditar el ciclo local de creación,
 descarga `.acb`, eliminación, importación, verificación y restauración.
 Para mantener comparabilidad, el
-promedio actualizado de esas ocho prioridades es **73,7% (74% redondeado)**:
-se reevalúa Salud y operación como promedio simple de RF-SAL-01 (75%),
-RF-SAL-02 (80%) y RF-SAL-03 (90%), mientras las otras siete prioridades
-conservan su estimación previa, salvo la prioridad de Auditoría, recalculada a
+promedio actualizado de esas ocho prioridades es **77,1% (77% redondeado)**:
+se reevalúan Buscador global (100%) y Salud y operación como promedio simple
+de RF-SAL-01 (75%), RF-SAL-02 (80%) y RF-SAL-03 (90%). Auditoría se recalcula a
 73,3% como promedio simple de RF-AUD-01 (90%), RF-AUD-02 (70%) y RF-AUD-03
-(60%). No hay un modelo de ponderación aprobado, y varios requisitos siguen
-usando estimaciones anteriores; por ello 73,7% es una
+(60%); las otras cinco prioridades conservan su estimación previa. No hay un
+modelo de ponderación aprobado, y varios requisitos siguen
+usando estimaciones anteriores; por ello 77,1% es una
 estimación basada en cobertura de código/evidencia, no un porcentaje medido de
 líneas, esfuerzo o criterios aceptados. La preparación para producción real
 con datos sensibles no se puntúa: DEC-08 y otros bloqueos P0 permanecen
@@ -173,11 +195,11 @@ abiertos.
 
 ## 5. Matriz de cumplimiento por prioridad de ADMIN
 
-| Prioridad ADMIN | Estado | % estimado al 03-11-2026 | Observación |
+| Prioridad ADMIN | Estado | % estimado al 10-11-2026 | Observación |
 |---|---|---:|---|
 | Dashboard global | Parcial | 75% | Hay contadores, acreditación, estados documentales y actividad por eventos; falta validar universos/denominadores y crecimiento de adopción. |
 | Gestión global de empresas | Avanzado | 90% | Listado y ficha agregada con industria, estado de cuenta, perfiles y responsables; el rechazo y los casos límite siguen pendientes. |
-| Buscador global | Parcial | 72,5% | Promedio de RF-BUS-01 (80%) y RF-BUS-02 (65%), alineado con el SRS. Persisten pendientes los permisos granulares por categoría/detalle y la validación integral de acceso. |
+| Buscador global | IV en alcance probado | 100% | RF-BUS-01 y RF-BUS-02 al 100%. Pruebas API de autorización por categoría, alcance/vigencia/revocación de concesiones, ficha directa y ZIP limitado; 83 pruebas focalizadas y build frontend aprobados. El listado administrativo independiente de usuarios se sigue en RF-USU. |
 | Métricas SaaS | Parcial | 60% | Existen métricas y series; tiempo de uso continúa estimado, y documentos procesados no equivale necesariamente a documentos únicos. Faltan definiciones y cálculos validados. |
 | Alertas y salud de clientes | Parcial | 82% | Promedio de RF-SAL-01 (75%), RF-SAL-02 (80%) y RF-SAL-03 (90%). Las regresiones cubren API inaccesible, heartbeat vencido/recuperación, umbral p95, Redis caído, worker ausente y profundidad de cola. Falta recuperación distribuida real, casos de salud de clientes y totales/paginación. Azure Blob e IA simulada no acreditan disponibilidad SaaS externa. |
 | Usuarios, roles y permisos | Parcial | 70% | La consola pagina usuarios; el portal permite convertir `company` a `contract_admin` si queda otro `company` activo. Se conserva el bloqueo de último administrador. Falta invitación/aceptación de cuentas existentes, correo de activación y validación integral de permisos. El 70% es la estimación histórica del 13-10, no recalculada en este corte. |
@@ -186,10 +208,10 @@ abiertos.
 
 ### % global estimado
 
-El promedio actualizado de las ocho prioridades ADMIN es **73,7% (74%
-redondeado)**: `(75 + 90 + 72,5 + 60 + 81,7 + 70 + 73,3 + 67) / 8`. La prioridad
+El promedio actualizado de las ocho prioridades ADMIN es **77,1% (77%
+redondeado)**: `(75 + 90 + 100 + 60 + 81,7 + 70 + 73,3 + 67) / 8`. La prioridad
 de Salud se obtiene del promedio de sus tres requisitos asociados. El promedio
-de los 37 requisitos es **76,6% (77% redondeado)**: `2833 / 37`. El primer valor
+de los 37 requisitos es **78,1% (78% redondeado)**: `2888 / 37`. El primer valor
 comparable con el 67% histórico de ADMIN; el segundo amplía el alcance e
 incluye el portal y requisitos no funcionales. No se dispone de ponderación
 por esfuerzo o criticidad, así que ambos son estimaciones, no medidas objetivas
@@ -197,14 +219,14 @@ ni aceptación.
 
 | Indicador | Valor |
 |---|---:|
-| Avance funcional estimado de las ocho prioridades ADMIN | 73,7% (74% redondeado) |
-| Cobertura estimada de los 37 requisitos SRS | 76,6% (77% redondeado) |
+| Avance funcional estimado de las ocho prioridades ADMIN | 77,1% (77% redondeado) |
+| Cobertura estimada de los 37 requisitos SRS | 78,1% (78% redondeado) |
 | Avance total ponderado del producto Acredittia | No determinado; falta ponderación por alcance/esfuerzo aprobada |
 | Preparación para producción real con datos sensibles | No puntuada; bloqueada por brechas P0 y DEC-08 |
 | Cumplimiento ADMIN validado como conjunto | No determinado; aceptación integral pendiente |
 | Estado del riesgo crítico operativo | Alto; no expresado como porcentaje de avance |
 
-Por prioridad de requisito, los nueve P0 promedian **57,2%**, los 22 P1
+Por prioridad de requisito, los nueve P0 promedian **61,1%**, los 22 P1
 **78,5%** y los seis P2 **63,3%**. La conclusión es que existe una base
 funcional amplia, pero el 70% estimado no significa que el producto esté listo
 para producción real. Persisten brechas críticas de permisos granulares,
@@ -252,20 +274,23 @@ Riesgo:
 
 ### 6.3 Buscador global
 
-Estado: funcional pero con brecha de cumplimiento de permisos.
+Estado: RF-BUS-01 y RF-BUS-02 IV (100%) dentro de las rutas y operaciones
+definidas para el buscador global.
 
-Cumple parcialmente:
+Cumple:
 - búsqueda por empresa, contrato, trabajador, equipo y usuario;
-- filtros y referencias por categorías;
-- panel de resultados con control por categoría.
+- autorización de servidor por categoría, con denegación sin concesión para
+  trabajadores/usuarios;
+- validación de concesión por titular, categoría, expiración, revocación,
+  empresa y recurso;
+- redacción o filtrado de identidades en la ficha directa vinculada;
+- exportación ZIP denegada sin concesión de usuarios y limitada por empresa/
+  recurso cuando se autoriza; PDF de resumen agregado;
+- pruebas focalizadas de autorización, minimización y alcance: 83 aprobadas.
 
-Brechas:
-- la interfaz ahora agrupa la exploración por botones de categoría, pero la validación de permisos por tipo de información aún es incompleta en el backend;
-- el buscador despliega permisos y referencias, pero no garantiza aislamiento por recurso en todas las rutas;
-- no queda completamente cerrado el criterio de visibilidad de detalle por empresa/contrato/usuario.
-
-Riesgo:
-- un usuario con acceso limitado podría inferir información fuera de su alcance, o el cliente podría ver registros sensibles por abuso de flujo o de filtros.
+Pendiente fuera de RF-BUS-02: revisar el listado administrativo independiente
+`GET /admin/users` bajo RF-USU; no se realizó recorrido manual de navegador.
+Este cierre no altera el NO-GO general ni otros bloqueadores P0 de producción.
 
 ### 6.4 Métricas SaaS
 

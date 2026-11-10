@@ -124,9 +124,22 @@ def test_exportacion_redacta_actividad_historica(app_cliente, admin, motor_admin
             "metadata": json.dumps({"password": "no-exportar"}),
         })
 
+    grant = app_cliente.post(
+        f"{API}/admin/access-grants",
+        headers=admin["headers"],
+        json={
+            "admin_user_id": admin["user_id"],
+            "recurso_tipo": "usuario",
+            "motivo": "Validar exportación de actividad",
+            "horas": 1,
+        },
+    )
+    assert grant.status_code == 201, grant.text
+    headers = dict(admin["headers"])
+    headers["X-Access-Grant"] = grant.json()["id"]
     respuesta = app_cliente.get(
         f"{API}/admin/backups/export",
-        headers=admin["headers"],
+        headers=headers,
         params={
             "formato": "zip",
             "motivo": "Revision operacional autorizada",

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import io
+import json
 import re
 from zipfile import ZipFile
 
@@ -10,6 +11,25 @@ import sqlalchemy as sa
 
 from app.services import backups, console_exports
 from tests.conftest import API
+
+
+def concesion_usuarios(app_cliente, admin, empresa=None, recurso_id=None):
+    cuerpo = {
+        "admin_user_id": admin["user_id"],
+        "recurso_tipo": "usuario",
+        "motivo": "Validar exportación de usuarios",
+        "horas": 1,
+    }
+    if empresa:
+        cuerpo["company_id"] = empresa["company_id"]
+    if recurso_id:
+        cuerpo["recurso_id"] = recurso_id
+    respuesta = app_cliente.post(
+        f"{API}/admin/access-grants", headers=admin["headers"], json=cuerpo)
+    assert respuesta.status_code == 201, respuesta.text
+    headers = dict(admin["headers"])
+    headers["X-Access-Grant"] = respuesta.json()["id"]
+    return headers
 
 
 def test_backups_solo_admin(app_cliente, empresa_a):
@@ -61,11 +81,12 @@ def test_estado_backups_no_expone_configuracion(app_cliente, admin):
     assert "encryption_key" not in body
 
 
-def test_export_console_zip_excluye_credenciales(app_cliente, admin):
+def test_export_console_zip_excluye_credenciales(app_cliente, admin, empresa_a):
+    headers = concesion_usuarios(app_cliente, admin, empresa_a)
     response = app_cliente.get(
         f"{API}/admin/backups/export?formato=zip"
         "&motivo=Revision%20operacional%20autorizada",
-        headers=admin["headers"])
+        headers=headers)
     assert response.status_code == 200, response.text
     assert response.headers["content-type"] == "application/zip"
     with ZipFile(io.BytesIO(response.content)) as archive:
@@ -94,7 +115,7 @@ def test_export_console_pdf_resumen(app_cliente, admin):
 
 
 def test_export_console_requiere_motivo_y_lo_audita(
-        app_cliente, admin, motor_admin):
+        app_cliente, admin, motor_admin, empresa_a):
     sin_motivo = app_cliente.get(
         f"{API}/admin/backups/export?formato=zip", headers=admin["headers"])
     assert sin_motivo.status_code == 400
@@ -113,9 +134,10 @@ def test_export_console_requiere_motivo_y_lo_audita(
     assert motivo_largo.json()["error"]["code"] == "MOTIVO_INVALIDO"
 
     motivo = "Revision operacional autorizada"
+    headers = concesion_usuarios(app_cliente, admin, empresa_a)
     response = app_cliente.get(
         f"{API}/admin/backups/export?formato=zip&motivo={motivo.replace(' ', '%20')}",
-        headers=admin["headers"])
+        headers=headers)
     assert response.status_code == 200, response.text
 
     with motor_admin.connect() as conn:
@@ -124,6 +146,42 @@ def test_export_console_requiere_motivo_y_lo_audita(
             "WHERE entidad_tipo = 'admin_export' "
             "ORDER BY created_at DESC LIMIT 1")).scalar_one()
     assert motivo in audit
+
+
+def test_export_zip_requires_and_respects_user_grant(
+        app_cliente, admin, empresa_a, empresa_b):
+    params = {"formato": "zip", "motivo": "Validación de alcance RF-BUS-02"}
+    sin_concesion = app_cliente.get(
+        f"{API}/admin/backups/export", headers=admin["headers"], params=params)
+    assert sin_concesion.status_code == 403
+    assert sin_concesion.json()["error"]["code"] == "PERMISO_INFORMACION_REQUERIDO"
+
+    headers = concesion_usuarios(app_cliente, admin, empresa_a)
+    respuesta = app_cliente.get(
+        f"{API}/admin/backups/export", headers=headers, params=params)
+    assert respuesta.status_code == 200, respuesta.text
+    with ZipFile(io.BytesIO(respuesta.content)) as archive:
+        usuarios = json.loads(archive.read("json/users.json"))
+        actividad = json.loads(archive.read("json/actividad.json"))
+        manifiesto = json.loads(archive.read("manifest.json"))
+
+    ids = {usuario["id"] for usuario in usuarios}
+    assert empresa_a["user_id"] in ids
+    assert empresa_b["user_id"] not in ids
+    assert all(fila["company_id"] == empresa_a["company_id"]
+               for fila in actividad)
+    assert manifiesto["alcance_usuarios"] == {
+        "company_id": empresa_a["company_id"], "recurso_id": None}
+
+
+def test_export_pdf_summary_needs_no_user_grant(app_cliente, admin):
+    response = app_cliente.get(
+        f"{API}/admin/backups/export",
+        headers=admin["headers"],
+        params={"formato": "pdf", "motivo": "Reporte agregado de operaciones"},
+    )
+    assert response.status_code == 200, response.text
+    assert response.content.startswith(b"%PDF")
 
 
 def test_encryption_roundtrip_and_tamper_detection(tmp_path, monkeypatch):

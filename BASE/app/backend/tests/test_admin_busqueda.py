@@ -1,10 +1,10 @@
 """Regresion de categorias y acceso del buscador global (RF-BUS-01)."""
 import pytest
 
-from tests.conftest import API, patente_valida, rut_valido
+from tests.conftest import API, CLAVE, patente_valida, rut_valido
 
 
-def concesion_sensible(app_cliente, admin, categoria, empresa=None):
+def concesion_sensible(app_cliente, admin, categoria, empresa=None, recurso_id=None):
     cuerpo = {
         "admin_user_id": admin["user_id"],
         "recurso_tipo": categoria,
@@ -13,12 +13,33 @@ def concesion_sensible(app_cliente, admin, categoria, empresa=None):
     }
     if empresa:
         cuerpo["company_id"] = empresa["company_id"]
+    if recurso_id:
+        cuerpo["recurso_id"] = recurso_id
     respuesta = app_cliente.post(
         f"{API}/admin/access-grants", headers=admin["headers"], json=cuerpo)
     assert respuesta.status_code == 201, respuesta.text
     headers = dict(admin["headers"])
     headers["X-Access-Grant"] = respuesta.json()["id"]
     return headers
+
+
+def segundo_admin(app_cliente):
+    from app.database import worker_session
+    from app.models import User
+    from app.security import hash_password
+
+    email = "segundo-admin@acredittia.cl"
+    with worker_session(is_admin=True) as db:
+        db.add(User(email=email, nombre="Segundo Admin",
+                    password_hash=hash_password(CLAVE), role="admin",
+                    company_id=None, status="approved"))
+        db.commit()
+    respuesta = app_cliente.post(
+        f"{API}/auth/login", json={"email": email, "password": CLAVE})
+    assert respuesta.status_code == 200, respuesta.text
+    return {"user_id": respuesta.json()["user"]["id"],
+            "headers": {"Authorization":
+                        f"Bearer {respuesta.json()['access_token']}"}}
 
 
 @pytest.mark.parametrize("consulta", [None, "", "a", "  ", " a ", "\t\n", "x" * 101])
@@ -35,7 +56,7 @@ def test_busqueda_acepta_limites_y_normaliza(app_cliente, admin, empresa_a, cons
     respuesta = app_cliente.get(f"{API}/admin/search", headers=admin["headers"],
                                  params={"q": consulta})
     assert respuesta.status_code == 200, respuesta.text
-    assert respuesta.json()["query"] == consulta.strip()
+    assert "query" not in respuesta.json()
     assert respuesta.json()["hay_mas"] is False
     assert respuesta.json()["total"] == len(respuesta.json()["items"])
     empresas = [item for item in respuesta.json()["items"] if item["tipo"] == "empresa"]
@@ -149,6 +170,11 @@ def test_busqueda_filtra_categoria_y_encuentra_persona_por_rut(
     assert respuesta.status_code == 200, respuesta.text
     assert [item["tipo"] for item in respuesta.json()["items"]] == ["trabajador"]
     assert respuesta.json()["items"][0]["id"] == alta.json()["id"]
+    salida = str(respuesta.json()).lower()
+    assert "query" not in respuesta.json()
+    assert rut not in salida
+    assert "password" not in salida
+    assert "token" not in salida
 
     invalida = app_cliente.get(
         f"{API}/admin/search", headers=admin["headers"],
@@ -167,7 +193,12 @@ def test_busqueda_usuario_por_rut_sin_exponerlo_en_resultado(
     usuario = next(item for item in respuesta.json()["items"]
                    if item["id"] == empresa_a["user_id"])
     assert usuario["tipo"] == "usuario"
+    salida = str(respuesta.json()).lower()
+    assert "query" not in respuesta.json()
     assert "rut" not in usuario
+    assert empresa_a["rut"] not in salida
+    assert "password" not in salida
+    assert "token" not in salida
 
 
 def test_busqueda_aplica_filtros_especificos_en_servidor(
@@ -289,6 +320,14 @@ def test_busqueda_filtra_empresas_contratos_y_usuarios(
                 "estado": "approved", "es_demo": "false"})
     assert [item["id"] for item in empresa.json()["items"]] == [empresa_a["company_id"]]
 
+    empresa_por_rut = app_cliente.get(
+        f"{API}/admin/search", headers=admin["headers"],
+        params={"q": empresa_a["rut"], "tipo": "empresa"})
+    assert empresa_por_rut.status_code == 200, empresa_por_rut.text
+    assert [item["id"] for item in empresa_por_rut.json()["items"]] == [
+        empresa_a["company_id"]]
+    assert empresa_a["rut"] not in str(empresa_por_rut.json())
+
     contrato = app_cliente.get(
         f"{API}/admin/search", headers=admin["headers"],
         params={"q": "ContratoFiltroGlobal", "tipo": "contrato",
@@ -320,6 +359,116 @@ def test_busqueda_sensible_exige_concesion(app_cliente, admin, categoria):
 
     assert respuesta.status_code == 403
     assert respuesta.json()["error"]["code"] == "PERMISO_INFORMACION_REQUERIDO"
+
+
+def test_busqueda_concesion_limited_to_company_and_resource(
+        app_cliente, admin, empresa_a, empresa_b, contrato_a, contrato_b):
+    personas = []
+    for empresa, contrato, rut_num in (
+            (empresa_a, contrato_a, 91), (empresa_b, contrato_b, 92)):
+        respuesta = app_cliente.post(
+            f"{API}/personal", headers=empresa["headers"], json={
+                "contrato_id": contrato["id"],
+                "nombre": "AlcanceBuscadorPrueba",
+                "rut": rut_valido(rut_num),
+            })
+        assert respuesta.status_code == 201, respuesta.text
+        personas.append((empresa, respuesta.json()["id"]))
+
+    headers = concesion_sensible(
+        app_cliente, admin, "personal", empresa_a, personas[0][1])
+    respuesta = app_cliente.get(
+        f"{API}/admin/search", headers=headers,
+        params={"q": "AlcanceBuscadorPrueba", "tipo": "trabajador"})
+
+    assert respuesta.status_code == 200, respuesta.text
+    assert [item["id"] for item in respuesta.json()["items"]] == [personas[0][1]]
+    assert personas[1][1] not in {
+        item["id"] for item in respuesta.json()["items"]}
+
+
+def test_busqueda_rechaza_concesion_ajena_expirada_revocada_y_de_otra_categoria(
+        app_cliente, admin, empresa_a, motor_admin):
+    from sqlalchemy import text
+
+    otro = segundo_admin(app_cliente)
+    headers = concesion_sensible(app_cliente, admin, "personal", empresa_a)
+    grant_id = headers["X-Access-Grant"]
+    consulta = {"q": "persona", "tipo": "trabajador"}
+
+    ajena = app_cliente.get(
+        f"{API}/admin/search",
+        headers={**otro["headers"], "X-Access-Grant": grant_id},
+        params=consulta)
+    assert ajena.status_code == 403
+    assert ajena.json()["error"]["code"] == "PERMISO_INFORMACION_INVALIDO"
+    assert "items" not in ajena.json()
+
+    with motor_admin.begin() as conexion:
+        conexion.execute(text(
+            "UPDATE admin_access_grants "
+            "SET expires_at = now() - interval '1 minute' WHERE id = :id"),
+            {"id": grant_id})
+    expirada = app_cliente.get(
+        f"{API}/admin/search", headers=headers, params=consulta)
+    assert expirada.status_code == 403
+    assert expirada.json()["error"]["code"] == "PERMISO_INFORMACION_INVALIDO"
+
+    revocable = concesion_sensible(app_cliente, admin, "personal", empresa_a)
+    grant_revocable = revocable["X-Access-Grant"]
+    revocada = app_cliente.post(
+        f"{API}/admin/access-grants/{grant_revocable}/revoke",
+        headers=admin["headers"])
+    assert revocada.status_code == 200, revocada.text
+    respuesta_revocada = app_cliente.get(
+        f"{API}/admin/search", headers=revocable, params=consulta)
+    assert respuesta_revocada.status_code == 403
+    assert respuesta_revocada.json()["error"]["code"] == "PERMISO_INFORMACION_INVALIDO"
+
+    categoria_incorrecta = concesion_sensible(
+        app_cliente, admin, "personal", empresa_a)
+    usuario = app_cliente.get(
+        f"{API}/admin/search",
+        headers=categoria_incorrecta,
+        params={"q": "alfa", "tipo": "usuario"})
+    assert usuario.status_code == 403
+    assert usuario.json()["error"]["code"] == "PERMISO_INFORMACION_INVALIDO"
+
+
+def test_detalle_empresa_redacta_usuarios_y_aplica_alcance_de_concesion(
+        app_cliente, admin, empresa_a, empresa_b):
+    ruta = f"{API}/admin/companies/{empresa_a['company_id']}"
+    sin_concesion = app_cliente.get(ruta, headers=admin["headers"])
+    assert sin_concesion.status_code == 200, sin_concesion.text
+    detalle = sin_concesion.json()
+    serializado = str(detalle)
+    assert detalle["datos_usuarios_restringidos"] is True
+    assert detalle["cuentas"] == []
+    assert all(not contrato["responsables"]
+               for contrato in detalle["contratos"])
+    assert empresa_a["email"] not in serializado
+
+    grant_usuario = concesion_sensible(
+        app_cliente, admin, "usuario", empresa_a)
+    con_concesion = app_cliente.get(ruta, headers=grant_usuario)
+    assert con_concesion.status_code == 200, con_concesion.text
+    detalle_autorizado = con_concesion.json()
+    assert detalle_autorizado["datos_usuarios_restringidos"] is False
+    assert any(cuenta["id"] == empresa_a["user_id"]
+               for cuenta in detalle_autorizado["cuentas"])
+    salida = str(detalle_autorizado)
+    assert "password" not in salida.lower()
+    assert "token" not in salida.lower()
+    assert empresa_a["rut"] not in salida
+
+    grant_otra_empresa = concesion_sensible(
+        app_cliente, admin, "usuario", empresa_b)
+    fuera_de_alcance = app_cliente.get(ruta, headers=grant_otra_empresa)
+    assert fuera_de_alcance.status_code == 200, fuera_de_alcance.text
+    detalle_fuera_de_alcance = fuera_de_alcance.json()
+    assert detalle_fuera_de_alcance["datos_usuarios_restringidos"] is True
+    assert detalle_fuera_de_alcance["cuentas"] == []
+    assert empresa_a["email"] not in str(detalle_fuera_de_alcance)
 
 
 @pytest.mark.parametrize("tabla,categoria", [

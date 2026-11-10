@@ -100,8 +100,8 @@ def test_ficha_empresa_separa_conteo_de_cuentas(
     assert respuesta.status_code == 200, respuesta.text
     ficha = respuesta.json()
     assert isinstance(ficha["usuarios"], int)
-    assert ficha["usuarios"] == len(ficha["cuentas"])
-    assert all(isinstance(cuenta, dict) for cuenta in ficha["cuentas"])
+    assert ficha["datos_usuarios_restringidos"] is True
+    assert ficha["cuentas"] == []
 
 
 def test_listado_empresas_incluye_industria_y_estado_cuenta(
@@ -279,7 +279,7 @@ def test_cliente_detalle_y_404(
     assert r.json()["error"]["code"] == "NO_ENCONTRADO"
 
 
-def test_detalle_empresa_muestra_ultimo_evento_y_actor(
+def test_detalle_empresa_redacta_actor_sin_concesion(
         app_cliente, admin, empresa_a, motor_admin):
     from sqlalchemy import text
 
@@ -308,7 +308,7 @@ def test_detalle_empresa_muestra_ultimo_evento_y_actor(
     evento = respuesta.json()["ultimo_evento"]
     assert evento["modulo"] == "ultimo_evento_prueba"
     assert evento["tipo"] == "actualizacion"
-    assert evento["actor"] == "Usuario actor prueba"
+    assert evento["actor"] == "Usuario"
     assert "descripcion" not in evento
     assert "email" not in evento
 

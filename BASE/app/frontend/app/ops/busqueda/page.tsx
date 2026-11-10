@@ -196,7 +196,7 @@ export default function BusquedaGlobalPage() {
       {error && <p className="mt-3 text-sm" style={{ color: "var(--ops-crit)" }}>{error}</p>}
     </Card>
     {items.length > 0 && <Card>
-      <CardHead titulo={`Resultados mostrados (${items.length})`} sub={`Búsqueda: ${resultado?.query}. Hasta ${resultado?.limite_por_categoria} resultados por categoría.`}
+      <CardHead titulo={`Resultados mostrados (${items.length})`} sub={`Búsqueda: ${consultaCompleta}. Hasta ${resultado?.limite_por_categoria} resultados por categoría.`}
         info="Cada fila es una coincidencia encontrada e indica su tipo, título y empresa asociada. La cantidad está limitada por categoría; si el aviso de más resultados aparece, refina los términos para acotar la lista." />
       {resultado?.hay_mas && <p className="ops-sub mb-3" role="status">Hay más coincidencias que las mostradas. Refina la búsqueda para encontrar el resultado que necesitas.</p>}
       <div className="overflow-x-auto"><table className="ops-table"><thead><tr><th>Tipo</th><th>Resultado</th><th>Empresa</th><th /></tr></thead><tbody>
@@ -221,6 +221,9 @@ export default function BusquedaGlobalPage() {
                 {cargandoDetalle && <p className="ops-sub">Cargando ficha...</p>}
                 {detalle?.id === empresaDetalleId && <div>
                   <div className="mb-3 text-sm font-semibold">Ficha agregada · {detalle.nombre}</div>
+                  {detalle.datos_usuarios_restringidos && <p className="ops-sub mb-3 rounded-md border p-3" style={{ borderColor: "var(--ops-line)" }}>
+                    Los datos identificables de cuentas y actores están restringidos por permisos.
+                  </p>}
                   <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
                     <Dato label="Estado" value={detalle.status} /><Dato label="Plan" value={detalle.plan ?? "Sin plan"} />
                     <Dato label="Usuarios" value={detalle.usuarios} /><Dato label="Contratos" value={detalle.stats.contratos} />
@@ -243,7 +246,7 @@ export default function BusquedaGlobalPage() {
         })}
       </tbody></table></div>
     </Card>}
-    {!cargando && resultado && !items.length && !error && <Card><p className="ops-sub">Sin resultados para «{resultado.query}».</p></Card>}
+    {!cargando && resultado && !items.length && !error && <Card><p className="ops-sub">Sin resultados para «{consultaCompleta}».</p></Card>}
   </div>;
 }
 

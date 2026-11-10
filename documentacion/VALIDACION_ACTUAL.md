@@ -1,5 +1,32 @@
 # Validación funcional — actualizado al 10 de noviembre de 2026
 
+## Buscador global — RF-BUS-01/02 — 10 de noviembre de 2026
+
+El usuario reporta haber realizado pruebas y confirma el funcionamiento de
+RF-BUS-01. El requisito se registra como IV (100%) para su alcance funcional.
+
+Para RF-BUS-02, el usuario confirma que la búsqueda no revela tokens ni
+información sensible. Además, la validación automatizada ejecutada desde
+`BASE/app/backend` aprobó **83 pruebas** con:
+
+```powershell
+python -m pytest tests/test_admin_busqueda.py tests/test_admin.py tests/test_admin_backups.py tests/test_privacidad.py -q --tb=short
+```
+
+La regresión cubre denegación de búsqueda sensible sin concesión; concesiones
+ajenas, vencidas, revocadas o de categoría incorrecta; alcance por empresa y
+recurso; redacción de la ficha directa; y denegación/filtrado de la exportación
+ZIP. También se añadieron aserciones de que la respuesta del buscador no incluye
+el término consultado, RUT, tokens ni contraseñas. El PDF se genera como resumen
+agregado, sin filas de identidades; el build frontend pasó con `npm run build`.
+
+RF-BUS-02 queda **IV/P0 al 100%** para `GET /admin/search`, la ficha vinculada
+`GET /admin/companies/{id}` y las exportaciones cubiertas. No se realizó un
+recorrido manual de navegador. El listado administrativo independiente
+`GET /admin/users` queda en RF-USU y no se considera validado por este cierre.
+El estado funcional del requisito no implica autorización integral de todas las
+vistas ADMIN ni preparación de producción.
+
 ## Estado general de salud — 10 de noviembre de 2026
 
 | Área | Estado | Evidencia |

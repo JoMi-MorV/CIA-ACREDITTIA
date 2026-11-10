@@ -1,6 +1,6 @@
 # SRS — Acredittia
 
-Especificación de requisitos de software · versión 0.73 · 10-11-2026
+Especificación de requisitos de software · versión 0.75 · 10-11-2026
 
 **Estado documental:** validado con pruebas focalizadas en PostgreSQL temporal y ejecución local distribuida de Celery; permanecen pendientes criterios funcionales, de seguridad y aceptación integral. DEC-08 queda acordada como política interna funcional; esto no constituye aprobación legal ni certificación de producción.
 
@@ -17,6 +17,10 @@ Especificación de requisitos de software · versión 0.73 · 10-11-2026
 > **Actualización de respaldo/restauración — 04-11-2026:** se acreditó el ciclo completo en Compose local: creación cifrada, descarga `.acb`, eliminación controlada, importación de copia local, verificación de integridad y restauración. RNF-REC-01 pasa a 100% para el alcance funcional local. Este avance no certifica resiliencia ante pérdida total ni operación productiva; requiere pruebas de infraestructura, RPO/RTO y recuperación externa.
 
 > **Actualización RF-AUD-01 — 10-11-2026:** se completó la revisión manual reportada por el usuario de las mutaciones administrativas acordadas: contratos, usuarios/empresas, acceso a plataformas, procesos, datos demo, concesiones de acceso, aprobación/rechazo de empresas y plantillas. Junto con las 71 pruebas de `test_ops.py` y `test_contratos.py`, esta evidencia permite cerrar el alcance funcional al 90%. Queda pendiente únicamente comprobar que los registros de cambios de permisos/estados y pausa de procesos muestran los valores anterior/nuevo cuando corresponda. RF-AUD-01 queda al 90%, PAR/P0 por ese pendiente. El borrado físico de contratos sigue deshabilitado (HTTP 410).
+
+> **Corte previo RF-BUS-01/02 — 10-11-2026 (versión 0.74):** el usuario confirmó haber probado y verificado el funcionamiento de RF-BUS-01; se cierra al 100% (IV) en el alcance funcional del buscador. Para RF-BUS-02, confirmó que la búsqueda no revela tokens ni información sensible. Esta verificación cubría la salida observada, pero todavía no acreditaba autorización granular, acceso directo a detalles/API, alcance, vencimiento o revocación de concesiones ni exportaciones; RF-BUS-02 permanecía en 65%, PAR/P0 antes de las pruebas documentadas en la versión 0.75.
+
+> **Cierre técnico RF-BUS-02 — 10-11-2026:** se implementó autorización de servidor por categoría para trabajadores y usuarios; las concesiones se validan por titular, categoría, vencimiento, revocación, empresa y recurso. La ficha directa de empresa redacta identidades sin concesión y limita filas/actores al alcance autorizado. La exportación ZIP exige concesión de usuarios y limita usuarios/actividad; el PDF es agregado. La regresión focalizada de buscador, administración, respaldos y privacidad pasó **83/83**, y el build frontend pasó. RF-BUS-02 queda **IV (100%)** para `GET /admin/search`, la ficha vinculada `GET /admin/companies/{id}` y las exportaciones cubiertas. El listado administrativo independiente `GET /admin/users` permanece bajo RF-USU y no se considera validado por este cierre; tampoco se realizó un recorrido manual de navegador en esta verificación.
 
 ## 1. Propósito y alcance
 
@@ -225,6 +229,25 @@ productiva, recuperación ante pérdida total y almacenamiento externo.
 Las fechas y responsables del cronograma deben actualizarse
 mediante evidencia real antes de modificar el avance o el estado de un requisito.
 
+La versión 0.74 (10-11-2026) registra la confirmación manual del usuario del
+funcionamiento de RF-BUS-01 y su cierre al 100% (IV). También registra que la
+búsqueda no revela tokens ni información sensible, según verificación del
+usuario para RF-BUS-02. Los pendientes de autorización granular, detalle,
+alcance de concesiones y exportaciones mantienen RF-BUS-02 en 65%, PAR/P0.
+El avance estimado de las 37 fichas se recalcula a 77,1% (`2853 / 37`), y el
+promedio de las ocho prioridades ADMIN a 74,9% (75% redondeado); son promedios
+de cobertura, no aceptación integral ni preparación productiva.
+
+La versión 0.75 (10-11-2026) incorpora el cierre técnico de RF-BUS-02 al 100%
+(IV/P0) para las rutas de búsqueda, ficha vinculada y exportaciones probadas.
+Las regresiones focalizadas aprobaron 83/83 y el build frontend pasó. El
+endpoint ya no devuelve el término de búsqueda en la respuesta, evitando
+reexponer RUT/correos consultados; la interfaz toma el texto desde su estado
+local. El promedio de las 37 fichas pasa a 78,1% (`2888 / 37`), el promedio de
+las ocho prioridades ADMIN a 77,1% y el de los nueve requisitos P0 a 61,1%.
+El listado independiente `GET /admin/users` sigue bajo RF-USU; no se realizó
+recorrido manual de navegador ni se modifica el NO-GO general de producción.
+
 Se conservan los **100% declarados en el cronograma** como cierre de la actividad en su alcance y fecha originales. Se permite registrar **«Completada con observaciones»** cuando existen ajustes posteriores o evidencia por adjuntar. Esta convención de seguimiento no certifica aceptación del cliente ni convierte una funcionalidad parcial en validada.
 
 Se mantienen dos estados independientes:
@@ -371,19 +394,19 @@ Todas las rutas de API de esta sección son relativas a `/api/v1`. Cada requisit
 
 **RF-BUS-01 — Búsqueda por categoría**
 
-- **Estado técnico:** PAR.
+- **Estado técnico:** IV.
 - **Prioridad:** P1.
-- **Avance estimado:** 80 % (propuesta inicial).
-- **Fundamento del avance:** Búsqueda disponible en cinco categorías; personas se buscan por RUT. La barra acepta términos parciales separados por espacios y referencias activas, y exige que cada término coincida con algún campo del mismo resultado o de su empresa asociada. El explorador reemplaza los selectores desplegables y presenta las referencias activas como chips removibles. Se conserva el 80 % como estimación previa; permisos por categoría y aceptación integral pendientes.
+- **Avance estimado:** 100 % (alcance funcional verificado por el usuario, 10-11-2026).
+- **Fundamento del avance:** Búsqueda disponible en cinco categorías; personas se buscan por RUT. La barra acepta términos parciales separados por espacios y referencias activas, y exige que cada término coincida con algún campo del mismo resultado o de su empresa asociada. El explorador presenta referencias activas como chips removibles. El usuario confirmó haber realizado pruebas y verificado el funcionamiento del requisito. La autorización granular se sigue evaluando por separado en RF-BUS-02.
 - **Comportamiento esperado:** Búsqueda por categoría. Cumplir las condiciones detalladas en el criterio de aceptación.
 - **Estado actual:** `GET /admin/search` puede consultar empresa, contrato, trabajador/persona, equipo o usuario; la interfaz presenta un botón por categoría que despliega su lista y permite seleccionar resultados. El panel de referencias permite filtrar por valores de catálogo; los chips activos se pueden retirar. Cada término parcial separado por espacios, incluyendo las referencias activas del explorador y el texto libre, debe coincidir en algún campo del mismo resultado; para contratos, personas, equipos y usuarios también se consideran datos de la empresa asociada. La API conserva filtros de servidor para integraciones que los utilicen. Busca por RUT de empresa y trabajador; las cuentas de acceso no tienen RUT. El panel plegable «Explorar y seleccionar datos para buscar» ofrece hasta 100 empresas, cargos, contratos y marcas de equipo, además de los tipos oficiales de equipo. No incluye datos personales en el catálogo. La ficha agregada se expande en la fila concreta seleccionada, muestra resumen y último evento con actor, y solo permite una ficha abierta a la vez; no muestra documentos ni contenido documental. Al cambiar búsqueda/fila o cerrar la ficha, se invalida la solicitud anterior para descartar respuestas tardías. Conforme a DEC-02, se excluyen administradores de plataforma y usuarios sin empresa; estos últimos se gestionan en sus vistas específicas. EV-01/02.
-- **Pendientes / mejoras:** validar en navegador la selección/deselección de chips, presentación de límites, resultados, expansión/cierre y cambios rápidos de búsqueda; implementar permisos por categoría en servidor conforme a RF-BUS-02/DEC-01 y validar exclusiones de DEC-02.
-- **Validación:** Parcial: regresión por nombre/cargo con equipos y trabajadores de dos empresas, límites 1/25 y rechazo de empresa/sin sesión en `test_admin_busqueda.py`, 30-09-2026; resultado en EV-01. No acredita permisos granulares ni recorrido en navegador.
+- **Pendientes / mejoras:** ninguno para la funcionalidad de búsqueda comprendida en RF-BUS-01. La autorización por categoría y el control de acceso a detalles permanecen bajo RF-BUS-02.
+- **Validación:** pruebas backend focalizadas registradas en EV-01 y confirmación manual del usuario (10-11-2026) de que probó y verificó el funcionamiento de RF-BUS-01. La validación manual es reportada por el usuario, no una ejecución independiente.
 - **Validación (04-10-2026):** filtro por categoría, RUT de trabajador, ausencia de RUT en resultados y filtros específicos de empresa, contrato, persona, equipo y usuario: `test_admin_busqueda.py`; compatibilidad del esquema vigente y heredado 10: `test_esquema.py`. Suite focalizada: 34 aprobadas, 0 fallidas; regresión ampliada de administración: 58 aprobadas, 0 fallidas. Compose inició API y web con la base en versión 10; health de esquema devolvió 200. No se recorrió el navegador.
-- **Interfaz del buscador (04-10-2026):** revisión del código confirma filtros de cargo/tipo de equipo cargados desde catálogos, búsqueda con texto vacío cuando hay filtros específicos, ficha agregada bajo cada fila y control de una sola ficha abierta. La invalidación por búsqueda, fila y cierre impide aplicar respuestas tardías. Esta actualización documental no añade evidencia de ejecución: el recorrido de navegador queda pendiente en EV-01.
+- **Interfaz del buscador (04-10-2026):** revisión del código confirma filtros de cargo/tipo de equipo cargados desde catálogos, búsqueda con texto vacío cuando hay filtros específicos, ficha agregada bajo cada fila y control de una sola ficha abierta. La invalidación por búsqueda, fila y cierre impide aplicar respuestas tardías.
 - **Mejora de búsqueda y referencias (07-10-2026):** la búsqueda combina términos parciales de campos diferentes, incluyendo la empresa asociada. El panel plegable de referencias presenta empresas, cargos, contratos, tipos y marcas de equipo, con un máximo de 100 valores para las categorías dinámicas; al seleccionar un valor se incorpora a la barra. La prueba backend verifica el catálogo y la combinación de marca, patente, tipo y nombre de empresa. El build frontend comprueba compilación y tipos; el recorrido visual en navegador queda pendiente.
-- **Explorador como filtros seleccionables (07-10-2026):** se retiraron los selectores desplegables de categoría de resultado y tipo de equipo. Las referencias del panel se activan/desactivan y aparecen como chips removibles dentro de la barra, combinadas con el texto libre. El usuario confirmó que los resultados revisados no muestran datos sensibles. Prueba del contrato del catálogo y build web en EV-01; recorrido visual manual pendiente.
-- **Criterio de aceptación:** un equipo no aparece como trabajador; resultados conservan categoría y empresa correctas; búsqueda vacía/corta/larga se valida; los límites no se presentan como un total exhaustivo si no lo son; apertura de ficha vuelve a comprobar permisos.
+- **Explorador como filtros seleccionables (07-10-2026):** se retiraron los selectores desplegables de categoría de resultado y tipo de equipo. Las referencias del panel se activan/desactivan y aparecen como chips removibles dentro de la barra, combinadas con el texto libre. Prueba del contrato del catálogo y build web en EV-01.
+- **Criterio de aceptación:** un equipo no aparece como trabajador; resultados conservan categoría y empresa correctas; búsqueda vacía/corta/larga se valida; los límites no se presentan como un total exhaustivo si no lo son. La autorización al consultar una ficha se valida en RF-BUS-02.
 
 - **Validación de entradas (30-09-2026):** se rechazan con 422 consultas ausentes, vacías, de un carácter, de solo espacios o de más de 100 caracteres. Tras `strip`, menos de dos caracteres produce `BUSQUEDA_INVALIDA`; el máximo de 100 se aplica al parámetro original. Se prueban límites válidos 2/100 y normalización de espacios. Suite buscador + ADMIN: 32/32; EV-01.
 
@@ -392,15 +415,15 @@ Todas las rutas de API de esta sección son relativas a `/api/v1`. Cada requisit
 
 **RF-BUS-02 — Restricciones por información**
 
-- **Estado técnico:** PAR.
+- **Estado técnico:** IV.
 - **Prioridad:** P0.
-- **Avance estimado:** 65 % (reevaluado el 04-11-2026).
-- **Fundamento del avance:** El buscador separa categorías ordinarias y sensibles en backend; trabajadores y usuarios requieren concesión excepcional activa.
+- **Avance estimado:** 100 % (cierre técnico 10-11-2026).
+- **Fundamento del avance:** La búsqueda y las fichas vinculadas aplican permisos en servidor; las concesiones se validan por categoría, titular, vigencia, empresa y recurso. La exportación ZIP de usuarios exige concesión y filtra usuarios/actividad por su alcance.
 - **Comportamiento esperado:** El buscador autoriza cada categoría y su detalle en servidor según capacidades del actor; las etiquetas de permisos devueltas no sustituyen los controles efectivos.
-- **Estado actual:** Se exige ADMIN. En consulta explícita, trabajadores y usuarios exigen `X-Access-Grant`, vigente, perteneciente al ADMIN y compatible con la categoría. La concesión puede limitar empresa y recurso.
-- **Pendientes / mejoras:** Integrar la matriz en consultas directas de detalle/exportación y cubrir rotación, revocación y alcance cruzado de recursos sensibles.
-- **Validación:** Parcial: 27 pruebas del buscador aprobadas, incluyendo denegación sin concesión; falta validar detalle y exportaciones.
-- **Criterio de aceptación:** un actor sin permiso de categoría no obtiene sus resultados ni su detalle al invocar directamente la API; respuesta no contiene tokens, contraseñas, RUT ni contenido documental. Los permisos se comprueban en cada petición.
+- **Estado actual:** Se exige ADMIN. Las búsquedas explícitas de trabajadores y usuarios exigen `X-Access-Grant`; la API verifica titularidad, categoría, expiración, revocación y alcance. Sin concesión, la ficha directa conserva métricas agregadas y redacta identidades; con concesión muestra solo las cuentas/actores dentro de su alcance. El ZIP requiere concesión de usuario y filtra usuarios y actividad por empresa/recurso. El PDF consultado presenta indicadores agregados.
+- **Pendientes / mejoras:** Ninguno dentro de la búsqueda global, su ficha de empresa vinculada y las exportaciones probadas. La lista de administración de usuarios (`GET /admin/users`) es una superficie de RF-USU separada y requiere su propia validación; no queda cubierta por este estado.
+- **Validación:** `test_admin_busqueda.py`, `test_admin.py`, `test_admin_backups.py` y `test_privacidad.py`: **83 aprobadas**. Incluyen denegación sin concesión, concesiones ajenas/vencidas/revocadas/de otra categoría, alcance por empresa/recurso, redacción de la ficha y filtrado de exportación ZIP. El build frontend pasó. El usuario confirmó que la búsqueda no revela tokens ni información sensible. No se realizó recorrido manual de navegador.
+- **Criterio de aceptación:** sin concesión válida, el actor no recibe resultados de trabajador/usuario ni identidades en el detalle directo; una concesión inválida, vencida, revocada, ajena o fuera de alcance no expone registros. Las respuestas de búsqueda y ficha no incluyen tokens, contraseñas ni RUT; no exponen contenido documental. El ZIP de usuarios requiere concesión y limita filas al alcance. Cada petición valida autorización en servidor.
 
 
 ### 5.4 Métricas SaaS — `/admin/metricas`
@@ -972,7 +995,7 @@ Para conservar un 100% con observaciones, registrar: número de actividad, alcan
 
 ## 13. Cuadro de resumen del estado general del proyecto
 
-**Corte de estados funcionales generales: 10-11-2026; línea base inicial del 29-09-2026.** Los estados siguientes resumen evidencia y pendientes, no aceptación contractual. «Operativo» se limita a los recorridos comprobados; no significa listo para producción. Tras incorporar RF-AUD-02 al 70%, RF-AUD-01 al 90%, RF-SEG-02 al 55%, RNF-PER-01 al 55%, RF-BUS-02 al 65%, RF-CLI-09 al 65%, RNF-PRV-01 al 60%, RNF-REC-01 al 100% local y RF-SEG-03 al 65%, el avance estimado de cobertura de las 37 fichas del SRS es 76,6% (77% redondeado). El promedio recalculable de las ocho prioridades ADMIN es 73,7% (74% redondeado). Ambos porcentajes no son medición de esfuerzo ni aceptación integral; DEC-08, DEC-10, integración excepcional y preparación productiva siguen bloqueando producción.
+**Corte de estados funcionales generales: 10-11-2026; línea base inicial del 29-09-2026.** Los estados siguientes resumen evidencia y pendientes, no aceptación contractual. «Operativo» se limita a los recorridos comprobados; no significa listo para producción. Tras incorporar RF-AUD-02 al 70%, RF-AUD-01 al 90%, RF-SEG-02 al 55%, RNF-PER-01 al 55%, RF-BUS-01 al 100%, RF-BUS-02 al 100%, RF-CLI-09 al 65%, RNF-PRV-01 al 60%, RNF-REC-01 al 100% local y RF-SEG-03 al 65%, el avance estimado de cobertura de las 37 fichas del SRS es 78,1% (78% redondeado; 2888/37). El promedio recalculable de las ocho prioridades ADMIN es 77,1% (77% redondeado). Ambos porcentajes no son medición de esfuerzo ni aceptación integral; DEC-08, DEC-10, integración excepcional y preparación productiva siguen bloqueando producción.
 
 | Área | Estado general | Qué se reconoce como realizado | Observación / pendiente principal | Seguimiento |
 |---|---|---|---|---|
@@ -981,7 +1004,7 @@ Para conservar un 100% con observaciones, registrar: número de actividad, alcan
 | Consola ADMIN centralizada | Integrada y navegable | Ocho secciones bajo `/admin`, login y detalle agregado probados. | No se validaron todas las mutaciones ni estados de error desde navegador. | EV-01/05; PT-05/08. |
 | Dashboard global | Parcial | Contadores, acreditación, documentos y actividad. | Precisar universos y crecimiento de adopción; reservar MRR/crecimiento comercial a Métricas SaaS. | RF-DAS-01/02; PT-07. |
 | Gestión de empresas | Lectura validada; aprobación del registro verificada; rechazo/casos límite por validar | Listado y ficha agregada operativos. El registro queda pendiente y ADMIN puede aprobar; empresa y usuario inicial quedan aprobados y conservan rol `company`. | Validar rechazo, transiciones repetidas y auditoría; distinguir ficha agregada del detalle comercial, cuya conversión UF ya fue corregida. | RF-EMP-01/02, RF-MET-03; PT-02/08. |
-| Buscador global | Parcial; clasificación corregida | Búsqueda conectada a API; filtro de trabajadores antes del límite. Alcance funcional definido en DEC-02. | Permisos por categoría/detalle en servidor y validación integral pendientes; comprobar las exclusiones acordadas. | RF-BUS-01/02; PT-04/05. |
+| Buscador global | RF-BUS-01 IV (100%); RF-BUS-02 IV/P0 (100%) | Búsqueda confirmada por el usuario; autorización por categoría, detalle de empresa, concesiones y alcance de exportación ZIP cubiertos por pruebas focalizadas (83 aprobadas) y build frontend. | El listado global de administración de usuarios se sigue por RF-USU y no queda cubierto por RF-BUS-02. No se realizó recorrido manual de navegador. | RF-BUS-01/02; RF-USU; PT-04/05. |
 | Métricas SaaS | Parcial; defecto UF corregido | Series e indicadores visibles. | Fecha/fuente UF, definiciones, datos demo y medición estimada de sesiones. | RF-MET-01/02/03; PT-02/07. |
 | Salud de clientes | Parcial | Riesgos de acreditación, vencimientos y alertas. | Empresas sin usuarios habilitados, totales/paginación de bandeja e impacto por empresa no determinado. | RF-SAL-01; PT-06. |
 | Sistemas, procesos e incidentes | Integrado; validación distribuida local parcial | Celery Beat despachó heartbeat y reportes por Redis; el worker los procesó y el historial registró corridas `ok`. Seis componentes sondeados; impacto por empresa no se atribuye sin vínculo verificable. | Fallos/recuperación, trazabilidad integral y proveedores externos pendientes. Servicios locales detenidos tras validación. | RF-SAL-02/03; PT-02/06; VALIDACION_ACTUAL.md. |
@@ -991,7 +1014,7 @@ Para conservar un 100% con observaciones, registrar: número de actividad, alcan
 | Portal de empresa | Implementado en parte y con validación focalizada | Reportes, programación, cuentas, contratos y operaciones relacionadas cuentan con suites focalizadas; el build frontend pasó. El scheduling distribuido de reportes también se verificó en Compose. | Invitaciones/activación de cuentas, recorridos visuales y aceptación integral siguen pendientes. No implica nueva obligación de reconstrucción del portal. | RF-CLI-01 a RF-CLI-09; PT-08; VALIDACION_ACTUAL.md. |
 | Datos demo para verificación | Población local ampliada | Seed idempotente cubre 16 empresas con contratos, trabajadores, equipos, documentos, alertas y eventos; unicidad de nombres y patentes comprobada. | Son datos sintéticos de demostración, no evidencia de uso real ni población productiva. | RNF-VAL-01; EV-09. |
 | Pruebas y calidad | Regresión focalizada aprobada; aceptación integral pendiente | Suite completa previa 399/399 (14-10); suites focalizadas actuales 124/124 en PostgreSQL temporal; build frontend y Compose válidos. | No sumar ejecuciones superpuestas ni presentarlas como suite completa. Extensiones reales, automatización limpia y cobertura de fallo/recuperación siguen pendientes. | RNF-VAL-01; PT-01/02/09; VALIDACION_ACTUAL.md. |
-| Documentación y alcance | Actualizada con corte de avance del 10-11 | SRS v0.73 y documentación relacionada reflejan la evidencia y el pendiente restante de RF-AUD-01. | Aprobación de decisiones y aceptación integral siguen pendientes. | DEC-01 a DEC-14; PT-01 a PT-09. |
+| Documentación y alcance | Actualizada con corte de avance del 10-11 | SRS v0.74 y documentación relacionada reflejan la evidencia de RF-AUD-01 y RF-BUS-01/02. | Aprobación de decisiones y aceptación integral siguen pendientes. | DEC-01 a DEC-14; PT-01 a PT-09. |
 | Entrega productiva y aceptación final | Pendiente de validar | Base local funcional disponible. | Seguridad, regresión completa, recuperación y aceptación del cliente todavía no acreditadas. | RNF-REC-01, RNF-VAL-01; PT-09 y actividad 107. |
 
 **Avance del des informado:** 26,73% real acumulado en la actividad 37. Se conserva como dato de gestión suministrado; no se interpreta como porcentaje de requisitos validados. No se modifica el 100% declarado de las actividades iniciales ni se asigna avance a celdas vacías. Las correcciones pendientes siguen abiertas en el SRS y en el plan de trabajo. La suite backend completa aprobada el 01-10-2026 acredita la regresión ejecutada, no sustituye criterios de aceptación, despliegue productivo ni aceptación del cliente.

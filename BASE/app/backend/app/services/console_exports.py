@@ -23,8 +23,8 @@ from reportlab.platypus import (PageBreak, Paragraph, SimpleDocTemplate, Spacer,
 from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
-from ..models import (Actividad, Base, Company, Contrato, Documento, IaReview,
-                      Plan, Sujeto, Suscripcion, User)
+from ..models import (Actividad, AdminAccessGrant, Base, Company, Contrato,
+                      Documento, IaReview, Plan, Sujeto, Suscripcion, User)
 from ..models_ops import (MetricasMensuales, OpsComponente,
                           MetricasMensualesPlan, OpsDisponibilidadDiaria,
                           OpsIncidente, OpsJob, OpsJobRun)
@@ -70,6 +70,7 @@ def _tables():
 
 def create_console_export(
     db: Session, formato: str,
+    user_grant: AdminAccessGrant | None = None,
 ) -> tuple[Path, str, tempfile.TemporaryDirectory]:
     """Genera un ZIP CSV+JSON o PDF de resumen; caller elimina el temporal."""
     tmp = tempfile.TemporaryDirectory(prefix="acredittia-admin-export-")
@@ -87,6 +88,10 @@ def create_console_export(
         manifest = {
             "generado_at": generated.isoformat(),
             "alcance": "datos visibles de la consola ADMIN; sin archivos documentales, credenciales ni tokens",
+            "alcance_usuarios": ({
+                "company_id": str(user_grant.company_id) if user_grant.company_id else None,
+                "recurso_id": str(user_grant.recurso_id) if user_grant.recurso_id else None,
+            } if user_grant else None),
             "contenido": [],
         }
         with ZipFile(zip_path, "w", compression=ZIP_DEFLATED) as package:
@@ -100,6 +105,21 @@ def create_console_export(
                     writer.writerow([column.name for column in columns])
                     json_file.write("[")
                     query = select(*columns).select_from(table)
+                    if table.name == "users":
+                        if user_grant is None:
+                            raise ValueError(
+                                "La exportación ZIP requiere concesión vigente de usuarios")
+                        if user_grant.company_id is not None:
+                            query = query.where(User.company_id == user_grant.company_id)
+                        if user_grant.recurso_id is not None:
+                            query = query.where(User.id == user_grant.recurso_id)
+                    elif table.name == "actividad" and user_grant is not None:
+                        if user_grant.company_id is not None:
+                            query = query.where(
+                                Actividad.company_id == user_grant.company_id)
+                        if user_grant.recurso_id is not None:
+                            query = query.where(
+                                Actividad.user_id == user_grant.recurso_id)
                     for row in db.execute(query).mappings():
                         values = {}
                         for column in columns:

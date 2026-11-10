@@ -158,6 +158,9 @@ export default function EmpresasAdminPage() {
                   <Dato label="Documentos correctos" value={detalle.stats.documentos.ok} /><Dato label="Pendientes" value={detalle.stats.documentos.falta} />
                   <Dato label="Vencidos" value={detalle.stats.documentos.venc} /><Dato label="Alertas activas" value={detalle.stats.alertas_activas} />
                 </div>
+                {detalle.datos_usuarios_restringidos && <p className="ops-sub mt-3 rounded-md border p-3" style={{ borderColor: "var(--ops-line)" }}>
+                  Los datos identificables de cuentas, responsables y actores están restringidos. Se requiere una concesión temporal de acceso a usuarios para consultarlos.
+                </p>}
                 <div className="mt-4 border-t pt-3" style={{ borderColor: "var(--ops-line)" }}>
                   <div className="ops-lbl">Último evento</div>
                   {detalle.ultimo_evento ? <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm">
@@ -176,7 +179,8 @@ export default function EmpresasAdminPage() {
                       <span className="ops-sub">{detalle.cuentas?.length ?? 0} usuarios</span>
                     </span>
                   </div>
-                  {detalle.cuentas && detalle.cuentas.length > 0 ? <div className="overflow-x-auto">
+                  {detalle.datos_usuarios_restringidos ? <p className="ops-sub mt-1">Datos de usuarios restringidos por permisos.</p>
+                    : detalle.cuentas && detalle.cuentas.length > 0 ? <div className="overflow-x-auto">
                     <table className="ops-table min-w-full">
                       <thead>
                         <tr>

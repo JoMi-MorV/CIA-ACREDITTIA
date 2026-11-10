@@ -3,11 +3,12 @@ from __future__ import annotations
 
 import os
 import shutil
+import uuid
 from datetime import datetime, timezone
 import tempfile
 from pathlib import Path
 from starlette.background import BackgroundTask
-from fastapi import APIRouter, Depends, File, Query, Response, UploadFile
+from fastapi import APIRouter, Depends, File, Header, Query, Response, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import text
@@ -15,8 +16,9 @@ from sqlalchemy.orm import Session
 
 from ..config import settings
 from ..database import SessionLocal, get_db
-from ..deps import err, get_current_user, require_admin
-from ..models import User
+from ..deps import (autorizar_categoria_informacion, err, get_current_user,
+                    require_admin)
+from ..models import AdminAccessGrant, User
 from ..models_ops import OpsJob
 from ..services import ops
 from ..services.actividad import minimizar_texto
@@ -199,6 +201,7 @@ def restaurar(backup_id: str, body: RestoreBody,
 def exportar(resp: Response,
              formato: str = Query("zip", pattern="^(zip|pdf)$"),
              motivo: str | None = Query(None),
+             user_grant_id: str | None = Header(default=None, alias="X-Access-Grant"),
              db: Session = Depends(get_db),
              user: User = Depends(get_current_user)):
     motivo = " ".join((motivo or "").split())
@@ -208,8 +211,21 @@ def exportar(resp: Response,
     if len(motivo) < 12:
         raise err(400, "MOTIVO_REQUERIDO",
                   "Indique un motivo de al menos 12 caracteres para exportar")
+    user_grant: AdminAccessGrant | None = None
+    if formato == "zip":
+        if user_grant_id is None:
+            raise err(403, "PERMISO_INFORMACION_REQUERIDO",
+                      "La exportación ZIP requiere concesión vigente de usuarios")
+        try:
+            parsed_grant_id = uuid.UUID(user_grant_id)
+        except ValueError as exc:
+            raise err(403, "PERMISO_INFORMACION_INVALIDO",
+                      "La concesión no autoriza esta exportación") from exc
+        user_grant = autorizar_categoria_informacion(
+            "usuario", parsed_grant_id, user, db)
     try:
-        path, media_type, temporary = create_console_export(db, formato)
+        path, media_type, temporary = create_console_export(
+            db, formato, user_grant=user_grant)
     except (ValueError, OSError) as exc:
         raise err(500, "EXPORTACION_FALLIDA", str(exc)) from exc
     try:

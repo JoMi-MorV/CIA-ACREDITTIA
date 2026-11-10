@@ -621,7 +621,7 @@ def global_search(q: str | None = Query(None, max_length=100),
         })
 
     return {
-        "query": q, "permisos": SEARCH_PERMISSIONS,
+        "permisos": SEARCH_PERMISSIONS,
         # Compatibilidad: total cuenta los elementos devueltos, no todas las coincidencias.
         "total": len(resultados), "items": resultados,
         "limite_por_categoria": limite,
@@ -984,18 +984,31 @@ def list_companies(status: str | None = Query(None),
 
 
 @router.get("/companies/{company_id}")
-def detalle_company(company_id: uuid.UUID, db: Session = Depends(get_db)):
+def detalle_company(
+        company_id: uuid.UUID,
+        access_grant: uuid.UUID | None = Header(default=None, alias="X-Access-Grant"),
+        admin: User = Depends(require_admin),
+        db: Session = Depends(get_db)):
     """Ficha de una empresa con sus estadísticas de operación.
 
     Es la vista que usa el back-office para decidir sobre una cuenta: cuántos
     usuarios y contratos tiene, cuánta gente y cuántos equipos ha cargado y en
-    qué estado está su documentación.
+    qué estado está su documentación. Las identidades de usuarios requieren
+    una concesión temporal específica y se recortan a su alcance.
     """
     c = _get_company(db, company_id)
+    grant = (autorizar_categoria_informacion("usuario", access_grant, admin, db)
+             if access_grant is not None else None)
+    company_in_scope = (
+        grant is not None
+        and (grant.company_id is None or grant.company_id == c.id)
+    )
+    recurso_in_scope = grant is not None and grant.recurso_id is not None
     sujetos = _sujetos_por_tipo(db, c.id)
     out = _company_out(db, c)
     ultimo_evento = db.execute(
-        select(Actividad, User.nombre.label("actor_nombre"))
+        select(Actividad, User.nombre.label("actor_nombre"),
+               User.company_id.label("actor_company_id"))
         .outerjoin(User, User.id == Actividad.user_id)
         .where(Actividad.company_id == c.id)
         .order_by(Actividad.created_at.desc(), Actividad.id.desc())
@@ -1006,25 +1019,42 @@ def detalle_company(company_id: uuid.UUID, db: Session = Depends(get_db)):
         "tipo": ultimo_evento.Actividad.tipo,
         "modulo": ultimo_evento.Actividad.modulo,
         "entidad_tipo": ultimo_evento.Actividad.entidad_tipo,
-        "actor": (ultimo_evento.actor_nombre or
-                  (f"Usuario {str(ultimo_evento.Actividad.user_id)[:8]}"
-                   if ultimo_evento.Actividad.user_id else "Sistema")),
+        "actor": (
+            (ultimo_evento.actor_nombre or
+             (f"Usuario {str(ultimo_evento.Actividad.user_id)[:8]}"
+              if ultimo_evento.Actividad.user_id else "Sistema"))
+            if (ultimo_evento.Actividad.user_id is None or
+                company_in_scope and (
+                    grant.recurso_id == ultimo_evento.Actividad.user_id
+                    if grant.recurso_id is not None
+                    else grant.company_id is None or
+                    ultimo_evento.actor_company_id == grant.company_id
+                ))
+            else "Usuario"
+        ),
     } if ultimo_evento else None)
-    out["cuentas"] = [
-        _admin_user_out(db, user)
-        for user in db.scalars(
-            select(User)
-            .where(User.company_id == c.id)
-            .order_by(User.last_login_at.desc().nulls_last(), User.created_at.desc())
-        ).all()
-    ]
+    out["datos_usuarios_restringidos"] = (
+        not company_in_scope or recurso_in_scope
+    )
+    cuentas_query = select(User).where(User.company_id == c.id)
+    if company_in_scope:
+        if grant.company_id is not None:
+            cuentas_query = cuentas_query.where(User.company_id == grant.company_id)
+        if grant.recurso_id is not None:
+            cuentas_query = cuentas_query.where(User.id == grant.recurso_id)
+        cuentas = db.scalars(cuentas_query.order_by(
+            User.last_login_at.desc().nulls_last(), User.created_at.desc()
+        )).all()
+    else:
+        cuentas = []
+    out["cuentas"] = [_admin_user_out(db, user) for user in cuentas]
     out["contratos"] = [{
         "id": str(contrato.id),
         "nombre": contrato.nombre,
         "codigo": contrato.codigo,
         "estado": contrato.estado,
         "ciclo_estado": contrato.ciclo_estado,
-        "responsables": [
+        "responsables": ([
             _admin_user_out(db, user)
             for user in db.scalars(
                 select(User)
@@ -1032,10 +1062,12 @@ def detalle_company(company_id: uuid.UUID, db: Session = Depends(get_db)):
                     User.company_id == c.id,
                     User.role == "contract_admin",
                     User.contrato_id == contrato.id,
+                    *([User.id == grant.recurso_id]
+                      if grant and grant.recurso_id else []),
                 )
                 .order_by(User.last_login_at.desc().nulls_last(), User.created_at.desc())
             ).all()
-        ],
+        ] if company_in_scope else []),
     } for contrato in db.scalars(
         select(Contrato)
         .where(Contrato.company_id == c.id)
