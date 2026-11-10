@@ -260,7 +260,7 @@ denominador es usuarios únicos con actividad en el período.
 4. Incorporar eventos de autenticación exitosos/fallidos, cierre y revocación, correlacionados con sesión sin guardar credenciales.
 5. Clasificar datos sensibles y definir cuándo se requiere motivo para lectura, URL, descarga o exportación.
 6. Diferenciar solicitud de URL/generación de exportación de transferencia efectiva; para DEC-11 validar autorización por entidad y archivo, manejo de fallos/limpieza y determinar la evidencia de almacenamiento necesaria para acreditar una descarga.
-7. Aplicar la retención inicial propuesta en DEC-08 y confirmar los plazos antes de producción; definir la matriz de consulta y auditar esos accesos.
+7. Aplicar los plazos acordados en DEC-08 —auditoría 12 meses, logs y telemetría identificable 90 días, métricas agregadas no identificables 12 meses— y auditar las consultas de auditoría antes de producción.
 
 **Para considerar el punto validado:** pruebas por operación que verifiquen actor/recurso/alcance/resultado, registro consultable incluso para actores sin empresa cuando corresponda, y ausencia de secretos/PII innecesaria.
 

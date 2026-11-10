@@ -13,8 +13,8 @@ Actualizado al 04-11-2026.
 - Respaldos: ciclo funcional local 100% acreditado (crear, descargar `.acb`,
   eliminar, importar, verificar y restaurar). Faltan RPO/RTO aprobados y
   recuperación ante pérdida total del entorno.
-- Producción con datos reales: **NO-GO** por dependencias, DEC-08, roles reales,
-  privacidad, infraestructura y recuperación.
+- Producción con datos reales: **NO-GO** por dependencias, controles de
+  privacidad/retención pendientes, roles reales, infraestructura y recuperación.
 
 Estos porcentajes son estimaciones de código/evidencia, no cumplimiento
 contractual ni preparación certificada para producción.
@@ -34,8 +34,11 @@ Evidencia histórica ejecutada el 14-10-2026:
   `starlette.testclient` + `httpx` (sin impacto funcional)
 
 La producción no queda declarada como cerrada ni lista para go-live con datos
-reales. DEC-08, permisos granulares, auditoría integral, dependencias
-vulnerables y restauración efectiva siguen bloqueando el paso a producción.
+reales. La política interna DEC-08 quedó acordada el 09-11-2026 y sus controles
+de aplicación de privacidad/retención están implementados. El usuario reportó
+que retención Azure/job e históricos fueron verificados, pero no hay referencia
+de evidencia en el workspace; falta confirmar aplicabilidad, junto con permisos
+granulares, dependencias vulnerables y restauración efectiva.
 
 ## Requisitos y planificación
 
@@ -740,23 +743,24 @@ su build pasó, pero los flujos aún requieren validación operativa.
   sesión autenticada, pestaña visible e interacción reciente, con pausa tras
   cinco minutos sin actividad y heartbeat cada 60 segundos bajo esas
   condiciones. Se guardará un registro por sesión lógica y agregados diarios por
-  empresa/usuario, no cada ping. Retención identificable propuesta: 90 días;
-  agregados no identificables por empresa, hasta 12 meses, sujetos a DEC-08.
+  empresa/usuario, no cada ping. Retención identificable: 90 días; agregados no
+  identificables por empresa: hasta 12 meses, conforme a DEC-08.
   La métrica principal acordada es minutos activos medidos por usuario único con
   actividad en el período; no se añadirá duración promedio por sesión. El
   período exacto, tratamiento de sesiones simultáneas e implementación
   siguen pendientes; la duración actual sigue siendo estimada.
-- Se acordó como propuesta para DEC-08 minimizar y restringir los datos de
-  auditoría, excluir secretos y contenido documental, y definir retenciones
-  diferenciadas: auditoría 12 meses, logs técnicos 90 días y telemetría
-  identificable 90 días; métricas agregadas hasta 12 meses. Los plazos requieren
-  revisión legal/contractual antes de producción y la política aún no está
-  implementada.
-- **Bloqueo P0 de producción con datos reales:** DEC-08 requiere revisión legal
-  y contractual documentada, plazos finales aprobados, responsables y
-  aprobadores identificados, y evidencia de controles implementados y validados.
-  La propuesta actual no es aprobación; no autorizar go-live hasta cerrar y
-  registrar esta evidencia en `documentacion/VALIDACION_ACTUAL.md`.
+- **DEC-08 acordada el 09-11-2026 como política interna:** guardar solo
+  metadatos de auditoría necesarios, excluir secretos y contenido documental,
+  limitar auditoría a ADMIN autorizado y auditar sus consultas. Retención:
+  auditoría 12 meses, logs técnicos 90 días, telemetría identificable 90 días
+  y métricas agregadas no identificables 12 meses. Aplicar hacia adelante y
+  revisar históricos antes de producción. La migración 16 implementa la poda
+  prospectiva de base de datos; el usuario reporta que el job y Log Analytics
+  fueron verificados, pero no hay referencia de evidencia disponible. Falta
+  confirmar aplicabilidad. No constituye aprobación legal.
+- **Bloqueo P0 de producción con datos reales:** verificar que la política
+  aplica al entorno/contrato, acreditar retención operativa y documentar el
+  tratamiento de históricos en `documentacion/VALIDACION_ACTUAL.md`.
 - DEC-10 exige autorización de acceso por contrato en la API y credenciales
   PostgreSQL de mínimo privilegio. RLS contractual es una defensa adicional
   condicionada a propagar el contexto de forma confiable y validar el caso con

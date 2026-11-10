@@ -123,8 +123,8 @@ El estado global es mejor que un prototipo, pero no alcanza la madurez de produc
 
 La principal señal de riesgo es el bloqueo P0 documentado en el SRS:
 
-- No pasar a producción con datos reales sin cerrar DEC-08.
-- Requiere evidencia legal/contractual, aprobación de retención, responsables y controles implementados/validados.
+- DEC-08 quedó acordada como política interna el 09-11-2026; no pasar a producción con datos reales hasta confirmar su aplicabilidad.
+- El usuario reporta que retención Azure/job e históricos fueron verificados por el desarrollador auxiliar el 09-11-2026 a las 23:55. La evidencia existe internamente, pero no hay una referencia verificable en el workspace.
 
 el avance reportable del conjunto de requisitos documentados es **76%
 (75,9% recalculado)**: promedio de 37 porcentajes revaluados, con igual peso para

@@ -1,7 +1,7 @@
 # Despliegue en Azure
 
 Guía operativa para la versión actual del backend. La API requiere el esquema
-**v15** (`SCHEMA_VERSION_ESPERADA=15`); aplica y verifica las migraciones antes
+**v16** (`SCHEMA_VERSION_ESPERADA=16`); aplica y verifica las migraciones antes
 de desplegar API, worker y beat con la misma imagen.
 
 Cuatro procesos, **una sola imagen**, diferenciados por el `command`. Así un
@@ -50,7 +50,7 @@ de configuración más fácil de cometer y el más difícil de notar.
 DATABASE_URL      postgresql+psycopg://acredittia_app:<pwd>@<host>:5432/acredittia?sslmode=require
 DB_RLS_ENABLED    true
 DB_APPLY_SCHEMA_ON_START  false      # lo hace el job de migración
-SCHEMA_VERSION_ESPERADA   15
+SCHEMA_VERSION_ESPERADA   16
 JWT_SECRET        <secreto de Key Vault>
 CORS_ORIGINS      https://app.acredittia.cl
 PUBLIC_BASE_URL   https://api.acredittia.cl
@@ -121,6 +121,13 @@ consulta esta URL para medir la disponibilidad HTTP de la API. Configúrala con
 el nombre DNS interno de la Container App; no uses una URL pública si existe
 una ruta interna. Las latencias y errores de requests se agregan en Redis en
 ventanas de cinco minutos, sin conservar rutas, usuarios ni payloads.
+
+Configure la retención del workspace de Log Analytics para los logs de
+contenedores en **90 días** y valide la configuración en el entorno destino.
+La retención de PostgreSQL no controla los logs del proveedor; este repositorio
+no administra el workspace Azure ni puede demostrar su retención por sí solo.
+No habilite logging de cuerpos de solicitud, tokens, URLs firmadas ni
+credenciales.
 
 ### Job de migración
 ```

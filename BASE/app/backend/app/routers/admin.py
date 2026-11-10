@@ -673,6 +673,7 @@ def global_audit(modulo: str | None = Query(None),
                  desde: date | None = Query(None),
                  hasta: date | None = Query(None),
                  p: Page = Depends(paginacion),
+                 admin: User = Depends(require_admin),
                  db: Session = Depends(get_db)):
     """Auditoría global de toda la plataforma, solo para administradores."""
     q = (select(Actividad, User.nombre.label("actor_nombre"),
@@ -699,15 +700,25 @@ def global_audit(modulo: str | None = Query(None),
     total = db.scalar(select(func.count()).select_from(q.subquery())) or 0
     filas = db.execute(q.order_by(Actividad.id.desc())
                        .offset(p.offset).limit(p.page_size)).all()
-    return sobre([{
+    resultado = sobre([{
         "id": int(a.id), "empresa": empresa or "Plataforma",
         "actor": actor_nombre or (f"Usuario {str(a.user_id)[:8]}" if a.user_id else "Sistema"),
         "tipo": a.tipo, "modulo": a.modulo,
-        "descripcion": a.descripcion, "entidad_tipo": a.entidad_tipo,
+        "descripcion": actividad.minimizar_texto(a.descripcion),
+        "entidad_tipo": a.entidad_tipo,
         "entidad_id": str(a.entidad_id) if a.entidad_id else None,
-        "motivo": (a.meta or {}).get("motivo_acceso"),
+        "motivo": actividad.minimizar_metadata(
+            (a.meta or {}).get("motivo_acceso")),
         "created_at": a.created_at.isoformat(),
     } for a, actor_nombre, empresa in filas], total, p)
+    actividad.log(
+        db, None, "visualizacion", "auditoria",
+        "Consulta de auditoría global",
+        user_id=admin.id, entidad_tipo="auditoria",
+        metadata={"recurso": "global", "resultados": len(filas)},
+    )
+    db.commit()
+    return resultado
 
 
 def _admin_user_out(db: Session, user: User) -> dict:
@@ -759,24 +770,34 @@ def admin_users(role: str | None = Query(None),
 
 @router.get("/users/audit")
 def admin_users_audit(p: Page = Depends(paginacion),
+                      admin: User = Depends(require_admin),
                       db: Session = Depends(get_db)):
     """Auditoría de cambios de rol, alcance y activación de usuarios."""
-    q = (select(Actividad, User.nombre.label("actor_nombre"),
-                User.email.label("actor_email"))
+    q = (select(Actividad, User.nombre.label("actor_nombre"))
          .outerjoin(User, User.id == Actividad.user_id)
          .where(Actividad.modulo == "usuarios",
                 Actividad.entidad_tipo == "usuario")
          .order_by(Actividad.created_at.desc()))
     total = db.scalar(select(func.count()).select_from(q.subquery())) or 0
     filas = db.execute(q.offset(p.offset).limit(p.page_size)).all()
-    return sobre([{
+    resultado = sobre([{
         "id": int(a.id), "usuario_id": str(a.entidad_id) if a.entidad_id else None,
-        "accion": a.tipo, "descripcion": a.descripcion,
-        "motivo": (a.meta or {}).get("motivo"),
-        "cambios": (a.meta or {}).get("cambios", {}),
-        "actor": actor_nombre or actor_email or "Sistema",
+        "accion": a.tipo,
+        "descripcion": actividad.minimizar_texto(a.descripcion),
+        "motivo": actividad.minimizar_metadata((a.meta or {}).get("motivo")),
+        "cambios": actividad.minimizar_metadata(
+            (a.meta or {}).get("cambios", {})),
+        "actor": actor_nombre or "Sistema",
         "created_at": a.created_at.isoformat(),
-    } for a, actor_nombre, actor_email in filas], total, p)
+    } for a, actor_nombre in filas], total, p)
+    actividad.log(
+        db, None, "visualizacion", "auditoria",
+        "Consulta de auditoría de usuarios",
+        user_id=admin.id, entidad_tipo="auditoria",
+        metadata={"recurso": "usuarios", "resultados": len(filas)},
+    )
+    db.commit()
+    return resultado
 
 
 @router.get("/users/catalog")

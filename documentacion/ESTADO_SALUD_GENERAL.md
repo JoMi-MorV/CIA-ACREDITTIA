@@ -1,268 +1,279 @@
 # Estado de salud general de Acredittia
 
-**Fecha de corte:** 4 de noviembre de 2026  
-**Preparado para:** revisión técnica y de gestión  
-**Alcance:** código, pruebas, documentación, composición Docker, frontend, backend y preparación productiva.
+**Fecha de corte:** 9 de noviembre de 2026  
+**Preparado para:** revisión técnica, operativa y de gestión  
+**Alcance:** backend, frontend, SQL/migraciones, seguridad, privacidad, continuidad operativa, documentación y preparación para producción.
 
 ## Resumen ejecutivo
 
-Acredittia presenta una salud técnica aceptable para desarrollo y validación
-focalizada, con backend y frontend compuestos correctamente. La suite backend
-completa está estable: 446 pruebas aprobadas en la ejecución final y ninguna
-fallida o con error.
+El proyecto presenta una base técnica sólida para desarrollo y validación focalizada, pero aún no alcanza un estado de madurez compatible con producción real. El backend muestra estabilidad funcional y la mayoría de las capas de aplicación tienen evidencia concreta; sin embargo, el conjunto presenta riesgos de integración, seguridad, requisitos de cumplimiento por confirmar y continuidad que siguen bloqueando el paso a producción con datos reales.
 
-La preparación para producción sigue limitada por riesgos críticos de
-dependencias frontend, controles operativos pendientes y requisitos legales o
-contractuales aún abiertos. El proyecto debe conservar el estado **NO GO para
-producción con datos reales** hasta cerrar los bloqueadores de este informe.
+La evaluación actual se mantiene en **NO GO** para producción. La mejora más importante desde el último corte es que el código y la documentación han convergido hacia una visión más realista: el proyecto no se presenta como “listo para producción”, sino como una plataforma con avances relevantes y con bloqueadores específicos todavía abiertos.
 
 | Área | Estado | Evaluación |
 |---|---|---|
-| Backend | 🟢 Verde | Suite completa aprobada. |
-| Frontend | 🟢 Verde | Compilación Next.js aprobada. |
-| Docker Compose | 🟢 Verde | Configuración válida. |
-| Dependencias frontend | 🔴 Rojo | 1 vulnerabilidad crítica y 2 altas reportadas por npm. |
-| Respaldos y recuperación | 🟡 Amarillo | Ciclo local cifrado acreditado; faltan RPO/RTO aprobados y recuperación ante pérdida total. |
-| Privacidad y auditoría | 🟡 Amarillo | Controles parciales; retención y aprobación DEC-08 pendientes. |
-| Seguridad productiva | 🔴 Rojo | Roles reales, despliegue y controles operativos aún incompletos. |
-| Producción con datos reales | 🔴 No GO | Bloqueada por riesgos P0 y decisiones pendientes. |
+| Backend | 🟢 Verde | Evidencia funcional sólida y pruebas relevantes aprobadas. |
+| Frontend | 🟡 Amarillo | Build funcional; sin embargo, persisten dependencias con vulnerabilidades reportadas. |
+| Docker / composición | 🟢 Verde | Validación de configuración y ejecución en entorno local consistente. |
+| Seguridad técnica | 🟡 Amarillo | Hay guardas de RLS, JWT y producción; falta validación real en entorno objetivo. |
+| Privacidad / RNF-PRV-01 | 🔴 Rojo / P0 | Controles de aplicación probados; retención Azure/job e históricos se reportan verificados, pero no hay referencia disponible. Falta confirmación de aplicabilidad. |
+| Recuperación y continuidad | 🔴 Rojo | Faltan pruebas de restauración real y objetivos RPO/RTO certificados. |
+| Documentación y arquitectura | 🟡 Amarillo | Buena cobertura documental, pero con drift de versiones y rutas heredadas. |
+| Producción con datos reales | 🔴 No GO | Bloqueado por seguridad, continuidad, controles de privacidad y validación operativa. |
 
-## 1. Cobertura y avance
+## 1. Alcance y método de auditoría
 
-La cobertura estimada de los 37 requisitos del SRS es **75,6%**, equivalente a
-**76% redondeado**. El cálculo usa promedio simple y igual peso entre fichas:
+Se revisó de forma transversal:
 
-```text
-2798 / 37 = 75,6%
-```
+- Estructura del repositorio y coherencia entre raíz, `BASE/app` y `modelo_datos`.
+- Documentación principal y operativa: [README.md](../README.md), [documentacion/ESTADO_SALUD_GENERAL.md](ESTADO_SALUD_GENERAL.md), [documentacion/VALIDACION_ACTUAL.md](VALIDACION_ACTUAL.md), [documentacion/estructura_repositorio_unificado.md](estructura_repositorio_unificado.md).
+- Configuración de entorno y arranque: [BASE/app/backend/app/config.py](../BASE/app/backend/app/config.py).
+- Conexión y aislamiento por tenant: [BASE/app/backend/app/database.py](../BASE/app/backend/app/database.py).
+- Arranque de API, healthchecks y routers: [BASE/app/backend/app/main.py](../BASE/app/backend/app/main.py).
+- Estado operativo y documentación de repositorio: [README_ops_Back.md](../README_ops_Back.md), [README_ops_Front.md](../README_ops_Front.md).
 
-Esta cifra representa avance estimado de código/evidencia. No acredita pruebas
-de aceptación, conformidad contractual ni preparación efectiva para producción.
+La auditoría no concluye que el proyecto esté “roto”; concluye que está bien avanzado para una etapa de maduración funcional, pero aún no validado para una implementación con datos reales ni para una operación de producción.
 
-## 2. Backend
+## 2. Hallazgos clave
 
-### Evidencia
+### 2.1. Backend: maduro para validación, no para producción
 
-- Primera ejecución completa: 445 pruebas aprobadas y 1 falla en la semilla
-  operacional demo.
-- Caso aislado `test_demo_seed.py::test_seed_operacional_demo_es_amplio_y_repetible`:
-  **1 aprobada, 0 fallidas**.
-- Segunda ejecución completa: **446 aprobadas, 0 fallidas, 0 errores**.
-- Duración: aproximadamente 15 minutos 50 segundos.
-- Advertencia: deprecación en el cliente FastAPI/Starlette utilizado por pruebas.
+El backend tiene evidencia funcional relevante:
 
-### Evaluación
+- La suite completa de backend registra ejecuciones exitosas con pruebas aprobadas.
+- Hay validación de salud, esquemas y autenticación.
+- La aplicación incluye guardas de producción, separación de migraciones y protección de contexto multi-tenant.
 
-El backend no presenta fallos funcionales en la segunda ejecución completa.
-La única falla observada fue transitoria y no se reprodujo en aislamiento ni
-en la segunda corrida completa.
+Sin embargo, esta madurez funcional no sustituye:
 
-### Riesgos
+- validación real en entorno objetivo,
+- pruebas de recuperación ante falla real,
+- roles PostgreSQL reales y certificados,
+- validación de permisos minimos y auditoría de operaciones sensibles,
+- validación de secret management en despliegue real.
 
-- Persisten pruebas de integración real y escenarios de infraestructura distribuidos.
-- La suite general no sustituye pruebas de restauración, alta disponibilidad,
-  recuperación ante desastres ni carga sobre el entorno destino.
+### 2.2. Frontend: build funcional, pero con deuda técnica material
 
-## 3. Frontend
+El frontend compila y la configuración Docker/Next parece estar operativa. Sin embargo, la deuda no es menor:
 
-### Evidencia
+- `npm audit --omit=dev` reporta vulnerabilidades de dependencias.
+- El riesgo principal se concentra en `next`, `postcss` y `source-map-js`.
+- Aun cuando la aplicación arranca, la dependencia directa con un framework crítico no puede asumirse segura en un entorno externo o público.
 
-- Dependencias restauradas mediante `npm ci`: 116 paquetes instalados.
-- `npm run build`: compilación Next.js completada correctamente.
-- Docker Compose: validación correcta mediante
-  `docker compose config --quiet`.
+Esto obliga a corregir primero la seguridad de dependencias antes de cerrar cualquier decisión de go-live.
 
-### Evaluación
+### 2.3. Drift de arquitectura y documentación
 
-La compilación frontend está funcional en el estado actual. Sin embargo, el
-artefacto de ejecución no debe considerarse listo para producción porque
-`npm audit --omit=dev` informa vulnerabilidades en componentes directos y
-transitivos.
+Uno de los hallazgos más importantes es la diferencia entre la documentación “objetivo” y la realidad del repositorio:
 
-### Vulnerabilidades conocidas
+- La raíz del proyecto no está unificada como monorepo final; la estructura real sigue siendo `BASE/app` y `BASE/modelo_datos`.
+- La documentación habla de una unificación de repositorios y de un esquema objetivo que aún no está reflejado en la estructura vigente.
+- Hay mezcla de rutas históricas (`/ops`) y rutas actuales (`/admin`), además de compatibilidad de API (`/api/v1/admin` y `/api/v1/admin/ops`).
+- La versión de esquema documentada no es completamente consistente con la configuración real del backend.
 
-- **1 crítica**
-- **2 altas**
-- **0 moderadas**
-- **0 bajas**
+Esto no invalida el trabajo, pero sí indica una falta de estándar de despliegue y un riesgo de confusión operativa y de integración.
 
-Las dependencias afectadas incluyen:
+### 2.4. Seguridad: la base existe, pero no está cerrada
 
-1. `next`: dependencia directa.
-2. `postcss`: dependencia transitiva.
-3. `source-map-js`: dependencia transitiva.
+La capa de seguridad del backend tiene elementos relevantes:
 
-La vulnerabilidad crítica requiere revisión y actualización antes de aceptar
-una imagen o despliegue público. Esta declaración describe el resultado de
-npm audit; la afectación explotable en los flujos específicos de la aplicación
-debe verificarse al aplicar la corrección.
+- validación de producción para JWT,
+- rechazo de tokens de recuperación y semillas demo en producción,
+- RLS y contexto de tenant,
+- guardas de runtime para roles PostgreSQL inseguro,
+- separación clara entre migración y ejecución.
 
-## 4. Seguridad y autenticación
+Pero el proyecto todavía está lejos de la evidencia de producción:
 
-La aplicación incorpora guardas relevantes:
+- no se ha validado un rol real de PostgreSQL con privilegios mínimamente necesarios,
+- no hay evidencia de despliegue real con secretos de entorno y rotación,
+- no hay validación de acceso por empresa/usuario/rol bajo un escenario real,
+- no hay evidencia de pruebas negativas exhaustivas para permisos sensibles.
 
-- Producción rechaza JWT de desarrollo y secretos inferiores al mínimo requerido.
-- Producción rechaza semillas demo.
-- Producción rechaza la exposición de tokens de recuperación.
-- Las semillas requieren activación explícita fuera de producción.
-- Existe un procedimiento separado para aprovisionar el primer administrador.
-- La recuperación no revela si una cuenta existe.
-- La configuración de producción separa migración, API y supervisión.
+### 2.5. Privacidad y cumplimiento no resueltos
 
-### Pendiente
+DEC-08 quedó acordada como política interna funcional el 9 de noviembre de 2026: auditoría 12 meses, logs técnicos 90 días, telemetría identificable 90 días y métricas agregadas no identificables 12 meses. La aplicación ya minimiza datos en persistencia, respuestas y exportaciones; registra lecturas de auditoría y limita las exportaciones por motivo. La migración 16 implementa poda prospectiva y controlada en la base de datos. El usuario reportó que el desarrollador auxiliar verificó migración/job, Log Analytics e históricos el 09-11-2026 a las 23:55; dijo que la evidencia existe internamente, pero no entregó una referencia. La confirmación de aplicabilidad por el responsable de producto/cliente sigue pendiente.
 
-- Aprovisionamiento real de cuentas y catálogos de producción.
-- Validación de roles reales PostgreSQL.
-- Validación completa de acceso y aislamiento por usuario/rol/empresa.
-- Gestión de secretos externos y rotación.
-- Validación de entrega SMTP en producción.
-- Retirada comprobada de cuentas y credenciales demo existentes.
+Esto es un bloqueador relevante porque no alcanza solo con que el sistema registre eventos o los minimice; también requiere:
 
-## 5. Respaldos, restauración y continuidad
+- confirmación de aplicabilidad de la política por el responsable designado,
+- referencia verificable de la evidencia de retención técnica en base de datos y Log Analytics,
+- clasificación de datos,
+- cadena de custodia,
+- proceso de eliminación segura,
+- revisión de exportaciones y consultas sensibles.
 
-### Implementado
+### 2.6. Continuidad operativa: faltan pruebas reales de recuperación
 
-- Copia cifrada de PostgreSQL y almacenamiento local.
-- Retención configurada de ocho respaldos.
-- Verificación autenticada del paquete.
-- Respaldo previo automático antes de restaurar.
-- Separación entre credencial de lectura y credencial de mantenimiento.
-- Trazabilidad de inicio, éxito y fallo.
-- Medición técnica de RPO y RTO incorporada en la operación.
+La documentación actual reconoce una parte funcional del ciclo de respaldo, pero no certifica:
 
-### Pendiente
+- recuperación ante pérdida total,
+- validación real de restauración con `pg_dump`/`pg_restore`,
+- RPO/RTO aprobados por negocio,
+- pruebas de rollback y fallo de archivos,
+- concurrencia y continuidad con cargas reales,
+- intercambio de base y recuperación del entorno.
 
-- Restauración real con `pg_dump` y `pg_restore`.
-- Prueba extrema a extremo con base PostgreSQL aislada.
-- Validación de fallo de archivos y rollback.
-- Ejecución real de intercambio de base.
-- Objetivos RPO/RTO acordados por negocio.
-- Custodia externa de clave y copia del respaldo.
-- Compatibilidad con almacenamiento Azure Blob.
-- Confirmación de permisos de mantenimiento.
+En otras palabras: existen mecanismos y evidencia local, pero no una demostración formales de continuidad productiva.
 
-## 6. Privacidad y auditoría
+## 3. Estado por área
 
-### Implementado
+### 3.1. Backend
 
-- Redacción centralizada de email, RUT, credenciales y secretos en auditoría.
-- Minimización aplicada a descripciones y metadatos persistidos.
-- Auditoría de autenticación, rotación, revocación y operaciones de respaldo.
-- Pruebas focalizadas de privacidad y auditoría.
+**Estado: 🟢 Verde**
 
-### Pendiente
+**Evidencia**
+- Arquitectura de servicios y routers bien pensada.
+- Configuración de entorno con validación de producción.
+- Contexto tenant + RLS y guardas de seguridad.
+- Suite funcional con múltiples pruebas aprobadas.
 
-- Aprobación legal/contractual de DEC-08.
-- Definición y ejecución de retenciones diferenciadas.
-- Auditoría completa de consultas y exportaciones.
-- Tratamiento documentado de registros históricos.
-- Clasificación integral de campos y destinatarios.
-- Eliminación/poda comprobada de auditoría, logs y telemetría.
+**Riesgos**
+- Validación de migración en un entorno real no concluida.
+- Faltan pruebas de recuperación y de operación distribuidas.
+- El diseño es sólido, pero aún no está certificado para producción.
 
-## 7. Integraciones y comunicaciones
+### 3.2. Frontend
 
-La gestión de credenciales admite configuración de secreto local para desarrollo
-y Azure Key Vault para entornos preparados. SMTP puede entregar enlaces de
-restablecimiento mediante configuración pública del frontend.
+**Estado: 🟡 Amarillo**
 
-Faltan conectores externos reales, WhatsApp, sincronización distribuida,
-idempotencia, reintentos comprobados y operación de proveedores externos.
+**Evidencia**
+- Compilación y bootstrap funcional.
+- Rutas y vistas de administración implementadas.
+- Integración de sesión/autenticación y UI operativa.
 
-## 8. Estado por prioridad
+**Riesgos**
+- Dependencias con vulnerabilidades reportadas.
+- Rutas heredadas y actuales no están completamente unificadas.
+- La capa visual está funcional, pero aún requiere hardening de seguridad y consistencia de arquitectura.
 
-| Prioridad | Estado | Observación |
-|---|---|---|
-| P0 | 🔴 Crítico | Controles de producción, privacidad, infraestructura y recuperación incompletos. |
-| P1 | 🟡 Parcial | Auditoría, rendimiento y operabilidad tienen implementación pero requieren evidencia final. |
-| P2 | 🟡 Parcial | Integraciones y canales externos están parcialmente implementados. |
+### 3.3. Infraestructura y Docker
 
-Los porcentajes de requisitos bajos tienen impacto directo sobre el avance
-global:
+**Estado: 🟢 Verde**
 
-- RF-SEG-02: 55%.
-- RF-AUD-01: 55%.
-- RNF-PER-01: 55%.
-- RNF-SEG-01: 55%.
+**Evidencia**
+- `docker compose config --quiet` se valida correctamente.
+- El entorno local se puede iniciar con comandos estándar.
+- La composición de servicios está integrada y es útil para desarrollo.
 
-Cada requisito cerrado desde 55% a 100% representa aproximadamente 1,22 puntos
-porcentuales de avance global bajo el modelo actual.
+**Riesgos**
+- El entorno no está preparado para producción real.
+- No hay evidencia de seguridad operacional del despliegue, ni de resiliencia y recuperación. 
 
-## 9. Bloqueos para go-live
+### 3.4. Seguridad y control de acceso
 
-### Bloqueo crítico de seguridad
+**Estado: 🟡 Amarillo**
 
-Actualizar Next.js y las dependencias afectadas y repetir:
+**Evidencia**
+- Validación de producción en configuración.
+- RLS aplicado a nivel de contexto y transacción.
+- Rechazo de credenciales y comportamiento inseguro en producción.
 
-1. `npm audit --omit=dev`.
-2. `npm ci`.
-3. `npm run build`.
-4. Pruebas automatizadas del frontend disponibles.
+**Riesgos**
+- No hay validación real de roles de PostgreSQL con mínimo privilegio.
+- No hay evidencia de acceso excepcional, auditoría y revocación en entorno objetivo.
+- Falta evidencia de pruebas negativas para operaciones sensibles.
 
-### Bloqueo operativo
+### 3.5. Privacidad, retención y cumplimiento
 
-Completar:
+**Estado: 🔴 Rojo**
 
-- Restauración real.
-- Recuperación y rollback de archivos.
-- Objetivos RPO/RTO aprobados.
-- Custodia y rotación de clave.
-- Roles PostgreSQL reales.
-- Validación de despliegue y recuperación.
+**Evidencia**
+- Hay redacción y minimización implementadas parcialmente.
+- La auditoría de autenticación y actividad está presente.
 
-### Bloqueo legal y contractual
+**Riesgos**
+- DEC-08 está acordada como política interna; RNF-PRV-01 sigue parcialmente implementado.
+- Falta evidencia de retención efectiva y del ciclo de vida de los registros.
+- No hay evidencia de revisión de registros históricos ni de aprobación de aplicabilidad para el entorno de producción.
 
-Cerrar DEC-08 con evidencia de:
+### 3.6. Recuperación, continuidad y DR
 
-- Responsable designado.
-- Revisión legal/contractual.
-- Aprobación de retención.
-- Tratamiento de datos históricos.
-- Controles implementados y validados.
+**Estado: 🔴 Rojo**
 
-## 10. Plan recomendado
+**Evidencia**
+- Se cuenta con respaldo local y verificación técnica.
+- Hay trazabilidad de backups y restauración lógica.
 
-### Inmediato
+**Riesgos**
+- No hay pruebas de restauración real ni demostración del objetivo de negocio.
+- Faltan RPO/RTO aprobados.
+- No hay pruebas de pérdida total del entorno.
 
-1. Actualizar Next.js a una versión no afectada y resolver PostCSS/source-map-js.
-2. Ejecutar auditoría y build tras actualizar.
-3. Completar RF-SEG-02, RNF-SEG-01 y RF-AUD-01.
-4. Ejecutar restauración aislada con datos representativos.
+## 4. Evaluación de riesgo general
 
-### Corto plazo
+### Riesgos P0
 
-1. Validar infraestructura PostgreSQL real y mínimo privilegio.
-2. Aprobar RPO/RTO.
-3. Implementar y probar retención DEC-08.
-4. Completar auditoría de consultas/exportaciones.
-5. Validar recuperaciones de archivos y base.
+1. Seguridad de dependencias Frontend no cerrada.
+2. Recuperación operativa y continuidad aún no demostrada.
+3. La evidencia operativa de retención/históricos fue reportada como existente, pero falta referenciarla; la validación de aplicabilidad de DEC-08 sigue pendiente.
+4. Validación real de roles PostgreSQL y permisos mínimos insuficiente.
+5. Arquitectura de repositorio y rutas aún con drift y compatibilidad heredada.
+
+### Riesgos P1
+
+1. Documentación técnica con versiones y rutas inconsistentes.
+2. Falta de pruebas de carga y recuperación representativas.
+3. Convergencia entre back-office, portal, operaciones y administración aún no unificada.
+4. Mecanismos de backup y restauración funcionales pero no certificados.
+
+### Riesgos P2
+
+1. Integraciones externas incompletas o parcialmente validadas.
+2. Configuración local de desarrollo no transferible directamente a producción.
+3. Necesidad de hardening operativo y guardas de alertas más exhaustivas.
+
+## 5. Estado de cumplimiento y recomendación
+
+### Estado general
+
+El proyecto está en un estado de **maduración técnica buena para desarrollo y validación** y de **preparación insuficiente para producción**.
+
+### Recomendación ejecutiva
+
+Se recomienda mantener la decisión de **NO GO** para producción con datos reales, pero con una estrategia de cierre bien definida:
+
+1. Cerrar vulnerabilidades de dependencias del frontend.
+2. Alinear arquitectura y versiones de esquema.
+3. Definir un estándar operativo único para rutas, API y migraciones.
+4. Documentar y ejecutar prueba de recuperación real.
+5. Confirmar requisitos de privacidad aplicables y obtener aprobación operativa antes de producción.
+6. Validar roles PostgreSQL reales, secret management y permisos mínimos.
+
+## 6. Plan de cierre recomendado
+
+### Inmediato (1-2 semanas)
+
+1. Actualizar `next` y paquetes vulnerables con revisión de build y auditoría.
+2. Reforzar la consistencia de versiones de esquema y rutas públicas/legacy.
+3. Revalidar backend y frontend en entorno limpio tras la actualización.
+4. Ejecutar una restauración real aislada documentada.
+
+### Corto plazo (2-4 semanas)
+
+1. Validar roles PostgreSQL reales y permisos mínimos.
+2. Implementar la política de retención acordada, revisar registros históricos y validar su aplicabilidad con el responsable.
+3. Ejecutar pruebas de continuidad y DR con evidencia formal.
+4. Revisar incorporaciones de seguridad y auditoría en endpoints sensibles.
 
 ### Antes de producción
 
-1. Validar cuentas reales sin credenciales demo.
-2. Confirmar SMTP y recuperación de contraseña.
-3. Ejecutar pruebas de carga y rendimiento representativas.
-4. Ejecutar una restauración completa documentada.
-5. Resolver vulnerabilidades conocidas y evidenciar las excepciones aceptadas.
-6. Obtener aprobación GO/NO-GO formal.
+1. Obtener confirmación de aplicabilidad y autorización operativa para uso con datos reales.
+2. Validar entorno de producción con secretos reales y rotación.
+3. Ejecutar pruebas de carga, seguridad y recuperación representativas.
+4. Certificar RPO/RTO y restauración documentada.
+5. Certificar que el estado de salud final queda en verde antes del go-live.
 
-## 11. Criterios de salud final
+## 7. Conclusión
 
-Acredittia puede pasar a **estado verde operativo** cuando se cumpla
-simultáneamente:
+Acredittia ya no se encuentra en un estado de inconsciencia técnica ni de simple prototipo. Tiene una base funcional sólida y una documentación de gestión aceptable. DEC-08 ya fija una política interna simplificada, pero la combinación de:
 
-- Backend: 0 fallos críticos y suite integral aprobada.
-- Frontend: compilación aprobada y sin vulnerabilidades críticas/altas abiertas.
-- Seguridad: configuración, secretos, roles y RLS validados en destino.
-- Privacidad: DEC-08 aprobado y retención implementada.
-- Recuperación: restauración real y RPO/RTO demostrados.
-- Operación: responsables, monitoreo, alertas y runbooks validados.
+- vulnerabilidades de dependencias,
+- drift de esquema y rutas,
+- ausencia de validación real de continuidad,
+- controles de privacidad y retención aún no validados,
+- y requisitos de cumplimiento/operación todavía no validados,
 
-## Conclusión
+mantiene el proyecto en un estado claramente no apto para producción con datos reales.
 
-La salud técnica actual es **parcialmente favorable**: el backend está estable,
-el frontend compila y Docker Compose valida. Los principales riesgos están
-concentrados en dependencias vulnerables, recuperación productiva, privacidad
-contractual y seguridad de infraestructura.
-
-La recomendación actual es mantener **NO GO** para producción con datos reales
-hasta cerrar los bloqueadores críticos descritos en este documento.
+La recomendación actual es mantenerlo en **NO GO**, con un plan de cierre técnico y operativo bien definido para pasar a un estado verificable y sostenible.

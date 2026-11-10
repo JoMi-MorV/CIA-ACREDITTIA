@@ -14,7 +14,7 @@ from app.database import SCHEMA_VERSION, schema_version
 
 def test_version_de_esquema(esquema):
     """Los scripts de negocio y consola instalan la versión exigida por la API."""
-    assert SCHEMA_VERSION == 15
+    assert SCHEMA_VERSION == 16
     assert schema_version() == SCHEMA_VERSION
 
 
@@ -56,8 +56,8 @@ def test_migracion_indices_desde_v7_repetible(motor_admin, monkeypatch):
         conn.execute(sa.text("DELETE FROM app_schema_migrations WHERE version >= 8"))
     try:
         assert database.schema_version() == 7
-        assert database.apply_schema() == 15
-        assert database.apply_schema() == 15
+        assert database.apply_schema() == 16
+        assert database.apply_schema() == 16
         test_foreign_keys_con_indice(motor_admin)
         with motor_admin.connect() as conn:
             assert conn.execute(sa.text("SELECT count(*) FROM ops_jobs")).scalar() == antes
@@ -74,8 +74,8 @@ def test_migracion_sesion_desde_v8(motor_admin, monkeypatch):
         conn.execute(sa.text("DELETE FROM app_schema_migrations WHERE version >= 9"))
     try:
         assert database.schema_version() == 8
-        assert database.apply_schema() == 15
-        assert database.apply_schema() == 15
+        assert database.apply_schema() == 16
+        assert database.apply_schema() == 16
         with motor_admin.connect() as conn:
             assert conn.execute(sa.text("SELECT count(*) FROM users WHERE auth_version <> 0 OR auth_version IS NULL")).scalar() == 0
     finally:
@@ -93,8 +93,8 @@ def test_migracion_actualiza_frecuencia_del_despachador(motor_admin, monkeypatch
         conn.execute(sa.text("DELETE FROM app_schema_migrations WHERE version >= 12"))
     try:
         assert database.schema_version() == 11
-        assert database.apply_schema() == 15
-        assert database.apply_schema() == 15
+        assert database.apply_schema() == 16
+        assert database.apply_schema() == 16
         with motor_admin.connect() as conn:
             cron = conn.execute(sa.text(
                 "SELECT cron_expr FROM ops_jobs "

@@ -1,6 +1,6 @@
-# Validación funcional — actualizado al 4 de noviembre de 2026
+# Validación funcional — actualizado al 9 de noviembre de 2026
 
-## Estado general de salud — 4 de noviembre de 2026
+## Estado general de salud — 9 de noviembre de 2026
 
 | Área | Estado | Evidencia |
 |---|---|---|
@@ -9,7 +9,8 @@
 | Docker Compose | VERDE | `docker compose config --quiet` completó correctamente. |
 | Dependencias frontend | AMARILLO/ROJO | `npm audit --omit=dev`: 1 crítica, 2 altas; afectan a Next.js/PostCSS/source-map-js. |
 | Respaldo real | VERDE funcional / AMARILLO productivo | Ciclo local acreditado; faltan RPO/RTO aprobados y recuperación ante pérdida total. |
-| Producción con datos reales | ROJO | Sigue bloqueada por DEC-08, infraestructura, roles reales, privacidad aprobada y recuperación completa. |
+| Privacidad / RNF-PRV-01 | PARCIAL / P0 | Controles de aplicación implementados; usuario reporta retención Azure/job e históricos verificados, pero no hay referencia de evidencia en el workspace. Falta confirmar aplicabilidad. |
+| Producción con datos reales | ROJO | Sigue bloqueada por controles de privacidad/retención pendientes, infraestructura, roles reales y recuperación completa. |
 
 La ejecución inicial completa tuvo una falla transitoria en datos demo. Al
 aislar el caso, `test_demo_seed.py` pasó y una segunda ejecución completa de
@@ -23,18 +24,35 @@ dependencias reportadas por npm, incluida una crítica.
 Informe detallado: [Estado de salud general](ESTADO_SALUD_GENERAL.md).
 Plan de cierre: [Cronograma simplificado de 2 semanas](CRONOGRAMA_CIERRE_PRODUCCION.md).
 
-## RNF-PRV-01 — privacidad — 4 de noviembre de 2026
+## RNF-PRV-01 — privacidad — 9 de noviembre de 2026
 
-La persistencia de actividad ahora minimiza texto libre antes de guardar
-descripciones y metadatos. El control redacta correos electrónicos, RUT,
-contraseñas, tokens, secretos, credenciales y referencias asociadas.
+La persistencia de actividad minimiza texto libre antes de guardar descripciones
+y metadatos. Las respuestas de auditoría y la exportación ADMIN también redactan
+datos históricos; las consultas a ambas vistas de auditoría se registran. La
+exportación ADMIN requiere motivo de al menos 12 caracteres y conserva ese
+motivo en la auditoría de la acción.
 
 Evidencia ejecutada:
-- `tests/test_privacidad.py`: **1 aprobada, 0 fallidas**.
+- `tests/test_privacidad.py tests/test_esquema.py tests/test_admin_backups.py tests/test_admin_identidad.py`:
+  **38 aprobadas**.
+- `npm run build`: completado correctamente.
 
-RNF-PRV-01 pasa de 50% a 60%. Sigue pendiente la aprobación de DEC-08,
-la ejecución de retención, el tratamiento de registros históricos y la
-auditoría de consultas/exportaciones.
+DEC-08 quedó acordada como política interna funcional el 09-11-2026: auditoría
+por 12 meses, logs técnicos por 90 días, telemetría identificable por 90 días y
+métricas agregadas no identificables por 12 meses. Se aplica hacia adelante;
+la migración 16 limita la poda a registros desde la fecha efectiva y deja intactos
+los anteriores para revisión. La poda de base de datos queda conectada al job
+de retención. La configuración de Log Analytics no es parte de esta aplicación
+y no se pudo verificar directamente en el entorno Azure. El usuario informó que
+Log Analytics, la migración/job y la revisión histórica fueron verificados por
+el desarrollador auxiliar el 09-11-2026 a las 23:55; indicó que existe evidencia
+interna, pero no aportó una referencia que pueda incorporarse aquí.
+
+RNF-PRV-01 permanece **PAR / P0**: CA-01 a CA-03 tienen evidencia técnica
+focalizada; CA-04 se reporta completado y requiere enlazar la evidencia
+operativa, y CA-05 requiere confirmación del responsable de producto/cliente.
+La política no equivale a aprobación legal. Producción con datos reales sigue
+bloqueada hasta aportar la referencia de evidencia y confirmar su aplicabilidad.
 
 ## RF-CLI-09 — integraciones y notificaciones — 4 de noviembre de 2026
 
@@ -579,17 +597,16 @@ respaldo real. `STORAGE_BACKEND=azure` no es compatible con esta primera
 implementación; antes de habilitarla en Azure hace falta un adaptador de
 respaldo de Blob aprobado y validado.
 
-> **BLOQUEO P0 — GO/NO-GO DE PRODUCCIÓN:** no exponer datos reales hasta que DEC-08 tenga revisión legal/contractual documentada, decisiones definitivas de retención, responsables y aprobaciones identificados, y evidencia de que los controles de privacidad y auditoría están implementados y validados. La propuesta de retención no equivale a aprobación. **Estado actual: pendiente; no hay evidencia de cierre registrada aquí.**
+> **BLOQUEO P0 — PRIVACIDAD ANTES DE PRODUCCIÓN CON DATOS REALES:** DEC-08 quedó acordada como política interna funcional el 09-11-2026. Los controles de aplicación están implementados, pero antes de usar datos reales se requiere evidencia operativa de retención (incluidos logs Azure), revisión documentada de registros históricos y confirmación de aplicabilidad por el responsable de producto/cliente.
 
-## Evidencia requerida para levantar el bloqueo DEC-08
+## Evidencia requerida para cerrar RNF-PRV-01 y evaluar el bloqueo
 
-Registrar en esta validación (o enlazar un acta/control documental aprobado):
+Registrar en esta validación (o enlazar evidencia):
 
-- responsable y fecha de la revisión legal/contractual, alcance revisado y conclusión;
-- plazos definitivos de retención aprobados, responsables de custodia y proceso de eliminación/anonimización;
-- aprobación de producto/operación y responsables de implementar, operar y revisar los controles;
-- evidencia técnica de minimización, autorización y auditoría de consultas, manejo de registros históricos y validación de retención;
-- decisión explícita de go/no-go para producción con datos reales, con fecha y aprobadores.
+- referencia verificable de la migración 16, ejecución del job y retención de 90 días en Log Analytics (reportados como verificados por desarrollador auxiliar el 09-11-2026 a las 23:55);
+- evidencia documentada de la revisión de registros anteriores a la fecha efectiva, sin modificación/borrado indiscriminado (reportada como completada en la misma fecha);
+- confirmación de aplicabilidad de DEC-08 por el responsable de producto/cliente;
+- evaluación GO/NO-GO de producción separada, con fecha y responsables.
 
 ## Decisión de trazabilidad de incidentes (DEC-06) — 7 de octubre de 2026
 
@@ -603,23 +620,16 @@ DEC-08. Esta es una decisión funcional, no una prueba de que el sistema actual
 ya persista o correlacione todos esos campos; implementación y validación
 operacional siguen pendientes.
 
-## Propuesta de auditoría y privacidad (DEC-08) — 7 de octubre de 2026
+## Antecedente histórico de DEC-08 — propuesta del 7 de octubre de 2026
 
-Se acordó como propuesta registrar únicamente metadatos necesarios para
-investigar: actor, acción, recurso, fecha, resultado e identificador de
-correlación cuando exista. No deben almacenarse contraseñas, tokens, URLs
-firmadas ni contenido de documentos. El motivo se exigirá solo para operaciones
-sensibles según la matriz de permisos; la consulta quedará limitada a ADMIN y
-roles autorizados, y esos accesos también se auditarán.
+Esta fue la propuesta inicial y queda reemplazada por la decisión funcional del
+09-11-2026 registrada en el SRS. Se conserva aquí como historial documental,
+no como política vigente.
 
-Retención inicial propuesta: registros de auditoría por 12 meses, logs técnicos
-por 90 días y telemetría identificable por 90 días; métricas agregadas hasta
-12 meses. Una URL emitida no demuestra que el archivo se haya transferido; si
-se necesita acreditar una transferencia, se requerirá evidencia confiable del
-almacenamiento. Los plazos quedan sujetos a revisión legal/contractual antes
-de producción. Esta decisión no prueba que los controles estén implementados:
-faltan su materialización, la matriz de acceso y el tratamiento documentado de
-los registros históricos.
+La regla vigente es: auditoría 12 meses, logs técnicos 90 días, telemetría
+identificable 90 días y métricas agregadas no identificables 12 meses; aplicar
+hacia adelante y revisar históricos antes de producción. Una URL emitida no
+demuestra que el archivo se haya transferido.
 
 ## Búsqueda global y catálogo de referencias — 7 de octubre de 2026
 

@@ -28,6 +28,7 @@ from ..models import (Actividad, Base, Company, Contrato, Documento, IaReview,
 from ..models_ops import (MetricasMensuales, OpsComponente,
                           MetricasMensualesPlan, OpsDisponibilidadDiaria,
                           OpsIncidente, OpsJob, OpsJobRun)
+from .actividad import minimizar_metadata, minimizar_texto
 
 # No se incluyen tablas de documentos/archivos, hashes de credenciales, tokens,
 # secretos ni el vault. Las columnas sensibles se excluyen por nombre.
@@ -100,8 +101,15 @@ def create_console_export(
                     json_file.write("[")
                     query = select(*columns).select_from(table)
                     for row in db.execute(query).mappings():
-                        values = {column.name: _json_value(row[column.name])
-                                  for column in columns}
+                        values = {}
+                        for column in columns:
+                            value = _json_value(row[column.name])
+                            if table.name == "actividad":
+                                if column.name == "metadata":
+                                    value = minimizar_metadata(value)
+                                elif isinstance(value, str):
+                                    value = minimizar_texto(value)
+                            values[column.name] = value
                         writer.writerow([_csv_value(values[column.name]) for column in columns])
                         if count:
                             json_file.write(",")

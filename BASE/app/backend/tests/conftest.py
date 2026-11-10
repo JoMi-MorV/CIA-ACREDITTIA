@@ -73,7 +73,7 @@ SCRIPTS = ["01_esquema.sql", "02_indices.sql", "03_triggers.sql",
            "09_indices_consola.sql", "10_version_sesion.sql",
            "11_ciclo_vida_contratos.sql", "12_scheduling_operacional.sql",
            "13_respaldos_admin.sql", "14_auditoria_autenticacion.sql",
-           "15_acceso_excepcional_admin.sql"]
+           "15_acceso_excepcional_admin.sql", "16_privacidad_retencion.sql"]
 
 _TMP = os.path.join(tempfile.gettempdir(), "acredittia_pruebas")
 PGDATA = os.path.join(_TMP, "pgdata")
@@ -86,7 +86,7 @@ PSQL = [sys.executable, os.path.join(os.path.dirname(pgserver.__file__), "pginst
 # Catálogos globales sembrados al arrancar: NO se vacían entre pruebas.
 CATALOGOS = {"app_schema_migrations", "faenas", "faena_plataformas", "doc_ejemplos", "requisito_templates",
              "requisitos_terreno", "proveedores_catalogo", "planes",
-             "ops_componentes", "ops_jobs"}
+             "ops_componentes", "ops_jobs", "privacy_retention_policy"}
 
 
 def _parchear_scripts() -> str:

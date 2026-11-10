@@ -6,6 +6,7 @@ import re
 from zipfile import ZipFile
 
 import pytest
+import sqlalchemy as sa
 
 from app.services import backups, console_exports
 from tests.conftest import API
@@ -62,7 +63,9 @@ def test_estado_backups_no_expone_configuracion(app_cliente, admin):
 
 def test_export_console_zip_excluye_credenciales(app_cliente, admin):
     response = app_cliente.get(
-        f"{API}/admin/backups/export?formato=zip", headers=admin["headers"])
+        f"{API}/admin/backups/export?formato=zip"
+        "&motivo=Revision%20operacional%20autorizada",
+        headers=admin["headers"])
     assert response.status_code == 200, response.text
     assert response.headers["content-type"] == "application/zip"
     with ZipFile(io.BytesIO(response.content)) as archive:
@@ -80,12 +83,47 @@ def test_export_console_zip_excluye_credenciales(app_cliente, admin):
 
 def test_export_console_pdf_resumen(app_cliente, admin):
     response = app_cliente.get(
-        f"{API}/admin/backups/export?formato=pdf", headers=admin["headers"])
+        f"{API}/admin/backups/export?formato=pdf"
+        "&motivo=Revision%20operacional%20autorizada",
+        headers=admin["headers"])
     assert response.status_code == 200, response.text
     assert response.content.startswith(b"%PDF")
     assert len(re.findall(rb"/Type /Page\b", response.content)) >= 5
     assert re.search(rb"/Subject \(Generated at \d{4}-\d{2}-\d{2}T"
                      rb"\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}\)", response.content)
+
+
+def test_export_console_requiere_motivo_y_lo_audita(
+        app_cliente, admin, motor_admin):
+    sin_motivo = app_cliente.get(
+        f"{API}/admin/backups/export?formato=zip", headers=admin["headers"])
+    assert sin_motivo.status_code == 400
+    assert sin_motivo.json()["error"]["code"] == "MOTIVO_REQUERIDO"
+
+    motivo_corto = app_cliente.get(
+        f"{API}/admin/backups/export?formato=zip&motivo=   ",
+        headers=admin["headers"])
+    assert motivo_corto.status_code == 400
+    assert motivo_corto.json()["error"]["code"] == "MOTIVO_REQUERIDO"
+
+    motivo_largo = app_cliente.get(
+        f"{API}/admin/backups/export?formato=zip&motivo={'x' * 241}",
+        headers=admin["headers"])
+    assert motivo_largo.status_code == 400
+    assert motivo_largo.json()["error"]["code"] == "MOTIVO_INVALIDO"
+
+    motivo = "Revision operacional autorizada"
+    response = app_cliente.get(
+        f"{API}/admin/backups/export?formato=zip&motivo={motivo.replace(' ', '%20')}",
+        headers=admin["headers"])
+    assert response.status_code == 200, response.text
+
+    with motor_admin.connect() as conn:
+        audit = conn.execute(sa.text(
+            "SELECT descripcion FROM actividad "
+            "WHERE entidad_tipo = 'admin_export' "
+            "ORDER BY created_at DESC LIMIT 1")).scalar_one()
+    assert motivo in audit
 
 
 def test_encryption_roundtrip_and_tamper_detection(tmp_path, monkeypatch):

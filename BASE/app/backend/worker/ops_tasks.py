@@ -134,11 +134,16 @@ def run_metricas_snapshot(db, mes: str | None = None, forzar: bool = False, **_)
 
 @ops.runner("ops_retencion")
 def run_retencion(db, **_):
-    fila = db.execute(text("SELECT * FROM ops_podar_telemetria()")).one()
+    fila = db.execute(text("SELECT * FROM ops_podar_privacidad()")).one()
     db.commit()
-    return int(fila.runs_podados + fila.incidentes_podados), (
-        f"{fila.runs_podados} runs y {fila.incidentes_podados} incidentes "
-        f"podados; {fila.runs_timeout} runs marcados timeout")
+    total = sum((fila.actividad_podada, fila.bitacora_podada,
+                 fila.runs_podados, fila.incidentes_podados,
+                 fila.disponibilidad_podada, fila.metricas_podadas))
+    return int(total), (
+        f"actividad={fila.actividad_podada}, bitácora={fila.bitacora_podada}, "
+        f"runs={fila.runs_podados}, incidentes={fila.incidentes_podados}, "
+        f"disponibilidad={fila.disponibilidad_podada}, métricas={fila.metricas_podadas}; "
+        f"{fila.runs_timeout} runs marcados timeout")
 
 
 # --- Jobs de negocio existentes, expuestos en la consola --------------------

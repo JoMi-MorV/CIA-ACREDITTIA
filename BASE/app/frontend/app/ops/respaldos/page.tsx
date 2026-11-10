@@ -46,6 +46,7 @@ export default function RespaldosPage() {
   const [error, setError] = useState("");
   const [restoreId, setRestoreId] = useState<string | null>(null);
   const [confirmation, setConfirmation] = useState("");
+  const [exportMotivo, setExportMotivo] = useState("");
   const importInput = useRef<HTMLInputElement>(null);
 
   const reload = useCallback(async () => {
@@ -91,6 +92,16 @@ export default function RespaldosPage() {
     } catch (e) {
       setError(e instanceof Error ? e.message : t("respaldos.error"));
     } finally { setBusy(false); }
+  };
+
+  const exportar = async (formato: "zip" | "pdf") => {
+    const motivo = exportMotivo.trim();
+    if (motivo.length < 12) {
+      setError(t("respaldos.export_motivo_req"));
+      return;
+    }
+    const params = new URLSearchParams({ formato, motivo });
+    await descargar(`/backups/export?${params.toString()}`);
   };
 
   const importar = async (event: ChangeEvent<HTMLInputElement>) => {
@@ -281,13 +292,24 @@ export default function RespaldosPage() {
       <Card>
         <h2 className="ops-title">{t("respaldos.export_titulo")}</h2>
         <p className="ops-sub mt-1">{t("respaldos.export_desc")}</p>
+        <label className="mt-3 block text-sm">
+          {t("respaldos.export_motivo")}
+          <input value={exportMotivo}
+            onChange={(event) => setExportMotivo(event.target.value)}
+            maxLength={240}
+            className="mt-1 w-full rounded-md border bg-transparent px-3 py-2"
+            style={{ borderColor: "var(--ops-line)" }}
+            placeholder={t("respaldos.export_motivo_ph")} />
+        </label>
         <div className="mt-3 flex flex-wrap gap-2">
-          <button disabled={busy} onClick={() => void descargar("/backups/export?formato=zip")}
+          <button disabled={busy || exportMotivo.trim().length < 12}
+            onClick={() => void exportar("zip")}
             className="rounded-lg px-3 py-2 text-sm font-semibold disabled:opacity-50"
             style={{ background: "var(--ops-accent)", color: "white" }}>
             {t("respaldos.export_csv_json")}
           </button>
-          <button disabled={busy} onClick={() => void descargar("/backups/export?formato=pdf")}
+          <button disabled={busy || exportMotivo.trim().length < 12}
+            onClick={() => void exportar("pdf")}
             className="rounded-lg border px-3 py-2 text-sm font-semibold disabled:opacity-50"
             style={{ borderColor: "var(--ops-line)", color: "var(--ops-ink)" }}>
             {t("respaldos.export_pdf")}

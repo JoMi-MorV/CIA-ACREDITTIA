@@ -1,4 +1,4 @@
-// File: C:\Users\amaru\Desktop\acredittia fusions\CIA-ACREDITTIA-main\BASE\app\frontend\app\login\page.tsx
+// File: C:\Users\amaru\Desktop\consola-interna-70\CIA-ACREDITTIA-main\BASE\app\frontend\app\login\page.tsx
 import * as entry from '../../../../app/login/page.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 

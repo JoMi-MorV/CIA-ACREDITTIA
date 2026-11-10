@@ -19,6 +19,7 @@ from ..deps import err, get_current_user, require_admin
 from ..models import User
 from ..models_ops import OpsJob
 from ..services import ops
+from ..services.actividad import minimizar_texto
 from ..services.backups import (BackupError, backup_configured, backup_path, delete_backup,
                                 import_backup, list_backups, restore_backup, verify_backup)
 from ..services.console_exports import create_console_export
@@ -197,8 +198,16 @@ def restaurar(backup_id: str, body: RestoreBody,
 @router.get("/export")
 def exportar(resp: Response,
              formato: str = Query("zip", pattern="^(zip|pdf)$"),
+             motivo: str | None = Query(None),
              db: Session = Depends(get_db),
              user: User = Depends(get_current_user)):
+    motivo = " ".join((motivo or "").split())
+    if len(motivo) > 240:
+        raise err(400, "MOTIVO_INVALIDO",
+                  "El motivo no puede superar 240 caracteres")
+    if len(motivo) < 12:
+        raise err(400, "MOTIVO_REQUERIDO",
+                  "Indique un motivo de al menos 12 caracteres para exportar")
     try:
         path, media_type, temporary = create_console_export(db, formato)
     except (ValueError, OSError) as exc:
@@ -206,7 +215,8 @@ def exportar(resp: Response,
     try:
         ops.auditar(
             db, "visualizacion",
-            f"Exportación ADMIN en formato {formato}; datos administrativos autorizados",
+            minimizar_texto(
+                f"Exportación ADMIN en formato {formato}; motivo: {motivo}"),
             user_id=user.id, entidad_tipo="admin_export")
         db.commit()
     except Exception:
