@@ -72,6 +72,28 @@ def test_ciclo_de_vida_conserva_datos_y_exige_motivo(
         "rut": rut_valido(21)}).json()
 
     url = f"{API}/contratos/{contrato_a['id']}"
+    nombre_anterior = contrato_a["nombre"]
+    editado = app_cliente.patch(
+        url, headers=empresa_a["headers"],
+        json={"nombre": "Contrato auditado"},
+    )
+    assert editado.status_code == 200, editado.text
+    admin_headers = {
+        **admin["headers"], "X-Company-Id": empresa_a["company_id"]}
+    auditoria_edicion = app_cliente.get(
+        f"{API}/admin/audit", headers=admin_headers,
+        params={"page_size": 100},
+    )
+    assert auditoria_edicion.status_code == 200, auditoria_edicion.text
+    evento_edicion = next(
+        item for item in auditoria_edicion.json()["items"]
+        if item["entidad_id"] == contrato_a["id"]
+        and item["descripcion"] == "Datos del contrato actualizados"
+    )
+    assert evento_edicion["cambios"]["nombre"] == {
+        "antes": nombre_anterior, "despues": "Contrato auditado",
+    }
+
     docs = app_cliente.get(f"{API}/personal/{sujeto['id']}/documentos",
                            headers=empresa_a["headers"]).json()["items"]
     cambio = app_cliente.patch(
@@ -161,8 +183,6 @@ def test_ciclo_de_vida_conserva_datos_y_exige_motivo(
     assert app_cliente.get(
         alertas_url, headers=empresa_a["headers"]).json()["total"] >= 1
 
-    admin_headers = {
-        **admin["headers"], "X-Company-Id": empresa_a["company_id"]}
     r = app_cliente.post(
         f"{url}/finalizar", headers=admin_headers,
         json={"motivo": "Cierre ejecutado por administración global"})
@@ -173,6 +193,29 @@ def test_ciclo_de_vida_conserva_datos_y_exige_motivo(
         json={"motivo": "Restauración autorizada por administración global"})
     assert r.status_code == 200, r.text
     assert r.json()["ciclo_estado"] == "activo"
+    auditoria_ciclo = app_cliente.get(
+        f"{API}/admin/audit", headers=admin_headers,
+        params={"modulo": "contrato", "page_size": 100},
+    )
+    assert auditoria_ciclo.status_code == 200, auditoria_ciclo.text
+    eventos_contrato = [
+        item for item in auditoria_ciclo.json()["items"]
+        if item["entidad_id"] == contrato_a["id"]
+    ]
+    evento_finalizacion = next(
+        (item for item in eventos_contrato
+         if item["cambios"].get("ciclo_estado", {}).get("despues")
+         == "finalizado"),
+        None,
+    )
+    assert evento_finalizacion is not None, eventos_contrato
+    assert evento_finalizacion["descripcion"].startswith(
+        "Contrato finalización.")
+    assert evento_finalizacion["cambios"]["ciclo_estado"] == {
+        "antes": "activo", "despues": "finalizado",
+    }
+    assert evento_finalizacion["motivo"] == (
+        "Cierre ejecutado por administración global")
     historial = app_cliente.get(
         f"{url}/historial?search=Motivo", headers=empresa_a["headers"])
     assert historial.status_code == 200, historial.text

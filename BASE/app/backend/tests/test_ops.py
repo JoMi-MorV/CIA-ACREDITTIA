@@ -878,3 +878,149 @@ def test_catalogo_auditado_y_visible_en_auditoria_global(app_cliente, admin):
     assert evento["empresa"] == "Plataforma"
     assert evento["actor"] == "Admin Plataforma"
     assert evento["tipo"] == "creacion"
+
+
+def test_mutaciones_catalogo_registran_cambios_antes_y_despues(
+        app_cliente, admin):
+    creada = app_cliente.post(
+        f"{API}/admin/faenas", headers=admin["headers"],
+        json={"nombre": "Faena cambios auditados", "mandante": "Mandante"},
+    )
+    assert creada.status_code == 201, creada.text
+    faena_id = creada.json()["id"]
+
+    editada = app_cliente.patch(
+        f"{API}/admin/faenas/{faena_id}", headers=admin["headers"],
+        json={"nombre": "Faena renombrada"},
+    )
+    assert editada.status_code == 200, editada.text
+    plataforma = app_cliente.post(
+        f"{API}/admin/faenas/{faena_id}/plataformas",
+        headers=admin["headers"], json={"nombre": "Portal auditado"},
+    )
+    assert plataforma.status_code == 201, plataforma.text
+
+    codigo = f"AUD-{faena_id[:8]}"
+    plantilla = app_cliente.post(
+        f"{API}/admin/requisitos/templates", headers=admin["headers"],
+        json={"ambito": "empresa", "titulo": "Requisito auditado",
+              "codigo": codigo, "tipo": "legal"},
+    )
+    assert plantilla.status_code == 201, plantilla.text
+    plantilla_id = plantilla.json()["id"]
+    desactivada = app_cliente.delete(
+        f"{API}/admin/requisitos/templates/{plantilla_id}",
+        headers=admin["headers"],
+    )
+    assert desactivada.status_code == 200, desactivada.text
+
+    auditoria = app_cliente.get(
+        f"{API}/admin/audit", headers=admin["headers"],
+        params={"modulo": "admin_catalogo", "page_size": 100},
+    )
+    assert auditoria.status_code == 200, auditoria.text
+    eventos = auditoria.json()["items"]
+
+    evento_faena = next(item for item in eventos
+                        if item["entidad_id"] == faena_id
+                        and item["descripcion"] == "Faena actualizada")
+    assert evento_faena["cambios"]["nombre"] == {
+        "antes": "Faena cambios auditados",
+        "despues": "Faena renombrada",
+    }
+    assert any(item["entidad_id"] == plataforma.json()["id"]
+               and item["tipo"] == "creacion" for item in eventos)
+    evento_template = next(item for item in eventos
+                           if item["entidad_id"] == plantilla_id
+                           and item["descripcion"] ==
+                           "Plantilla de requisito desactivada")
+    assert evento_template["cambios"]["activo"] == {
+        "antes": True, "despues": False,
+    }
+
+
+def test_cambio_estado_empresa_audita_empresa_y_usuarios(
+        app_cliente, admin, empresa_a):
+    respuesta = app_cliente.post(
+        f"{API}/admin/companies/{empresa_a['company_id']}/reject",
+        headers=admin["headers"], json={"reason": "Revisión administrativa"},
+    )
+    assert respuesta.status_code == 200, respuesta.text
+
+    auditoria = app_cliente.get(
+        f"{API}/admin/users/audit", headers=admin["headers"],
+        params={"page_size": 100},
+    )
+    assert auditoria.status_code == 200, auditoria.text
+    evento_usuario = next(item for item in auditoria.json()["items"]
+                          if item["usuario_id"] == empresa_a["user_id"]
+                          and item["descripcion"] ==
+                          "Estado de acceso de usuario cambiado por administración")
+    assert evento_usuario["cambios"]["status"] == {
+        "antes": "approved", "despues": "rejected",
+    }
+
+    eventos_globales = app_cliente.get(
+        f"{API}/admin/audit", headers=admin["headers"],
+        params={"modulo": "empresa", "page_size": 100},
+    )
+    assert eventos_globales.status_code == 200, eventos_globales.text
+    evento_empresa = next(
+        item for item in eventos_globales.json()["items"]
+        if item["entidad_id"] == empresa_a["company_id"]
+        and item["descripcion"] == "Estado de cuenta cambiado por administración"
+    )
+    assert evento_empresa["cambios"]["status"] == {
+        "antes": "approved", "despues": "rejected",
+    }
+
+
+def test_revocacion_admin_sin_empresa_audita_cambios(
+        app_cliente, admin, motor_admin):
+    from app.models import User
+
+    user_id = uuid.uuid4()
+    with worker_session(is_admin=True) as db:
+        db.add(User(
+            id=user_id, email=f"admin-{user_id}@acredittia.cl",
+            nombre="Admin sin empresa", password_hash="no-se-usa",
+            role="admin", company_id=None, status="approved",
+        ))
+        db.commit()
+
+    respuesta = app_cliente.post(
+        f"{API}/admin/users/{user_id}/revoke",
+        headers=admin["headers"], json={"motivo": "Cambio de responsabilidad"},
+    )
+    assert respuesta.status_code == 200, respuesta.text
+
+    auditoria = app_cliente.get(
+        f"{API}/admin/audit", headers=admin["headers"],
+        params={"user_id": admin["user_id"], "page_size": 100},
+    )
+    assert auditoria.status_code == 200, auditoria.text
+    evento = next(
+        item for item in auditoria.json()["items"]
+        if item["entidad_id"] == str(user_id)
+        and item["descripcion"] == "Acceso de usuario revocado por administración"
+    )
+    assert evento["empresa"] == "Plataforma"
+    assert evento["cambios"]["activo"] == {
+        "antes": True, "despues": False,
+    }
+
+    repetida = app_cliente.post(
+        f"{API}/admin/users/{user_id}/revoke",
+        headers=admin["headers"], json={},
+    )
+    assert repetida.status_code == 200, repetida.text
+    auditoria_final = app_cliente.get(
+        f"{API}/admin/audit", headers=admin["headers"],
+        params={"user_id": admin["user_id"], "page_size": 100},
+    )
+    eventos_revocacion = [
+        item for item in auditoria_final.json()["items"]
+        if item["entidad_id"] == str(user_id)
+        and item["descripcion"] == "Acceso de usuario revocado por administración"
+    ]
+    assert len(eventos_revocacion) == 1

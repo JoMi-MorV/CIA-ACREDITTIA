@@ -271,12 +271,30 @@ def editar(contrato_id: uuid.UUID, body: ContratoPatch,
                                       Contrato.codigo == data["codigo"],
                                       Contrato.id != c.id)):
         raise err(409, "CODIGO_DUPLICADO", "Ya existe un contrato con ese código")
+    antes = {
+        campo: getattr(c, campo).isoformat()
+        if isinstance(getattr(c, campo), date) else getattr(c, campo)
+        for campo in data
+    }
     for k, v in data.items():
         setattr(c, k, v)
     c.updated_at = datetime.now(timezone.utc)
-    actividad.log(db, cid, "actualizacion", "contrato",
-                  f"Contrato '{c.nombre}' actualizado", user_id=user.id,
-                  entidad_tipo="contrato", entidad_id=c.id)
+    despues = {
+        campo: getattr(c, campo).isoformat()
+        if isinstance(getattr(c, campo), date) else getattr(c, campo)
+        for campo in data
+    }
+    cambios = {
+        campo: {"antes": antes[campo], "despues": despues[campo]}
+        for campo in data if antes[campo] != despues[campo]
+    }
+    if cambios:
+        actividad.log(
+            db, cid, "actualizacion", "contrato",
+            "Datos del contrato actualizados", user_id=user.id,
+            entidad_tipo="contrato", entidad_id=c.id,
+            metadata={"cambios": cambios},
+        )
     db.commit()
     return _out(db, c)
 
@@ -312,14 +330,18 @@ def _transicionar_ciclo(contrato_id: uuid.UUID, destino: str, body: ContratoMoti
                     Alerta.sujeto_id.in_(sujetos_contrato)))):
             alerta.estado = "resuelta"
             alerta.resuelta_at = c.ciclo_actualizado_at
-    accion = {"desactivado": "desactivacion", "finalizado": "finalizacion",
-              "activo": "restauracion"}[destino]
+    accion = {"desactivado": "desactivación", "finalizado": "finalización",
+              "activo": "restauración"}[destino]
     actividad.log(
         db, cid, "actualizacion", "contrato",
-        f"Contrato '{c.nombre}' {accion}. Motivo: {motivo}",
+        f"Contrato {accion}. Motivo: {motivo}",
         user_id=user.id, entidad_tipo="contrato", entidad_id=c.id,
-        metadata={"ciclo_estado_anterior": anterior,
-                  "ciclo_estado_nuevo": destino, "motivo": motivo},
+        metadata={
+            "cambios": {"ciclo_estado": {
+                "antes": anterior, "despues": destino,
+            }},
+            "motivo": motivo,
+        },
     )
     db.commit()
     if destino == "activo":

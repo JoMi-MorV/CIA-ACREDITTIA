@@ -35,10 +35,12 @@ Evidencia histórica ejecutada el 14-10-2026:
 
 La producción no queda declarada como cerrada ni lista para go-live con datos
 reales. La política interna DEC-08 quedó acordada el 09-11-2026 y sus controles
-de aplicación de privacidad/retención están implementados. El usuario reportó
-que retención Azure/job e históricos fueron verificados, pero no hay referencia
-de evidencia en el workspace; falta confirmar aplicabilidad, junto con permisos
-granulares, dependencias vulnerables y restauración efectiva.
+de aplicación de privacidad/retención están implementados. El usuario confirmó
+la migración y el job `ops_retencion` activo; reportó una ejecución local `ok`
+el 10-11-2026 a las 00:18:52, con cero filas podadas. Falta verificar Log
+Analytics, documentar la revisión histórica y obtener aprobación del responsable
+de producción, junto con permisos granulares, dependencias vulnerables y
+restauración efectiva.
 
 ## Requisitos y planificación
 
@@ -755,9 +757,9 @@ su build pasó, pero los flujos aún requieren validación operativa.
   auditoría 12 meses, logs técnicos 90 días, telemetría identificable 90 días
   y métricas agregadas no identificables 12 meses. Aplicar hacia adelante y
   revisar históricos antes de producción. La migración 16 implementa la poda
-  prospectiva de base de datos; el usuario reporta que el job y Log Analytics
-  fueron verificados, pero no hay referencia de evidencia disponible. Falta
-  confirmar aplicabilidad. No constituye aprobación legal.
+  prospectiva de base de datos. El job se reporta ejecutado localmente `ok` con
+  cero filas podadas; faltan evidencia de Log Analytics, revisión histórica y
+  aprobación de aplicabilidad por producción. No constituye aprobación legal.
 - **Bloqueo P0 de producción con datos reales:** verificar que la política
   aplica al entorno/contrato, acreditar retención operativa y documentar el
   tratamiento de históricos en `documentacion/VALIDACION_ACTUAL.md`.

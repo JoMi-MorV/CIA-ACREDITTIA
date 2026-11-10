@@ -60,6 +60,12 @@ TIPOS_REQ: tuple[str, ...] = ("legal", "medico", "capacitacion", "certificacion"
                               "tecnico", "medioambiental")
 
 
+def _valor_auditoria(valor):
+    if isinstance(valor, (uuid.UUID, datetime)):
+        return valor.isoformat() if isinstance(valor, datetime) else str(valor)
+    return valor
+
+
 class AccessGrantIn(BaseModel):
     admin_user_id: uuid.UUID
     company_id: uuid.UUID | None = None
@@ -708,7 +714,9 @@ def global_audit(modulo: str | None = Query(None),
         "entidad_tipo": a.entidad_tipo,
         "entidad_id": str(a.entidad_id) if a.entidad_id else None,
         "motivo": actividad.minimizar_metadata(
-            (a.meta or {}).get("motivo_acceso")),
+            (a.meta or {}).get("motivo_acceso", (a.meta or {}).get("motivo"))),
+        "cambios": actividad.minimizar_metadata(
+            (a.meta or {}).get("cambios", {})),
         "created_at": a.created_at.isoformat(),
     } for a, actor_nombre, empresa in filas], total, p)
     actividad.log(
@@ -926,12 +934,21 @@ def revocar_admin_user(user_id: uuid.UUID, body: AdminUserRevoke,
         raise err(404, "NO_ENCONTRADO", "Usuario inexistente")
     if user.id == admin.id:
         raise err(400, "AUTO_REVOCACION", "No puede revocar su propia cuenta")
+    activo_anterior = user.activo
     user.activo = False
     _invalidar_sesiones(db, user)
-    if user.company_id:
-        actividad.log(db, user.company_id, "actualizacion", "usuarios",
-                      f"Acceso revocado{': ' + body.motivo.strip() if body.motivo else ''}",
-                      user_id=admin.id, entidad_tipo="usuario", entidad_id=user.id)
+    if activo_anterior != user.activo:
+        actividad.log(
+            db, user.company_id, "actualizacion", "usuarios",
+            "Acceso de usuario revocado por administración",
+            user_id=admin.id, entidad_tipo="usuario", entidad_id=user.id,
+            metadata={
+                "cambios": {"activo": {
+                    "antes": activo_anterior, "despues": user.activo,
+                }},
+                "motivo_presente": bool(body.motivo and body.motivo.strip()),
+            },
+        )
     db.commit()
     return {"ok": True, "id": str(user.id), "activo": False}
 
@@ -1049,15 +1066,35 @@ def detalle_company(company_id: uuid.UUID, db: Session = Depends(get_db)):
 def _set_status(db: Session, company_id: uuid.UUID, admin: User,
                 status: str, reason: str | None = None) -> Company:
     c = _get_company(db, company_id)
+    estado_anterior = c.status
     c.status = status
     c.approved_by = admin.id
     c.approved_at = datetime.now(timezone.utc)
     c.rejection_reason = reason
     for u in db.scalars(select(User).where(User.company_id == c.id)):
+        estado_usuario_anterior = u.status
         u.status = status
-    actividad.log(db, c.id, "actualizacion", "empresa",
-                  f"Cuenta {status} por administrador", user_id=admin.id,
-                  entidad_tipo="empresa", entidad_id=c.id)
+        if estado_usuario_anterior != status:
+            actividad.log(
+                db, c.id, "actualizacion", "usuarios",
+                "Estado de acceso de usuario cambiado por administración",
+                user_id=admin.id, entidad_tipo="usuario", entidad_id=u.id,
+                metadata={"cambios": {"status": {
+                    "antes": estado_usuario_anterior,
+                    "despues": status,
+                }}},
+            )
+    actividad.log(
+        db, c.id, "actualizacion", "empresa",
+        "Estado de cuenta cambiado por administración",
+        user_id=admin.id, entidad_tipo="empresa", entidad_id=c.id,
+        metadata={
+            "cambios": {"status": {
+                "antes": estado_anterior, "despues": status,
+            }},
+            "motivo_rechazo_presente": bool(reason),
+        },
+    )
     db.commit()
     return c
 
@@ -1098,11 +1135,16 @@ def crear_faena(body: FaenaIn, db: Session = Depends(get_db),
     except IntegrityError:
         db.rollback()
         raise err(409, "FAENA_DUPLICADA", "Ya existe una faena con ese nombre")
-    db.add(Actividad(
-        company_id=None, user_id=admin.id, tipo="creacion",
-        modulo="admin_catalogo", descripcion=f"Faena creada: {f.nombre}",
-        entidad_tipo="faena", entidad_id=f.id,
-    ))
+    actividad.log(
+        db, None, "creacion", "admin_catalogo",
+        "Faena creada", user_id=admin.id, entidad_tipo="faena",
+        entidad_id=f.id,
+        metadata={"despues": {
+            "nombre": f.nombre, "mandante": f.mandante,
+            "grupo": f.grupo, "region": f.region,
+            "sector": f.sector, "activa": f.activa, "color": f.color,
+        }},
+    )
     db.commit()
     return _faena_out(f, plataformas=0)
 
@@ -1122,9 +1164,26 @@ def editar_faena(faena_id: uuid.UUID, body: FaenaPatch,
                 func.lower(Faena.nombre) == nuevo.lower(), Faena.id != f.id)):
             raise err(409, "FAENA_DUPLICADA", "Ya existe una faena con ese nombre")
         data["nombre"] = nuevo
+    campos_auditables = (
+        "nombre", "mandante", "grupo", "region", "sector", "activa", "color")
+    antes = {campo: _valor_auditoria(getattr(f, campo))
+             for campo in campos_auditables if campo in data}
     for k, v in data.items():
         setattr(f, k, v)
     f.updated_at = datetime.now(timezone.utc)
+    despues = {campo: _valor_auditoria(getattr(f, campo)) for campo in antes}
+    cambios = {
+            campo: {"antes": antes[campo], "despues": despues[campo]}
+            for campo in antes if antes[campo] != despues[campo]
+    }
+    if cambios:
+        descripcion = ("Faena desactivada" if cambios.get("activa", {}).get(
+            "despues") is False else "Faena actualizada")
+        actividad.log(
+            db, None, "actualizacion", "admin_catalogo", descripcion,
+            user_id=admin.id, entidad_tipo="faena", entidad_id=f.id,
+            metadata={"cambios": cambios},
+        )
     try:
         db.commit()
     except IntegrityError:
@@ -1161,6 +1220,15 @@ def crear_plataforma_faena(faena_id: uuid.UUID, body: PlataformaIn,
                         nota=body.nota, orden=body.orden)
     db.add(p)
     try:
+        db.flush()
+        actividad.log(
+            db, None, "creacion", "admin_catalogo",
+            "Plataforma agregada al catálogo de faena", user_id=admin.id,
+            entidad_tipo="faena_plataforma", entidad_id=p.id,
+            metadata={"despues": {
+                "faena_id": str(f.id), "nombre": p.nombre, "orden": p.orden,
+            }},
+        )
         db.commit()
     except IntegrityError:
         db.rollback()
@@ -1226,6 +1294,19 @@ def crear_template(body: TemplateIn, db: Session = Depends(get_db),
     t = RequisitoTemplate(**{**body.model_dump(), "titulo": titulo,
                              "codigo": codigo})
     db.add(t)
+    db.flush()
+    actividad.log(
+        db, None, "creacion", "admin_catalogo",
+        "Plantilla de requisito creada", user_id=admin.id,
+        entidad_tipo="requisito_template", entidad_id=t.id,
+        metadata={"despues": {
+            "ambito": t.ambito, "titulo": t.titulo, "codigo": t.codigo,
+            "tipo": t.tipo, "obligatorio": t.obligatorio,
+            "ejemplo_clave": t.ejemplo_clave,
+            "faena_id": str(t.faena_id) if t.faena_id else None,
+            "vigencia_meses": t.vigencia_meses, "activo": t.activo,
+        }},
+    )
     try:
         db.commit()
     except IntegrityError:
@@ -1262,9 +1343,30 @@ def editar_template(template_id: uuid.UUID, body: TemplatePatch,
                 RequisitoTemplate.id != t.id)):
             raise err(409, "CODIGO_DUPLICADO", f"El código '{codigo}' ya existe")
         data["codigo"] = codigo
+    campos_auditables = (
+        "ambito", "titulo", "codigo", "tipo", "obligatorio",
+        "ejemplo_clave", "faena_id", "vigencia_meses", "activo")
+    antes = {campo: _valor_auditoria(getattr(t, campo))
+             for campo in campos_auditables if campo in data}
     for k, v in data.items():
         setattr(t, k, v)
     t.updated_at = datetime.now(timezone.utc)
+    despues = {campo: _valor_auditoria(getattr(t, campo)) for campo in antes}
+    cambios = {
+        campo: {"antes": antes[campo], "despues": despues[campo]}
+        for campo in antes if antes[campo] != despues[campo]
+    }
+    if cambios:
+        accion = ("Plantilla activada" if despues.get("activo") is True
+                  and antes.get("activo") is False
+                  else "Plantilla desactivada" if despues.get("activo") is False
+                  and antes.get("activo") is True
+                  else "Plantilla de requisito actualizada")
+        actividad.log(
+            db, None, "actualizacion", "admin_catalogo", accion,
+            user_id=admin.id, entidad_tipo="requisito_template",
+            entidad_id=t.id, metadata={"cambios": cambios},
+        )
     try:
         db.commit()
     except IntegrityError:
@@ -1292,6 +1394,14 @@ def eliminar_template(template_id: uuid.UUID, db: Session = Depends(get_db),
                 "ya_estaba_inactiva": True, "nota": NOTA_SOFT_DELETE}
     t.activo = False
     t.updated_at = datetime.now(timezone.utc)
+    actividad.log(
+        db, None, "actualizacion", "admin_catalogo",
+        "Plantilla de requisito desactivada", user_id=admin.id,
+        entidad_tipo="requisito_template", entidad_id=t.id,
+        metadata={"cambios": {"activo": {
+            "antes": True, "despues": False,
+        }}},
+    )
     db.commit()
     logger.info("plantilla %s desactivada por admin=%s (%s documentos vivos)",
                 t.id, admin.id, instanciados)

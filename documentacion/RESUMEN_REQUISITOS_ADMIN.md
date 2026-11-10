@@ -1,7 +1,7 @@
 # Resumen de requisitos ADMIN
 
-**Corte ADMIN:** 04 de noviembre de 2026  
-**Base documental:** SRS versión 0.66, GAP, `VALIDACION_ACTUAL.md` y el [cronograma de cierre de 2 semanas](CRONOGRAMA_CIERRE_PRODUCCION.md).
+**Corte ADMIN:** 10 de noviembre de 2026  
+**Base documental:** SRS versión 0.73, GAP, `VALIDACION_ACTUAL.md` y el [cronograma de cierre de 2 semanas](CRONOGRAMA_CIERRE_PRODUCCION.md).
 **Propósito:** resumir el estado técnico de las ocho prioridades ADMIN, distinguir lo implementado de lo validado y proponer criterios concretos para revisar su cierre.
 
 Este documento es una guía de revisión, no una aceptación contractual ni una certificación de producción. Los estados reflejan los requisitos y la evidencia descritos en el [SRS](SRS.md) y en [VALIDACION_ACTUAL.md](VALIDACION_ACTUAL.md). `IV` significa implementado y validado dentro del alcance probado; `ISV`, implementado sin validación completa; `PAR`, parcial; `COR`, requiere corrección; y `PEN`, pendiente. Los porcentajes estimados del SRS no equivalen a porcentaje de cumplimiento validado.
@@ -11,9 +11,9 @@ descritas abajo y una revisión de código/documentación de las ocho prioridade
 La actualización del 03-11-2026 incorpora pruebas de ejecución distribuida
 Celery, sondas locales, el módulo inicial de respaldos/exportaciones ADMIN y
 cinco regresiones focalizadas de sondas y umbrales. El avance de las ocho
-prioridades ADMIN se estima en **74,5% (75% redondeado)**. La
+prioridades ADMIN se estima en **73,7% (74% redondeado)**. La
 cobertura media actual de los 37 requisitos SRS, incluidos portal y requisitos
-no funcionales, es **75,6% (76% redondeado)**; RNF-REC-01 alcanza 100% para
+no funcionales, es **76,6% (77% redondeado)**; RNF-REC-01 alcanza 100% para
 su ciclo funcional local.
 Ninguna cifra mide preparación productiva.
 
@@ -35,6 +35,11 @@ mantiene. Estos cambios no modifican las estimaciones ADMIN históricas del cort
 13-10. La invitación/aceptación de cuentas existentes y la validación visual
 final siguen pendientes; evidencia en `VALIDACION_ACTUAL.md`.
 
+El corte del 10-11-2026 añade la regresión de 71 pruebas y la confirmación del
+usuario de que las mutaciones acordadas están revisadas y aparecen en auditoría.
+RF-AUD-01 se fija en 90%, PAR/P0, con un único pendiente: revisar valores
+anterior/nuevo para permisos/estados y pausa de procesos cuando corresponda.
+
 ## Resumen ejecutivo
 
 | # | Prioridad | Avance estimado | Estado actual | En síntesis |
@@ -45,19 +50,19 @@ final siguen pendientes; evidencia en `VALIDACION_ACTUAL.md`.
 | 4 | Métricas SaaS | **60%** | **PAR** — RF-MET-01/02/03 | Hay métricas de clientes/usuarios, sesiones y series mensuales; baja actividad y uso/adopción aparecen en Salud. El tiempo de uso sigue siendo estimado y las revisiones de IA no equivalen necesariamente a documentos únicos. |
 | 5 | Alertas y salud de clientes | **82%** | **Mixto:** RF-SAL-01 **PAR**; RF-SAL-02 **ISV**; RF-SAL-03 **ISV** | Cinco regresiones cubren API inaccesible, heartbeat vencido/recuperación, umbral p95, Redis caído, worker ausente y profundidad de cola. Falta recuperación distribuida real, validar riesgos de clientes y totales/paginación. |
 | 6 | Usuarios, roles y permisos | **70%** | **PAR** — RF-USU-01/02 | El listado ADMIN pagina usuarios y los cambios de alcance invalidan sesiones. El portal permite convertir `company` en `contract_admin` si queda otro `company` activo; siguen pendientes invitación/aceptación de cuentas existentes, historial completo de acceso y validación integral. El porcentaje es el estimado histórico del 13-10. |
-| 7 | Auditoría y trazabilidad | **70%** | **PAR** — RF-AUD-01/02/03 | RF-AUD-02 registra autenticación, cierre y rotación. Faltan integridad, retención, autorización integral y cobertura uniforme. |
+| 7 | Auditoría y trazabilidad | **73,3%** | **PAR** — RF-AUD-01/02/03 | RF-AUD-01 está al 90%; el usuario confirmó revisión y registro de las mutaciones acordadas. Queda comprobar valores anterior/nuevo para permisos/estados y pausa de procesos. RF-AUD-02 registra autenticación, cierre y rotación. RF-AUD-03 conserva pendientes de integridad, retención y autorización/exportación. |
 | 8 | Seguridad y aislamiento | **67%** | **PAR** — RF-SEG-01/02/03, RNF-SEG-01 | Hay autorización, RLS y concesiones excepcionales temporales. Falta integrarlas en operaciones sensibles, validar credenciales reales y cerrar alcance contractual. |
 
 ### Estimación global del corte
 
-**Avance funcional ADMIN estimado: 74,5% (75% redondeado)**. Incluye la
+**Avance funcional ADMIN estimado: 73,7% (74% redondeado)**. Incluye la
 actualización de RF-SEG-03 al 65% y los avances documentados de salud,
 auditoría, privacidad, respaldos e integraciones. No hay
 ponderaciones acordadas por criticidad o esfuerzo. No es porcentaje de pruebas
 aprobadas, aceptación contractual ni preparación para producción.
 
 La cobertura estimada actual de los 37 requisitos (29 funcionales y 8 no funcionales)
-es **75,6% (76% redondeado)**. Este es el porcentaje de avance de código más
+es **76,6% (77% redondeado)**. Este es el porcentaje de avance de código más
 amplio que se puede reportar con el inventario actual del SRS; no incluye una
 ponderación aprobada por esfuerzo ni convierte criterios pendientes en
 completados. No se asigna un porcentaje de «listo para producción con datos

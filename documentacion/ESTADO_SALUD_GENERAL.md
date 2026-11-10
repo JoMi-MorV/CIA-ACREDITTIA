@@ -1,6 +1,6 @@
 # Estado de salud general de Acredittia
 
-**Fecha de corte:** 9 de noviembre de 2026  
+**Fecha de corte:** 10 de noviembre de 2026  
 **Preparado para:** revisión técnica, operativa y de gestión  
 **Alcance:** backend, frontend, SQL/migraciones, seguridad, privacidad, continuidad operativa, documentación y preparación para producción.
 
@@ -16,7 +16,8 @@ La evaluación actual se mantiene en **NO GO** para producción. La mejora más 
 | Frontend | 🟡 Amarillo | Build funcional; sin embargo, persisten dependencias con vulnerabilidades reportadas. |
 | Docker / composición | 🟢 Verde | Validación de configuración y ejecución en entorno local consistente. |
 | Seguridad técnica | 🟡 Amarillo | Hay guardas de RLS, JWT y producción; falta validación real en entorno objetivo. |
-| Privacidad / RNF-PRV-01 | 🔴 Rojo / P0 | Controles de aplicación probados; retención Azure/job e históricos se reportan verificados, pero no hay referencia disponible. Falta confirmación de aplicabilidad. |
+| Privacidad / RNF-PRV-01 | 🔴 Rojo / P0 | `ops_retencion` está activo y el usuario reporta ejecución local `ok` el 10-11-2026 00:18:52 (0 filas podadas); faltan Log Analytics, revisión histórica documentada y aprobación de producción. |
+| Auditoría administrativa / RF-AUD-01 | 🟡 Parcial, 90% / P0 | 71 pruebas de `test_ops.py` y `test_contratos.py` pasaron; el usuario confirmó las mutaciones acordadas registradas. Pendiente único: comprobar valores anterior/nuevo para permisos/estados y pausa de procesos cuando corresponda. |
 | Recuperación y continuidad | 🔴 Rojo | Faltan pruebas de restauración real y objetivos RPO/RTO certificados. |
 | Documentación y arquitectura | 🟡 Amarillo | Buena cobertura documental, pero con drift de versiones y rutas heredadas. |
 | Producción con datos reales | 🔴 No GO | Bloqueado por seguridad, continuidad, controles de privacidad y validación operativa. |
@@ -92,7 +93,7 @@ Pero el proyecto todavía está lejos de la evidencia de producción:
 
 ### 2.5. Privacidad y cumplimiento no resueltos
 
-DEC-08 quedó acordada como política interna funcional el 9 de noviembre de 2026: auditoría 12 meses, logs técnicos 90 días, telemetría identificable 90 días y métricas agregadas no identificables 12 meses. La aplicación ya minimiza datos en persistencia, respuestas y exportaciones; registra lecturas de auditoría y limita las exportaciones por motivo. La migración 16 implementa poda prospectiva y controlada en la base de datos. El usuario reportó que el desarrollador auxiliar verificó migración/job, Log Analytics e históricos el 09-11-2026 a las 23:55; dijo que la evidencia existe internamente, pero no entregó una referencia. La confirmación de aplicabilidad por el responsable de producto/cliente sigue pendiente.
+DEC-08 quedó acordada como política interna funcional el 9 de noviembre de 2026: auditoría 12 meses, logs técnicos 90 días, telemetría identificable 90 días y métricas agregadas no identificables 12 meses. La aplicación ya minimiza datos en persistencia, respuestas y exportaciones; registra lecturas de auditoría y limita las exportaciones por motivo. En PostgreSQL, el usuario confirmó `max(app_schema_migrations.version)=16` y `privacy_retention_policy.effective_at=2026-11-09 03:00:00+00` (medianoche local UTC−03). También confirmó el job `ops_retencion` activo y reportó una ejecución manual desde Sistemas y procesos el 10-11-2026 a las 00:18:52, estado `ok`, 0 filas podadas y 0 ejecuciones marcadas timeout. Esto acredita una corrida sin error en la base local reportada, pero no prueba por sí sola que todas las fuentes tengan sus plazos configurados o que hubiera datos elegibles. La regla de Log Analytics y el análisis documentado de los registros de auditoría anteriores al 09-11-2026 no están acreditados. La aprobación del responsable de producción sigue pendiente.
 
 Esto es un bloqueador relevante porque no alcanza solo con que el sistema registre eventos o los minimice; también requiere:
 
@@ -206,7 +207,7 @@ En otras palabras: existen mecanismos y evidencia local, pero no una demostraci�
 
 1. Seguridad de dependencias Frontend no cerrada.
 2. Recuperación operativa y continuidad aún no demostrada.
-3. La evidencia operativa de retención/históricos fue reportada como existente, pero falta referenciarla; la validación de aplicabilidad de DEC-08 sigue pendiente.
+3. Falta ejecutar/evidenciar el job de retención, verificar Log Analytics y documentar la revisión histórica; la aprobación de aplicabilidad de DEC-08 por producción sigue pendiente.
 4. Validación real de roles PostgreSQL y permisos mínimos insuficiente.
 5. Arquitectura de repositorio y rutas aún con drift y compatibilidad heredada.
 

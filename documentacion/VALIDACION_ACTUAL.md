@@ -1,6 +1,6 @@
-# Validación funcional — actualizado al 9 de noviembre de 2026
+# Validación funcional — actualizado al 10 de noviembre de 2026
 
-## Estado general de salud — 9 de noviembre de 2026
+## Estado general de salud — 10 de noviembre de 2026
 
 | Área | Estado | Evidencia |
 |---|---|---|
@@ -9,8 +9,55 @@
 | Docker Compose | VERDE | `docker compose config --quiet` completó correctamente. |
 | Dependencias frontend | AMARILLO/ROJO | `npm audit --omit=dev`: 1 crítica, 2 altas; afectan a Next.js/PostCSS/source-map-js. |
 | Respaldo real | VERDE funcional / AMARILLO productivo | Ciclo local acreditado; faltan RPO/RTO aprobados y recuperación ante pérdida total. |
-| Privacidad / RNF-PRV-01 | PARCIAL / P0 | Controles de aplicación implementados; usuario reporta retención Azure/job e históricos verificados, pero no hay referencia de evidencia en el workspace. Falta confirmar aplicabilidad. |
+| Privacidad / RNF-PRV-01 | PARCIAL / P0 | Job `ops_retencion` confirmado activo y ejecutado manualmente `ok` en entorno local (10-11-2026 00:18:52; 0 filas podadas). Falta verificar Log Analytics, documentar históricos y obtener aprobación de producción. |
 | Producción con datos reales | ROJO | Sigue bloqueada por controles de privacidad/retención pendientes, infraestructura, roles reales y recuperación completa. |
+
+## RF-AUD-01 — cambios administrativos — 10 de noviembre de 2026
+
+Se amplió el registro de mutaciones para cambios de estado de empresas y
+usuarios afectados, revocación de usuarios sin empresa, faenas/plantillas y
+plataformas del catálogo, además de edición y ciclo de vida de contratos. Los
+cambios auditados exponen valores anteriores/nuevos; las transiciones de
+contrato conservan el motivo en metadata y descripción minimizada. La
+revocación que afecta a una identidad sin empresa aparece como evento de
+`Plataforma`. El borrado físico de contratos está deshabilitado y responde 410.
+
+Validación manual reportada por el usuario en la vista de auditoría de la
+instancia, el 10-11-2026: se observaron eventos de desactivación (01:44:31),
+restauración (01:44:48 y 01:45:15), finalización (01:45:05 y 01:45:23) y
+creación de contrato (01:46:42). Las filas muestran actor, empresa, tipo de
+acción, módulo, entidad, motivo y descripción; también aparece la consulta de
+auditoría global (01:45:30). Esto confirma la visibilidad operativa de esos
+eventos en esa instancia, pero no es una verificación independiente ni cubre
+todas las mutaciones administrativas. Los motivos son texto libre: deben
+mantenerse pertinentes y no incluir secretos ni datos personales innecesarios.
+
+Ampliación reportada por el usuario (10-11-2026, 01:50:37–01:53:01):
+- Cambios de permisos de usuario (01:50:55 y 01:51:08) y eventos relacionados
+  de estado de empresa/usuario (01:51:24).
+- Acceso de plataforma: `None → solicitada` y `solicitada → activa`
+  (01:52:00–01:52:01).
+- Regeneración demo, con 8 contratos, 34 trabajadores y 18 equipos
+  (01:52:34).
+- Pausa de `ops_heartbeat` con motivo informado (01:52:59), y ejecuciones
+  manuales de `ops_disponibilidad` y `ops_heartbeat` (01:52:50 y 01:53:01).
+
+El usuario confirma que también revisó y verificó las demás mutaciones
+acordadas y que están registradas en auditoría. RF-AUD-01 queda cerrado
+funcionalmente al **90%**, manteniendo estado PAR/P0 por un único pendiente:
+comprobar que los registros de cambios de permisos/estados y pausa de procesos
+muestran valores anterior/nuevo cuando corresponda.
+
+Evidencia ejecutada desde `BASE/app/backend`:
+- Regresión completa de `tests/test_ops.py` y `tests/test_contratos.py`:
+  **71 aprobadas, 0 fallidas**, incluyendo cambios de estado de
+  empresa/usuarios, catálogo, revocación de usuario sin empresa y ciclo de
+  contrato.
+
+RF-AUD-01 permanece **PAR / P0 al 90%** por el pendiente indicado. El usuario
+reporta que las demás mutaciones acordadas fueron revisadas y están registradas;
+la evidencia automatizada disponible es de 71 pruebas aprobadas. El aviso de
+deprecación Starlette/httpx sigue presente y no afectó el resultado.
 
 La ejecución inicial completa tuvo una falla transitoria en datos demo. Al
 aislar el caso, `test_demo_seed.py` pasó y una segunda ejecución completa de
@@ -41,18 +88,26 @@ DEC-08 quedó acordada como política interna funcional el 09-11-2026: auditorí
 por 12 meses, logs técnicos por 90 días, telemetría identificable por 90 días y
 métricas agregadas no identificables por 12 meses. Se aplica hacia adelante;
 la migración 16 limita la poda a registros desde la fecha efectiva y deja intactos
-los anteriores para revisión. La poda de base de datos queda conectada al job
-de retención. La configuración de Log Analytics no es parte de esta aplicación
-y no se pudo verificar directamente en el entorno Azure. El usuario informó que
-Log Analytics, la migración/job y la revisión histórica fueron verificados por
-el desarrollador auxiliar el 09-11-2026 a las 23:55; indicó que existe evidencia
-interna, pero no aportó una referencia que pueda incorporarse aquí.
+los anteriores para revisión. En la base consultada, `max(app_schema_migrations.version)`
+es **16** y `privacy_retention_policy.effective_at` es
+`2026-11-09 03:00:00+00`, equivalente a 2026-11-09 00:00:00 en UTC−03.
+El usuario confirmó que `ops_retencion` está
+registrado y activo en PostgreSQL y reportó una ejecución manual desde Sistemas
+y procesos el 10-11-2026 a las 00:18:52, estado `ok`, con 0 filas podadas en
+actividad, bitácora, ejecuciones, incidentes, disponibilidad y métricas, y 0
+ejecuciones marcadas timeout. La migración 16 se reporta verificada el
+09-11-2026 a las 23:33. La ejecución acredita que el job corrió sin error en
+el entorno local reportado; los conteos cero no prueban por sí solos que todos
+los plazos y fuentes estén correctamente configurados. La regla de 90 días de
+Log Analytics no se verificó directamente y los registros auditables previos
+al 09-11-2026 requieren inventario y revisión documentada.
 
 RNF-PRV-01 permanece **PAR / P0**: CA-01 a CA-03 tienen evidencia técnica
-focalizada; CA-04 se reporta completado y requiere enlazar la evidencia
-operativa, y CA-05 requiere confirmación del responsable de producto/cliente.
-La política no equivale a aprobación legal. Producción con datos reales sigue
-bloqueada hasta aportar la referencia de evidencia y confirmar su aplicabilidad.
+focalizada. CA-04 cuenta con una ejecución local `ok` del job, pero requiere
+verificar la retención de Log Analytics y documentar alcance, resultado e
+integridad de la revisión histórica; CA-05 requiere aprobación del responsable
+de producción. La política no equivale a aprobación legal. Producción con datos
+reales sigue bloqueada hasta completar estos puntos.
 
 ## RF-CLI-09 — integraciones y notificaciones — 4 de noviembre de 2026
 
@@ -603,8 +658,10 @@ respaldo de Blob aprobado y validado.
 
 Registrar en esta validación (o enlazar evidencia):
 
-- referencia verificable de la migración 16, ejecución del job y retención de 90 días en Log Analytics (reportados como verificados por desarrollador auxiliar el 09-11-2026 a las 23:55);
-- evidencia documentada de la revisión de registros anteriores a la fecha efectiva, sin modificación/borrado indiscriminado (reportada como completada en la misma fecha);
+- evidencia de la migración 16 aplicada (reportada por el usuario como verificada el 09-11-2026 a las 23:33);
+- ejecución local `ok` de `ops_retencion` reportada el 10-11-2026 a las 00:18:52 (0 filas podadas; adjuntar o enlazar registro de ejecución);
+- evidencia de la regla de retención de 90 días de Log Analytics, pendiente;
+- inventario/revisión de registros anteriores a la fecha efectiva, con alcance, resultado e integridad, pendiente;
 - confirmación de aplicabilidad de DEC-08 por el responsable de producto/cliente;
 - evaluación GO/NO-GO de producción separada, con fecha y responsables.
 
