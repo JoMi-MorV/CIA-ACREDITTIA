@@ -1,6 +1,6 @@
 # Estado de salud general de Acredittia
 
-**Fecha de corte:** 10 de noviembre de 2026  
+**Fecha de corte:** 12 de noviembre de 2026
 **Preparado para:** revisión técnica, operativa y de gestión  
 **Alcance:** backend, frontend, SQL/migraciones, seguridad, privacidad, continuidad operativa, documentación y preparación para producción.
 
@@ -9,6 +9,22 @@
 El proyecto presenta una base técnica sólida para desarrollo y validación focalizada, pero aún no alcanza un estado de madurez compatible con producción real. El backend muestra estabilidad funcional y la mayoría de las capas de aplicación tienen evidencia concreta; sin embargo, el conjunto presenta riesgos de integración, seguridad, requisitos de cumplimiento por confirmar y continuidad que siguen bloqueando el paso a producción con datos reales.
 
 La evaluación actual se mantiene en **NO GO** para producción. La mejora más importante desde el último corte es que el código y la documentación han convergido hacia una visión más realista: el proyecto no se presenta como “listo para producción”, sino como una plataforma con avances relevantes y con bloqueadores específicos todavía abiertos.
+
+### Actualización de avance — 12 de noviembre de 2026
+
+Se reevaluaron RF-CLI-01 (75% → 80%) y RF-SAL-03 (90% → 95%) tras los cambios
+de confirmación de correo y seguimiento de procesos, con pruebas focalizadas
+de autenticación/esquema y operaciones/esquema, respectivamente, y build
+frontend aprobado. La suma directa de las 37 fichas da 2.908/37 = 78,6% antes
+de estos cambios y 2.918/37 = **78,9%** después; el agregado anterior 2.888 no
+coincidía con los valores individuales y se corrige. Las ocho prioridades ADMIN
+pasan de 77,1% a **77,3%**, Salud de 81,7% a **83,3%**; desde requisitos
+individuales, P0 queda en 72,2%, P1 en 84,2% y P2 en 69,2%. Esto no cambia la
+conclusión de salud ni el **NO GO**: siguen pendientes
+validación integral, SMTP real, recuperación completa de contraseña,
+trazabilidad/recuperación distribuida y bloqueadores de seguridad, privacidad
+y continuidad. El detalle y los límites de evidencia están en
+[VALIDACION_ACTUAL.md](VALIDACION_ACTUAL.md) y [GAP_ANALYSIS.md](GAP_ANALYSIS.md).
 
 | Área | Estado | Evaluación |
 |---|---|---|
@@ -19,8 +35,9 @@ La evaluación actual se mantiene en **NO GO** para producción. La mejora más 
 | Privacidad / RNF-PRV-01 | 🔴 Rojo / P0 | `ops_retencion` está activo y el usuario reporta ejecución local `ok` el 10-11-2026 00:18:52 (0 filas podadas); faltan Log Analytics, revisión histórica documentada y aprobación de producción. |
 | Auditoría administrativa / RF-AUD-01 | 🟡 Parcial, 90% / P0 | 71 pruebas de `test_ops.py` y `test_contratos.py` pasaron; el usuario confirmó las mutaciones acordadas registradas. Pendiente único: comprobar valores anterior/nuevo para permisos/estados y pausa de procesos cuando corresponda. |
 | Buscador global | 🟢 RF-BUS-01 y RF-BUS-02 cerrados (IV, 100%) | 83 pruebas focalizadas validan autorización por categoría, concesiones (titular, vigencia, revocación y alcance), ficha directa y exportación ZIP limitada; build frontend aprobado. El listado administrativo independiente de usuarios continúa bajo RF-USU. No se realizó recorrido manual de navegador. |
+| Ajustes de negocio ADMIN | 🟢 Implementado | UF/vigencia/fuente, CAC, margen bruto y objetivo de churn son persistentes; solo ADMIN puede modificarlos, motivo obligatorio y auditoría con antes/después. Migración 17; suites focalizadas 86 aprobadas y build frontend correcto. La fuente UF es manual. |
 | Recuperación y continuidad | 🔴 Rojo | Faltan pruebas de restauración real y objetivos RPO/RTO certificados. |
-| Documentación y arquitectura | 🟡 Amarillo | Buena cobertura documental, pero con drift de versiones y rutas heredadas. |
+| Documentación y arquitectura | 🟡 Amarillo | Buena cobertura documental; SRS v0.85 refleja el recálculo actual, aunque persisten rutas heredadas, decisiones pendientes y verificaciones de consistencia por completar. |
 | Producción con datos reales | 🔴 No GO | Bloqueado por seguridad, continuidad, controles de privacidad y validación operativa. |
 
 ## 1. Alcance y método de auditoría

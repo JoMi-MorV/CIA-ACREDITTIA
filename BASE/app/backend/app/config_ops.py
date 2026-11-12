@@ -14,8 +14,8 @@ class OpsSettings(BaseSettings):
     # Vacía: la sonda usa la telemetría de requests y declara el límite.
     ops_api_health_url: str = ""
 
-    # --- Finanzas (§7). CAC y margen NO son derivables de la BD: los fija el
-    # equipo. Con cac_clp = 0 el endpoint devuelve ltv_cac = null.
+    # --- Valores iniciales de referencia para entorno anterior a la migración.
+    # Después de instalar el esquema 17, ops_ajustes_negocio es la fuente de verdad.
     ops_valor_uf: float = 39000.0          # reemplazar por fuente diaria (SII/CMF)
     ops_cac_clp: float = 0.0
     ops_margen_bruto_pct: float = 80.0

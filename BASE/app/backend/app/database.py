@@ -93,8 +93,10 @@ SCHEMA_SCRIPTS = ["01_esquema.sql", "02_indices.sql", "03_triggers.sql",
                   "12_scheduling_operacional.sql",
                   "13_respaldos_admin.sql", "14_auditoria_autenticacion.sql",
                   "15_acceso_excepcional_admin.sql",
-                  "16_privacidad_retencion.sql"]
-SCHEMA_VERSION = 16
+                  "16_privacidad_retencion.sql", "17_ajustes_negocio.sql",
+                  "18_confirmacion_cambio_email.sql",
+                  "19_progreso_procesos.sql"]
+SCHEMA_VERSION = 19
 MIGRATION_LOCK_ID = 918273        # clave del pg_advisory_lock de migración
 
 
@@ -392,6 +394,23 @@ def apply_schema(schema_dir: str | None = None) -> int:
                 pendientes = SCHEMA_SCRIPTS[4:]
             if actual == 15:
                 pendientes = ["16_privacidad_retencion.sql"]
+            if actual == 16:
+                pendientes = ["17_ajustes_negocio.sql", "18_confirmacion_cambio_email.sql",
+                              "19_progreso_procesos.sql"]
+            elif actual == 17:
+                pendientes = ["18_confirmacion_cambio_email.sql",
+                              "19_progreso_procesos.sql"]
+            elif actual == 18:
+                pendientes = ["19_progreso_procesos.sql"]
+            elif actual < 16:
+                for script in ("17_ajustes_negocio.sql", "18_confirmacion_cambio_email.sql",
+                               "19_progreso_procesos.sql"):
+                    if script not in pendientes:
+                        pendientes.append(script)
+            elif actual < 19:
+                for script in ("18_confirmacion_cambio_email.sql", "19_progreso_procesos.sql"):
+                    if script not in pendientes:
+                        pendientes.append(script)
 
             for nombre in pendientes:
                 ruta = os.path.join(sdir, nombre)

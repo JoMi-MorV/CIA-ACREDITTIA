@@ -32,7 +32,7 @@ class Settings(BaseSettings):
     # las políticas de RLS del modelo de datos se apliquen de verdad.
     database_url: str = "postgresql+psycopg://postgres:postgres@localhost:5432/acredittia"
     schema_dir: str = "/schema"
-    schema_version_esperada: int = 16       # retención y minimización de auditoría
+    schema_version_esperada: int = 19       # seguimiento de progreso de procesos
     db_apply_schema_on_start: bool = False  # en Azure lo hace el job de migración
     db_rls_enabled: bool = True             # fija app.company_id/is_admin/user_id por request
 
@@ -41,6 +41,7 @@ class Settings(BaseSettings):
     access_ttl_min: int = 30
     refresh_ttl_days: int = 30
     reset_ttl_min: int = 60
+    email_change_ttl_hours: int = 24
     cors_origins: str = "http://localhost:3000"
 
     # --- Almacenamiento: local | azure ------------------------------------

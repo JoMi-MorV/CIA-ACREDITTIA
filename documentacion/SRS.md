@@ -1,6 +1,6 @@
 # SRS — Acredittia
 
-Especificación de requisitos de software · versión 0.75 · 10-11-2026
+Especificación de requisitos de software · versión 0.85 · 12-11-2026
 
 **Estado documental:** validado con pruebas focalizadas en PostgreSQL temporal y ejecución local distribuida de Celery; permanecen pendientes criterios funcionales, de seguridad y aceptación integral. DEC-08 queda acordada como política interna funcional; esto no constituye aprobación legal ni certificación de producción.
 
@@ -21,6 +21,24 @@ Especificación de requisitos de software · versión 0.75 · 10-11-2026
 > **Corte previo RF-BUS-01/02 — 10-11-2026 (versión 0.74):** el usuario confirmó haber probado y verificado el funcionamiento de RF-BUS-01; se cierra al 100% (IV) en el alcance funcional del buscador. Para RF-BUS-02, confirmó que la búsqueda no revela tokens ni información sensible. Esta verificación cubría la salida observada, pero todavía no acreditaba autorización granular, acceso directo a detalles/API, alcance, vencimiento o revocación de concesiones ni exportaciones; RF-BUS-02 permanecía en 65%, PAR/P0 antes de las pruebas documentadas en la versión 0.75.
 
 > **Cierre técnico RF-BUS-02 — 10-11-2026:** se implementó autorización de servidor por categoría para trabajadores y usuarios; las concesiones se validan por titular, categoría, vencimiento, revocación, empresa y recurso. La ficha directa de empresa redacta identidades sin concesión y limita filas/actores al alcance autorizado. La exportación ZIP exige concesión de usuarios y limita usuarios/actividad; el PDF es agregado. La regresión focalizada de buscador, administración, respaldos y privacidad pasó **83/83**, y el build frontend pasó. RF-BUS-02 queda **IV (100%)** para `GET /admin/search`, la ficha vinculada `GET /admin/companies/{id}` y las exportaciones cubiertas. El listado administrativo independiente `GET /admin/users` permanece bajo RF-USU y no se considera validado por este cierre; tampoco se realizó un recorrido manual de navegador en esta verificación.
+
+> **Reevaluación de avance — 12-11-2026 (versión 0.85):** RF-CLI-01 sube de 75% a 80% por el flujo de cambio de correo confirmado, probado con dobles SMTP y pruebas de autenticación/esquema; no cierra la recuperación real de contraseña ni acredita SMTP real. RF-SAL-03 sube de 90% a 95% por el progreso/etapa persistidos cuando son medibles, el sondeo automático y el historial inline sin salto visual; pruebas focalizadas de operaciones/esquema (54) y build frontend aprobados. Los pendientes de trazabilidad y recuperación distribuida permanecen. La suma de las 37 estimaciones individuales es 2.918/37 = **78,9%**; antes de estos cambios era 2.908/37 = 78,6%, por lo que su efecto es +0,3 puntos porcentuales. La cifra anterior 2.888/37 no coincidía con la suma de las fichas y se corrige. Las ocho prioridades ADMIN quedan en 77,3%; Salud, en 83,3%; y, recalculadas por prioridad técnica desde las fichas, P0 en 72,2%, P1 en 84,2% y P2 en 69,2%. Son estimaciones de cobertura, no aceptación integral ni preparación productiva.
+
+> **Ajustes de negocio — 10-11-2026 (versión 0.76):** se agrega a la consola ADMIN la edición persistente del valor UF y su fecha/fuente de vigencia, CAC, margen bruto y objetivo de churn. Solo ADMIN puede leer o modificar; cada actualización requiere motivo y queda auditada con valores anteriores/nuevos. La migración 17 crea `ops_ajustes_negocio`; los cálculos en vivo y próximos snapshots usan los valores guardados, sin recalcular snapshots históricos. La fuente UF se ingresa manualmente; no hay integración automática con SII/CMF.
+
+> **Datos demo ampliados — 10-11-2026 (versión 0.78):** la semilla idempotente agrega 14 empresas sintéticas para un total mínimo de 30, todas marcadas como demo y con usuario, contratos, trabajadores/equipos, documentos, alertas, eventos de calendario y variedad comercial. Incluye una suscripción demo cancelada durante el mes de siembra, asociada a un plan con MRR, para que las métricas de ingresos/churn y LTV/CAC puedan demostrarse junto con un CAC configurado. La prueba `tests/test_demo_seed.py` lo ejecutó y validó únicamente en PostgreSQL temporal; **no se aplicó a la base local del usuario ni a un entorno compartido**. Para poblar un entorno no productivo debe activarse explícitamente `SEED_DEMO_ENABLED` y reiniciarse la aplicación. La semilla está bloqueada en producción. Los datos no son clientes reales ni una proyección comercial.
+
+> **Ajustes de negocio — mejora UX (12-11-2026, versión 0.79):** se reorganizó la pantalla en bloques de valor UF y supuestos de rentabilidad, con ayudas informativas por campo y sección que explican propósito, impacto y límites de cada valor. Se aclara que CAC/margen/churn son supuestos y que estos ajustes no modifican contratos ni facturación. En navegación ADMIN, Ajustes de negocio queda al final, inmediatamente después de Mi perfil. Se añadió soporte de textos en español, inglés y portugués.
+
+> **Mi perfil — mejora UX (12-11-2026, versión 0.80):** se reorganizó la vista administrativa con encabezado de identidad, estado de acceso, secciones separadas para datos personales y seguridad, y ayudas para rol/estado y cambio de contraseña. Se mantienen las operaciones y validaciones existentes de edición de nombre/correo y actualización opcional de contraseña. Se añadieron textos para español, inglés y portugués.
+
+> **Mi perfil — ajustes visuales (12-11-2026, versión 0.81):** se aplica al botón Guardar el estilo base compartido de botones de ADMIN, con bordes redondeados consistentes, y se evita recortar los tooltips al retirar el overflow de la tarjeta exterior. El build de producción del frontend volvió a pasar.
+
+> **Mi perfil — cambio seguro de correo (12-11-2026, versión 0.82):** cambiar el nombre continúa sin requerir contraseña; solicitar un correo nuevo exige la contraseña actual y no reemplaza el correo de acceso hasta confirmar un enlace de un solo uso enviado por SMTP. El token se almacena como hash, queda protegido por RLS por usuario y expira a las 24 horas. Si SMTP no está configurado o falla la entrega, la solicitud se bloquea y el correo vigente no cambia. El enlace muestra una acción explícita de confirmación para evitar que un escáner de enlaces lo consuma automáticamente; la confirmación queda registrada en actividad. Migración de esquema 18.
+
+> **Procesos críticos — progreso y actualización automática (12-11-2026, versión 0.83):** el historial incluye inmediatamente las corridas en cola y se actualiza sin recargar la página; el estado no se sirve desde caché. Los runners instrumentados reportan etapas/porcentaje persistido, mostrado en el panel y el historial mientras ejecutan. Para tareas que no exponen un avance medible se muestra progreso indeterminado en lugar de un porcentaje estimado. La migración 19 agrega los campos de progreso a `ops_job_runs`.
+
+> **Procesos críticos — actualización sin salto visual (12-11-2026, versión 0.84):** las recargas periódicas conservan los datos visibles y el indicador de carga se reserva para la carga inicial, evitando reemplazar el panel por una pantalla de carga en cada sondeo. El historial expandido se presenta inmediatamente debajo de la fila del proceso correspondiente.
 
 ## 1. Propósito y alcance
 
@@ -283,6 +301,14 @@ estimaciones ajustadas y su evidencia aparecen en las fichas y en
 ni elimina bloqueos P0. El 67% del 13-10 sigue siendo el corte histórico de las
 ocho prioridades ADMIN, no el total del proyecto.
 
+**Reevaluación de cobertura — 12-11-2026:** véase el corte vigente de la
+sección 13 y el detalle por requisito de RF-CLI-01/RF-SAL-03. Las cifras
+históricas de este apartado no se sustituyen para conservar la trazabilidad.
+Al sumar las 37 fichas actuales se obtienen 2.918 puntos (78,9%); su base
+previa a las dos mejoras era 2.908 puntos (78,6%). Los antiguos promedios por
+prioridad técnica no concordaban con las fichas individuales; el corte vigente
+es P0 72,2% (650/9), P1 84,2% (1853/22) y P2 69,2% (415/6).
+
 ## 3. Actores, datos y restricciones
 
 | Actor | Alcance actual | Objetivo y restricción |
@@ -462,10 +488,20 @@ Todas las rutas de API de esta sección son relativas a `/api/v1`. Cada requisit
 - **Avance estimado:** 85 % (propuesta inicial).
 - **Fundamento del avance:** Detalle comercial y conversión UF implementados; defecto SQL corregido y cálculo mensual contrastado. Se conserva el 85 % como estimación previa; faltan metadatos y cobertura adicional.
 - **Comportamiento esperado:** ADMIN consulta el detalle comercial y su MRR convertido a CLP con la regla, valor UF y período identificables.
-- **Estado actual:** La llamada convierte UF explícitamente a numeric. La prueba comprueba el MRR exacto de 12,5 UF mensuales y empresa inexistente; la suite ADMIN pasa. La respuesta aún no identifica fecha/fuente del valor UF.
-- **Pendientes / mejoras:** Identificar fecha/fuente del valor UF y completar casos de período anual, otras monedas y denegación específica del detalle.
+- **Estado actual:** La llamada convierte UF explícitamente a numeric. La sección ADMIN de Ajustes de negocio mantiene valor UF, fecha de vigencia y fuente/referencia; la tasa se usa en cálculos en vivo y snapshots próximos. Las métricas históricas guardadas no se recalculan automáticamente.
+- **Pendientes / mejoras:** La actualización automática desde una fuente oficial y completar casos de período anual, otras monedas y denegación específica del detalle.
 - **Validación:** Parcial: defecto corregido y caso mensual/404 aprobados el 30-09-2026 (EV-01, test_cliente_detalle_y_404). No se cierra todo el requisito.
 - **Criterio de aceptación:** una suscripción en UF devuelve detalle sin error y MRR según valor UF/período/moneda documentados; se identifica la fecha/fuente del valor aplicado. Se prueba también empresa inexistente y acceso no autorizado.
+
+**Ajustes de negocio ADMIN (complemento de RF-MET-03):** pantalla bajo
+`/admin/ajustes-negocio` para modificar UF vigente, fecha/fuente, CAC, margen
+bruto y objetivo de churn. El motivo tiene mínimo 12 caracteres; las tasas y
+rangos numéricos se validan en cliente y servidor. Los cambios sobreviven
+reinicios y registran actor, fecha, motivo y valores anterior/nuevo en auditoría.
+El CAC y margen son estimaciones internas. La UF manual afecta cálculos en vivo
+y snapshots futuros; los snapshots históricos no se reescriben. El resumen
+LTV/CAC no se cachea; si falta churn de ingresos, la interfaz lo indica por
+separado y puede mostrar el payback calculable con el CAC guardado.
 
 
 ### 5.5 Alertas y salud — `/admin/salud`, `/admin/sistemas`
@@ -501,12 +537,12 @@ Todas las rutas de API de esta sección son relativas a `/api/v1`. Cada requisit
 
 - **Estado técnico:** ISV.
 - **Prioridad:** P1.
-- **Avance estimado:** 90 % (reevaluado el 03-11-2026).
-- **Fundamento del avance:** Catálogo, acciones, historial y scheduling común implementados; se verificó Celery Beat→Redis→worker en Compose. La trazabilidad investigable y las pruebas de fallo/recuperación siguen pendientes.
+- **Avance estimado:** 95 % (reevaluado el 12-11-2026).
+- **Fundamento del avance:** Catálogo, acciones, historial y scheduling común implementados; se verificó Celery Beat→Redis→worker en Compose. El progreso/etapa se persiste y se actualiza automáticamente en UI cuando el runner aporta hitos medibles; el historial queda junto al proceso y se refresca sin recarga ni reemplazar el contenido visible. La trazabilidad investigable y las pruebas de fallo/recuperación siguen pendientes.
 - **Comportamiento esperado:** ADMIN consulta procesos, ejecuta trabajos manuales, pausa/reanuda los permitidos y gestiona incidentes con actor y resultado trazables.
-- **Estado actual:** los horarios de vencimientos, reportes, purga, heartbeat, disponibilidad, snapshots y retención usan el mismo dispatcher y ciclo de historial. El despachador de reportes evalúa los cinco campos cron cada minuto en `America/Santiago`. Las corridas `seed_demo` se identifican y no participan en la tasa real de éxito. En Compose local se verificó esquema 12 y el recorrido Celery Beat→Redis→worker: reportes y heartbeat se procesaron y quedaron `ok` en el historial.
+- **Estado actual:** los horarios de vencimientos, reportes, purga, heartbeat, disponibilidad, snapshots y retención usan el mismo dispatcher y ciclo de historial. El despachador de reportes evalúa los cinco campos cron cada minuto en `America/Santiago`. Las corridas `seed_demo` se identifican y no participan en la tasa real de éxito. En la verificación distribuida de Compose del 03-11, con esquema 12, reportes y heartbeat se procesaron y quedaron `ok` en el historial. En la entrega del 12-11 se añadió progreso persistido y actualización automática del historial (migración 19); consultar la sección correspondiente de `VALIDACION_ACTUAL.md`.
 - **Pendientes / mejoras:** probar errores y recuperación del recorrido distribuido, validar mutaciones en navegador y completar trazabilidad investigable del incidente (componente/proceso, operación, timestamps, resultado/error e identificador de correlación cuando estén disponibles) y asociación verificable a empresa, respetando minimización, acceso y retención de DEC-08.
-- **Validación:** parcial: 124 pruebas focalizadas aprobadas en las suites de operaciones, reportes, esquema, semillas demo y arranque/configuración; ejecución distribuida local verificada el 03-11-2026. No equivale a la suite backend completa ni a aceptación integral.
+- **Validación:** parcial: 54 pruebas focalizadas de operaciones y esquema aprobaron la persistencia/seguimiento de progreso; el build frontend pasó. Además, 124 pruebas focalizadas de operaciones, reportes, esquema, semillas demo y arranque/configuración y la ejecución distribuida local se verificaron en cortes previos. No equivale a la suite backend completa ni a aceptación integral.
 - **Criterio de aceptación:** ejecución llega a estado final y conserva actor; una ejecución incompatible concurrente se rechaza; pausa requiere motivo; proceso continuo no se pausa como cron; cierre de incidente requiere resolución; acciones quedan auditadas. Cada incidencia conserva suficiente contexto para investigar qué ocurrió y dónde: componente/proceso, operación, momento, resultado/error e identificador de correlación cuando estén disponibles, sin almacenar secretos o datos personales innecesarios. El impacto se asocia a empresa solo con evidencia verificable; si no se conoce, se indica global/indeterminado y no se atribuye automáticamente a todas las empresas. Probar la consulta y correlación del historial con los permisos y retención definidos en DEC-08.
 - **Alcance:** validar modo local `inproc` y recorrido Celery por separado. La trazabilidad correlacionable y asociación empresarial verificable acordadas en DEC-06 todavía no están implementadas; hasta entonces no inferir impacto individual a partir del estado global.
 
@@ -640,12 +676,12 @@ Esta sección requiere profundización posterior. Las fuentes principales son EV
 
 - **Estado técnico:** PAR.
 - **Prioridad:** P1.
-- **Avance estimado:** 75 % (propuesta inicial).
-- **Fundamento del avance:** Registro, login, recuperación y perfil; router `auth.py`, `test_auth.py`; login/lectura comprobados. Implementar entrega real del correo de recuperación pendiente en auth.py; validar revocación y recorrido completo.
+- **Avance estimado:** 80 % (reevaluado el 12-11-2026).
+- **Fundamento del avance:** Registro, login, recuperación y perfil; el cambio de correo requiere contraseña actual y confirmación de enlace de un solo uso, con token hasheado y vencimiento; la solicitud se bloquea si SMTP no está disponible. Pruebas focalizadas de autenticación/esquema aprobaron. Implementar/probar entrega real del correo de recuperación sigue pendiente; validar revocación y recorrido completo.
 - **Comportamiento esperado:** Registro, login, recuperación y perfil.
-- **Estado actual:** Registro, login, recuperación y perfil; router `auth.py`, `test_auth.py`; login/lectura comprobados. Implementar entrega real del correo de recuperación pendiente en auth.py; validar revocación y recorrido completo.
-- **Pendientes / mejoras:** Implementar entrega real del correo de recuperación pendiente en auth.py; validar revocación y recorrido completo.
-- **Validación:** Parcial: revisión e inventario de la línea base; falta acreditar el flujo completo con los criterios indicados.
+- **Estado actual:** Registro, login, recuperación y perfil; el cambio de nombre continúa sin contraseña. Para cambiar correo se valida contraseña actual y se requiere confirmar un enlace enviado por SMTP; si el envío no está disponible, el correo vigente no se modifica. El token es de un solo uso, se almacena como hash y expira a las 24 horas.
+- **Pendientes / mejoras:** Probar SMTP real y completar/validar el flujo de recuperación de contraseña, revocación y recorrido completo.
+- **Validación:** Parcial: `tests/test_auth.py` y `tests/test_esquema.py` aprobaron 56 pruebas focalizadas del cambio de correo y esquema en PostgreSQL temporal; build frontend aprobado. No se probó SMTP real ni se acredita el flujo completo de recuperación de contraseña.
 - **Criterio de aceptación:** Registro pasa por aprobación; credenciales inválidas y cuentas desactivadas se rechazan; recuperación y cambio de clave revocan lo previsto; completar prueba del canal real de entrega.
 
 **RF-CLI-02 — Contratos y requisitos**
@@ -995,7 +1031,7 @@ Para conservar un 100% con observaciones, registrar: número de actividad, alcan
 
 ## 13. Cuadro de resumen del estado general del proyecto
 
-**Corte de estados funcionales generales: 10-11-2026; línea base inicial del 29-09-2026.** Los estados siguientes resumen evidencia y pendientes, no aceptación contractual. «Operativo» se limita a los recorridos comprobados; no significa listo para producción. Tras incorporar RF-AUD-02 al 70%, RF-AUD-01 al 90%, RF-SEG-02 al 55%, RNF-PER-01 al 55%, RF-BUS-01 al 100%, RF-BUS-02 al 100%, RF-CLI-09 al 65%, RNF-PRV-01 al 60%, RNF-REC-01 al 100% local y RF-SEG-03 al 65%, el avance estimado de cobertura de las 37 fichas del SRS es 78,1% (78% redondeado; 2888/37). El promedio recalculable de las ocho prioridades ADMIN es 77,1% (77% redondeado). Ambos porcentajes no son medición de esfuerzo ni aceptación integral; DEC-08, DEC-10, integración excepcional y preparación productiva siguen bloqueando producción.
+**Corte de estados funcionales generales: 12-11-2026; línea base inicial del 29-09-2026.** Los estados siguientes resumen evidencia y pendientes, no aceptación contractual. «Operativo» se limita a los recorridos comprobados; no significa listo para producción. Tras incorporar las actualizaciones indicadas en este SRS y reevaluar RF-CLI-01 al 80% y RF-SAL-03 al 95%, la suma de cobertura de las 37 fichas es 78,9% (79% redondeado; 2918/37). El promedio de las ocho prioridades ADMIN es 77,3% (77% redondeado). Los promedios P0/P1/P2 son 72,2%, 84,2% y 69,2%, respectivamente, recalculados desde sus fichas. Estas cifras no miden esfuerzo ni aceptación integral; DEC-08, DEC-10, integración excepcional y preparación productiva siguen bloqueando producción.
 
 | Área | Estado general | Qué se reconoce como realizado | Observación / pendiente principal | Seguimiento |
 |---|---|---|---|---|
@@ -1012,9 +1048,9 @@ Para conservar un 100% con observaciones, registrar: número de actividad, alcan
 | Auditoría | Parcial; RF-AUD-01 al 90% | Mutaciones acordadas registradas según verificación del usuario y 71 pruebas aprobadas; queda comprobar anterior/nuevo en permisos/estados y pausa de procesos cuando corresponda. | Acceso sensible/descargas uniformes; retención, revisión histórica y aprobación de DEC-08 siguen pendientes en requisitos relacionados. | RF-AUD-01/02/03; PT-04; EV-09. |
 | Seguridad y aislamiento | Parcial; cierre técnico prioritario | Controles de aplicación y políticas RLS definidas. | Roles sin superusuario, mínimo privilegio, secretos y pruebas negativas; decisión de RLS contractual DEC-10. | RF-SEG-01/02/03, RNF-SEG-01; PT-03/04. |
 | Portal de empresa | Implementado en parte y con validación focalizada | Reportes, programación, cuentas, contratos y operaciones relacionadas cuentan con suites focalizadas; el build frontend pasó. El scheduling distribuido de reportes también se verificó en Compose. | Invitaciones/activación de cuentas, recorridos visuales y aceptación integral siguen pendientes. No implica nueva obligación de reconstrucción del portal. | RF-CLI-01 a RF-CLI-09; PT-08; VALIDACION_ACTUAL.md. |
-| Datos demo para verificación | Población local ampliada | Seed idempotente cubre 16 empresas con contratos, trabajadores, equipos, documentos, alertas y eventos; unicidad de nombres y patentes comprobada. | Son datos sintéticos de demostración, no evidencia de uso real ni población productiva. | RNF-VAL-01; EV-09. |
+| Datos demo para verificación | Seed ampliado en código; no aplicado a la base local | Prueba del seed idempotente en PostgreSQL temporal: mínimo 30 empresas demo con contratos, trabajadores, equipos, documentos, alertas y eventos; unicidad, idempotencia y LTV/CAC positivo comprobados. | El entorno local del usuario no fue poblado. Aplicarlo requiere habilitación explícita del seed fuera de producción y reinicio; datos sintéticos, no evidencia de uso real. | RNF-VAL-01; EV-09; VALIDACION_ACTUAL.md. |
 | Pruebas y calidad | Regresión focalizada aprobada; aceptación integral pendiente | Suite completa previa 399/399 (14-10); suites focalizadas actuales 124/124 en PostgreSQL temporal; build frontend y Compose válidos. | No sumar ejecuciones superpuestas ni presentarlas como suite completa. Extensiones reales, automatización limpia y cobertura de fallo/recuperación siguen pendientes. | RNF-VAL-01; PT-01/02/09; VALIDACION_ACTUAL.md. |
-| Documentación y alcance | Actualizada con corte de avance del 10-11 | SRS v0.74 y documentación relacionada reflejan la evidencia de RF-AUD-01 y RF-BUS-01/02. | Aprobación de decisiones y aceptación integral siguen pendientes. | DEC-01 a DEC-14; PT-01 a PT-09. |
+| Documentación y alcance | Actualizada con corte de avance del 12-11 | SRS v0.85 y documentación relacionada reflejan el recálculo de RF-CLI-01 y RF-SAL-03, además de RF-AUD-01 y RF-BUS-01/02. | Aprobación de decisiones y aceptación integral siguen pendientes. | DEC-01 a DEC-14; PT-01 a PT-09. |
 | Entrega productiva y aceptación final | Pendiente de validar | Base local funcional disponible. | Seguridad, regresión completa, recuperación y aceptación del cliente todavía no acreditadas. | RNF-REC-01, RNF-VAL-01; PT-09 y actividad 107. |
 
 **Avance del des informado:** 26,73% real acumulado en la actividad 37. Se conserva como dato de gestión suministrado; no se interpreta como porcentaje de requisitos validados. No se modifica el 100% declarado de las actividades iniciales ni se asigna avance a celdas vacías. Las correcciones pendientes siguen abiertas en el SRS y en el plan de trabajo. La suite backend completa aprobada el 01-10-2026 acredita la regresión ejecutada, no sustituye criterios de aceptación, despliegue productivo ni aceptación del cliente.

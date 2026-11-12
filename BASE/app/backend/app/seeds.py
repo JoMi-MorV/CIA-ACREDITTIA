@@ -249,16 +249,31 @@ def run(db: Session) -> None:
         ("Maquinarias Alto Maipo", "77.234.567-8", "flota@altomaipo.cl", "construccion", "flota@altomaipo.cl", "Password2026!", False),
         ("Consultora Seguridad Integral", "78.345.678-9", "sso@seguridadintegral.cl", "otras", "sso@seguridadintegral.cl", "Password2026!", False),
         ("Aguas y Procesos del Norte", "79.456.789-0", "operaciones@aguasprocesos.cl", "industrial", "operaciones@aguasprocesos.cl", "Password2026!", False),
+        ("Servicios Mineros del Desierto SpA", "76.234.567-8", "contacto@minerosdesierto.cl", "mineria", "operaciones@minerosdesierto.cl", "Demo2026!", True),
+        ("Constructora Horizonte Sur Ltda", "77.345.678-9", "contacto@horizontesur.cl", "construccion", "operaciones@horizontesur.cl", "Demo2026!", True),
+        ("Energía Renovable Atacama SpA", "78.456.789-0", "contacto@renovableatacama.cl", "energia", "operaciones@renovableatacama.cl", "Demo2026!", True),
+        ("Transportes Mineros del Loa", "79.567.890-1", "contacto@transportesloa.cl", "industrial", "operaciones@transportesloa.cl", "Demo2026!", True),
+        ("Mantención Industrial Biobío", "76.678.901-2", "contacto@mantencionbiobio.cl", "industrial", "operaciones@mantencionbiobio.cl", "Demo2026!", True),
+        ("Obras y Montajes del Norte SpA", "77.789.012-3", "contacto@obrasnorte.cl", "construccion", "operaciones@obrasnorte.cl", "Demo2026!", True),
+        ("Perforaciones Cordillera Ltda", "78.890.123-4", "contacto@perforacionescordillera.cl", "mineria", "operaciones@perforacionescordillera.cl", "Demo2026!", True),
+        ("Servicios Eléctricos Patagonia", "79.901.234-5", "contacto@electricospatagonia.cl", "energia", "operaciones@electricospatagonia.cl", "Demo2026!", True),
+        ("Maestranza Puerto Norte SpA", "76.012.345-6", "contacto@maestranzapuertonorte.cl", "industrial", "operaciones@maestranzapuertonorte.cl", "Demo2026!", True),
+        ("Ingeniería Ambiental del Valle", "77.123.456-7", "contacto@ambientaldelvalle.cl", "otras", "operaciones@ambientaldelvalle.cl", "Demo2026!", True),
+        ("Logística Andina de Carga Ltda", "78.234.567-8", "contacto@logisticaandina.cl", "industrial", "operaciones@logisticaandina.cl", "Demo2026!", True),
+        ("Construcciones Costa Pacífico", "79.345.678-9", "contacto@costapacifico.cl", "construccion", "operaciones@costapacifico.cl", "Demo2026!", True),
+        ("Solar y Redes del Centro SpA", "76.456.789-0", "contacto@solarredescentro.cl", "energia", "operaciones@solarredescentro.cl", "Demo2026!", True),
+        ("Servicios Portuarios Demo Ltda", "77.567.890-1", "contacto@serviciosportuariosdemo.cl", "industrial", "operaciones@serviciosportuariosdemo.cl", "Demo2026!", True),
     ]
     empresas = {}
     for nombre, rut, email, industria, usuario_email, password, es_demo in empresas_seed:
         empresa = db.scalar(select(Company).where(Company.rut == rut))
         if empresa is None:
             empresa = Company(nombre=nombre, rut=rut, email=email,
-                              status="approved", es_demo=es_demo)
+                              status="approved", es_demo=True)
             db.add(empresa)
             db.flush()
         empresa.industria = industria
+        empresa.es_demo = True
         empresas[nombre] = empresa
         usuario = db.scalar(select(User).where(User.email == usuario_email))
         nombre_usuario = f"Administración {nombre}"
@@ -274,7 +289,7 @@ def run(db: Session) -> None:
                                 _sembrar_operacion_empresa)
 
     faenas_nombres = [fila[0] for fila in FAENAS]
-    for indice_empresa, (nombre, _, _, _, _, _, es_demo) in enumerate(
+    for indice_empresa, (nombre, _, _, _, _, _, _) in enumerate(
             empresas_seed, start=1):
         empresa = empresas[nombre]
         usuario = db.scalar(select(User).where(
@@ -285,7 +300,7 @@ def run(db: Session) -> None:
         tiene_contratos = db.scalar(select(Contrato.id).where(
             Contrato.company_id == empresa.id).limit(1)) is not None
         if not tiene_contratos:
-            if es_demo:
+            if nombre == "DEMO SpA":
                 _sembrar_operacion_empresa(db, empresa, usuario.id)
             else:
                 contratos_empresa = [
@@ -349,6 +364,20 @@ def run(db: Session) -> None:
         ("Maquinarias Alto Maipo", "Pro", "morosa", 305),
         ("Consultora Seguridad Integral", "Básico", "activa", 190),
         ("Aguas y Procesos del Norte", "Enterprise", "activa", 365),
+        ("Servicios Mineros del Desierto SpA", "Pro", "activa", 180),
+        ("Constructora Horizonte Sur Ltda", "Básico", "activa", 240),
+        ("Energía Renovable Atacama SpA", "Enterprise", "activa", 210),
+        ("Transportes Mineros del Loa", "Pro", "morosa", 150),
+        ("Mantención Industrial Biobío", "Básico", "activa", 300),
+        ("Obras y Montajes del Norte SpA", "Pro", "activa", 125),
+        ("Perforaciones Cordillera Ltda", "Enterprise", "activa", 320),
+        ("Servicios Eléctricos Patagonia", "Básico", "trial", 8),
+        ("Maestranza Puerto Norte SpA", "Pro", "activa", 275),
+        ("Ingeniería Ambiental del Valle", "Básico", "activa", 95),
+        ("Logística Andina de Carga Ltda", "Enterprise", "activa", 205),
+        ("Construcciones Costa Pacífico", "Pro", "morosa", 160),
+        ("Solar y Redes del Centro SpA", "Básico", "activa", 115),
+        ("Servicios Portuarios Demo Ltda", "Enterprise", "cancelada", 190),
     ]
     suscripciones = {}
     for nombre, plan_nombre, estado, antiguedad_dias in empresas_demo:
@@ -359,7 +388,8 @@ def run(db: Session) -> None:
             select(Suscripcion).where(Suscripcion.company_id == empresa.id)
         )
         if suscripcion is None:
-            creada = datetime.now(timezone.utc) - timedelta(days=antiguedad_dias)
+            ahora = datetime.now(timezone.utc)
+            creada = ahora - timedelta(days=antiguedad_dias)
             suscripcion = Suscripcion(
                 company_id=empresa.id,
                 plan_id=planes[plan_nombre].id,
@@ -371,7 +401,7 @@ def run(db: Session) -> None:
                 medio_pago_ref=(f"pm_demo_{empresa.id.hex[:10]}"
                                 if estado != "trial" else None),
                 created_at=creada,
-                updated_at=creada,
+                updated_at=ahora if estado == "cancelada" else creada,
             )
             db.add(suscripcion)
             db.flush()
@@ -416,6 +446,17 @@ def run(db: Session) -> None:
         "Consultora Seguridad Integral": [("whatsapp", "activa")],
         "Aguas y Procesos del Norte": [("siga", "activa"), ("metacontratas", "activa"), ("gdrive", "activa")],
     }
+    integraciones_extra = [
+        ("siga", "activa"), ("webcontrol", "activa"),
+        ("workmate", "con_error"), ("metacontratas", "activa"),
+        ("gdrive", "activa"), ("whatsapp", "desconectada"),
+        ("siga", "con_error"), ("webcontrol", "desconectada"),
+        ("workmate", "activa"), ("metacontratas", "con_error"),
+        ("gdrive", "desconectada"), ("whatsapp", "activa"),
+        ("siga", "activa"), ("webcontrol", "con_error"),
+    ]
+    for (nombre, *_), integraciones in zip(empresas_seed[16:], integraciones_extra):
+        integraciones_por_empresa[nombre] = [integraciones]
     for nombre, integraciones in integraciones_por_empresa.items():
         empresa = empresas.get(nombre)
         if empresa is None:

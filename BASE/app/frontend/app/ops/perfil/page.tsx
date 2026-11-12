@@ -3,13 +3,16 @@
 import { FormEvent, useEffect, useState } from "react";
 import * as Api from "@/lib/cliente";
 import { Spinner } from "@/components/ui";
-import { Card } from "@/components/ops/ui";
+import { Card, CardHead, InfoButton } from "@/components/ops/ui";
+import { useI18n } from "@/lib/ops/i18n";
 import type { Usuario } from "@/lib/tipos";
 
 export default function PerfilOpsPage() {
+  const { t } = useI18n();
   const [usuario, setUsuario] = useState<Usuario | null>(null);
   const [nombre, setNombre] = useState("");
   const [email, setEmail] = useState("");
+  const [emailPendiente, setEmailPendiente] = useState<string | null>(null);
   const [passwordActual, setPasswordActual] = useState("");
   const [passwordNueva, setPasswordNueva] = useState("");
   const [passwordConfirmacion, setPasswordConfirmacion] = useState("");
@@ -26,6 +29,7 @@ export default function PerfilOpsPage() {
         setUsuario(actual);
         setNombre(actual.nombre ?? "");
         setEmail(actual.email);
+        setEmailPendiente(actual.email_pendiente ?? null);
         Api.guardarUsuario(actual);
       })
       .catch((e) => {
@@ -45,17 +49,22 @@ export default function PerfilOpsPage() {
     const nombreLimpio = nombre.trim();
     const emailLimpio = email.trim();
     if (!nombreLimpio) {
-      setError("Ingresa tu nombre completo.");
+      setError(t("perfil.error_nombre"));
       return;
     }
 
-    const cambiaPassword = Boolean(passwordActual || passwordNueva || passwordConfirmacion);
+    const cambiaEmail = emailLimpio.toLowerCase() !== usuario?.email.toLowerCase();
+    const cambiaPassword = Boolean(passwordNueva || passwordConfirmacion);
+    if (cambiaEmail && !passwordActual) {
+      setError(t("perfil.error_actual_requerida"));
+      return;
+    }
     if (cambiaPassword && (!passwordActual || !passwordNueva || !passwordConfirmacion)) {
-      setError("Completa la contraseña actual, la nueva y su confirmación.");
+      setError(t("perfil.error_password_campos"));
       return;
     }
     if (cambiaPassword && passwordNueva !== passwordConfirmacion) {
-      setError("La nueva contraseña y su confirmación no coinciden.");
+      setError(t("perfil.error_password_no_coincide"));
       return;
     }
 
@@ -67,7 +76,10 @@ export default function PerfilOpsPage() {
       refresh_token?: string;
     } = {};
     if (nombreLimpio !== (usuario?.nombre ?? "")) cambios.nombre = nombreLimpio;
-    if (emailLimpio !== usuario?.email) cambios.email = emailLimpio;
+    if (cambiaEmail) {
+      cambios.email = emailLimpio;
+      cambios.password_actual = passwordActual;
+    }
     if (cambiaPassword) {
       cambios.password = passwordNueva;
       cambios.password_actual = passwordActual;
@@ -75,7 +87,7 @@ export default function PerfilOpsPage() {
       if (refresh) cambios.refresh_token = refresh;
     }
     if (!Object.keys(cambios).length) {
-      setAviso("No hay cambios para guardar.");
+      setAviso(t("perfil.sin_cambios"));
       return;
     }
 
@@ -85,11 +97,14 @@ export default function PerfilOpsPage() {
       setUsuario(actualizado);
       setNombre(actualizado.nombre ?? "");
       setEmail(actualizado.email);
+      setEmailPendiente(actualizado.email_pendiente ?? null);
       Api.guardarUsuario(actualizado);
       setPasswordActual("");
       setPasswordNueva("");
       setPasswordConfirmacion("");
-      setAviso("Tu perfil se actualizó correctamente.");
+      setAviso(actualizado.email_confirmacion_enviada
+        ? t("perfil.email_solicitud_enviada")
+        : t("perfil.guardado"));
     } catch (e) {
       setError(Api.mensajeError(e));
     } finally {
@@ -102,72 +117,116 @@ export default function PerfilOpsPage() {
     return (
       <Card>
         <p role="alert" className="text-sm" style={{ color: "var(--ops-crit)" }}>
-          {error || "No se pudo cargar tu perfil."}
+          {error || t("perfil.error_carga")}
         </p>
       </Card>
     );
   }
 
+  const iniciales = (usuario.nombre || usuario.email)
+    .split(/\s+/).slice(0, 2).map((parte) => parte[0]?.toUpperCase()).join("");
+
   return (
-    <div className="mx-auto max-w-3xl space-y-4">
+    <div className="mx-auto max-w-4xl space-y-5">
       {error && <p role="alert" className="ops-alert ops-alert-error">{error}</p>}
       {aviso && <p role="status" className="ops-alert ops-alert-ok">{aviso}</p>}
-      <Card>
-        <form onSubmit={guardar} className="space-y-5">
-          <div>
-            <h2 className="ops-title">Datos personales</h2>
-            <div className="ops-sub">Información asociada a tu cuenta administrativa.</div>
+      <Card className="p-0">
+        <div className="flex flex-wrap items-center gap-4 rounded-t-[9px] border-b px-5 py-5 sm:px-6"
+          style={{ borderColor: "var(--ops-line)", background: "var(--ops-card)" }}>
+          <div className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl text-lg font-bold"
+            style={{ color: "var(--ops-accent)", background: "var(--ops-accent-soft)" }}>
+            {iniciales}
           </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <label className="space-y-1.5 text-sm font-medium">
-              Nombre completo
-              <input className="ops-input w-full" autoComplete="name" maxLength={160} required
-                value={nombre} onChange={(event) => setNombre(event.target.value)} />
-            </label>
-            <label className="space-y-1.5 text-sm font-medium">
-              Correo electrónico
-              <input className="ops-input w-full" type="email" autoComplete="email" required
-                value={email} onChange={(event) => setEmail(event.target.value)} />
-            </label>
-          </div>
-          <div className="grid gap-4 border-t pt-4 sm:grid-cols-2" style={{ borderColor: "var(--ops-line)" }}>
-            <div>
-              <div className="text-sm font-medium">Rol</div>
-              <div className="mt-1 text-sm" style={{ color: "var(--ops-mut)" }}>Administrador de plataforma</div>
+          <div className="min-w-0 flex-1">
+            <div className="text-lg font-semibold">{usuario.nombre || usuario.email}</div>
+            <div className="mt-1 truncate text-sm" style={{ color: "var(--ops-mut)" }}>
+              {usuario.email}
             </div>
-            <div>
-              <div className="text-sm font-medium">Estado</div>
-              <div className="mt-1 text-sm" style={{ color: "var(--ops-mut)" }}>
-                {usuario.activo ? "Activo" : "Inactivo"}
+          </div>
+          <span className="rounded-full px-3 py-1 text-xs font-semibold"
+            style={{
+              color: usuario.activo ? "var(--ops-ok)" : "var(--ops-crit)",
+              background: usuario.activo ? "var(--ops-ok-soft)" : "var(--ops-crit-soft)",
+            }}>
+            {usuario.activo ? t("perfil.estado_activo") : t("perfil.estado_inactivo")}
+          </span>
+        </div>
+        <form onSubmit={guardar} className="space-y-5 p-5 sm:p-6">
+          <section>
+            <CardHead titulo={t("perfil.datos_titulo")}
+              sub={t("perfil.datos_sub")} info={t("perfil.datos_info")} />
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label className="block space-y-1.5 text-sm font-medium">
+                {t("perfil.nombre")}
+                <input className="ops-input w-full" autoComplete="name" maxLength={160} required
+                  value={nombre} onChange={(event) => setNombre(event.target.value)} />
+              </label>
+              <label className="block space-y-1.5 text-sm font-medium">
+                {t("perfil.correo")}
+                <input className="ops-input w-full" type="email" autoComplete="email" required
+                  value={email} onChange={(event) => setEmail(event.target.value)} />
+              </label>
+            </div>
+            <p className="ops-sub mt-3">{t("perfil.email_confirmacion_info")}</p>
+            {emailPendiente && (
+              <div role="status" className="ops-alert mt-3">
+                <strong>{t("perfil.email_pendiente_titulo")}:</strong>{" "}
+                {emailPendiente}. {t("perfil.email_pendiente_aviso")}
+              </div>
+            )}
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <div className="rounded-xl border p-3" style={{ borderColor: "var(--ops-line)" }}>
+                <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide"
+                  style={{ color: "var(--ops-mut)" }}>
+                  {t("perfil.rol")} <InfoButton titulo={t("perfil.rol")}
+                    descripcion={t("perfil.rol_info")} />
+                </div>
+                <div className="mt-1.5 text-sm">{t("perfil.rol_admin")}</div>
+              </div>
+              <div className="rounded-xl border p-3" style={{ borderColor: "var(--ops-line)" }}>
+                <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide"
+                  style={{ color: "var(--ops-mut)" }}>
+                  {t("perfil.estado")} <InfoButton titulo={t("perfil.estado")}
+                    descripcion={t("perfil.estado_info")} />
+                </div>
+                <div className="mt-1.5 text-sm">
+                  {usuario.activo ? t("perfil.estado_activo") : t("perfil.estado_inactivo")}
+                </div>
               </div>
             </div>
-          </div>
+          </section>
 
-          <div className="border-t pt-5" style={{ borderColor: "var(--ops-line)" }}>
-            <h2 className="ops-title">Cambiar contraseña (opcional)</h2>
-            <div className="mt-3 grid gap-4 sm:grid-cols-3">
-              <label className="space-y-1.5 text-sm font-medium">
-                Contraseña actual
+          <section className="border-t pt-5" style={{ borderColor: "var(--ops-line)" }}>
+            <CardHead titulo={t("perfil.seguridad_titulo")}
+              sub={t("perfil.seguridad_sub")} info={t("perfil.seguridad_info")} />
+            <div className="grid gap-4 md:grid-cols-3">
+              <label className="block space-y-1.5 text-sm font-medium">
+                {t("perfil.password_actual")}
                 <input className="ops-input w-full" type="password" autoComplete="current-password"
                   value={passwordActual} onChange={(event) => setPasswordActual(event.target.value)} />
               </label>
-              <label className="space-y-1.5 text-sm font-medium">
-                Nueva contraseña
+              <label className="block space-y-1.5 text-sm font-medium">
+                {t("perfil.password_nueva")}
                 <input className="ops-input w-full" type="password" autoComplete="new-password" minLength={8}
                   value={passwordNueva} onChange={(event) => setPasswordNueva(event.target.value)} />
               </label>
-              <label className="space-y-1.5 text-sm font-medium">
-                Repetir nueva contraseña
+              <label className="block space-y-1.5 text-sm font-medium">
+                {t("perfil.password_confirmar")}
                 <input className="ops-input w-full" type="password" autoComplete="new-password" minLength={8}
                   value={passwordConfirmacion} onChange={(event) => setPasswordConfirmacion(event.target.value)} />
               </label>
             </div>
-            <p className="ops-sub mt-2">Mínimo 8 caracteres, una mayúscula y un número.</p>
+            <p className="ops-sub mt-3">{t("perfil.password_requisitos")}</p>
+          </section>
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4"
+            style={{ borderColor: "var(--ops-line)" }}>
+            <span className="text-xs" style={{ color: "var(--ops-mut)" }}>
+              {t("perfil.nota_guardado")}
+            </span>
+            <button type="submit" className="ops-btn ops-btn-primary" disabled={guardando}>
+              {guardando ? t("perfil.guardando") : t("perfil.guardar")}
+            </button>
           </div>
-
-          <button type="submit" className="ops-btn-primary" disabled={guardando}>
-            {guardando ? "Guardando…" : "Guardar cambios"}
-          </button>
         </form>
       </Card>
     </div>

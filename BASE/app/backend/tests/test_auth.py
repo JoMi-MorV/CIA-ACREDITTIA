@@ -1,12 +1,14 @@
 """Autenticación, ciclo de vida de la cuenta y autoservicio del perfil (§4)."""
 from __future__ import annotations
 
+import hashlib
 import uuid
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
 from app.database import worker_session
-from app.models import Actividad, RefreshToken, User
+from app.models import Actividad, EmailChangeToken, RefreshToken, User
 
 from tests.conftest import API, CLAVE, crear_contract_admin, rut_valido
 
@@ -337,26 +339,169 @@ def test_patch_me_cuerpo_vacio(app_cliente, empresa_a):
     assert r.json()["error"]["code"] == "SIN_CAMBIOS"
 
 
-def test_patch_me_nombre_y_email(app_cliente, empresa_a):
+def test_patch_me_nombre_no_exige_password_y_no_cambia_email(app_cliente, empresa_a):
     r = app_cliente.patch(f"{API}/auth/me", headers=empresa_a["headers"],
-                          json={"nombre": "Ana Pérez", "email": "ana@empresa.cl"})
+                          json={"nombre": "Ana Pérez"})
     assert r.status_code == 200, r.text
     salida = r.json()
     assert salida["nombre"] == "Ana Pérez"
-    assert salida["email"] == "ana@empresa.cl"
-    assert set(salida["cambios"]) == {"nombre", "email"}
-
-    # Y el login pasa a hacerse con el email nuevo.
-    assert app_cliente.post(f"{API}/auth/login", json={
-        "email": "ana@empresa.cl", "password": CLAVE}).status_code == 200
+    assert salida["email"] == empresa_a["email"]
+    assert salida["cambios"] == ["nombre"]
 
 
 def test_patch_me_email_en_uso(app_cliente, empresa_a, empresa_b):
     """El email es único a nivel de plataforma, aunque RLS oculte al otro usuario."""
     r = app_cliente.patch(f"{API}/auth/me", headers=empresa_a["headers"],
-                          json={"email": empresa_b["email"]})
+                          json={"email": empresa_b["email"],
+                                "password_actual": CLAVE})
     assert r.status_code == 409
     assert r.json()["error"]["code"] == "EMAIL_EN_USO"
+
+
+def test_patch_me_email_requiere_password_actual(app_cliente, empresa_a):
+    respuesta = app_cliente.patch(
+        f"{API}/auth/me", headers=empresa_a["headers"],
+        json={"email": "nuevo@empresa.cl"})
+    assert respuesta.status_code == 401
+    assert respuesta.json()["error"]["code"] == "PASSWORD_ACTUAL_REQUERIDA"
+
+    respuesta = app_cliente.patch(
+        f"{API}/auth/me", headers=empresa_a["headers"],
+        json={"email": "nuevo@empresa.cl", "password_actual": "Erronea1"})
+    assert respuesta.status_code == 401
+    assert respuesta.json()["error"]["code"] == "PASSWORD_ACTUAL_INVALIDA"
+
+
+def test_cambio_email_se_confirma_antes_de_actualizar_y_token_es_de_un_solo_uso(
+        app_cliente, empresa_a, empresa_b, monkeypatch):
+    from app.routers import auth
+
+    correos = []
+    monkeypatch.setattr(auth, "smtp_configurado", lambda: True)
+    monkeypatch.setattr(auth, "enviar_email",
+                        lambda destino, asunto, cuerpo: correos.append(
+                            (destino, asunto, cuerpo)))
+
+    nueva = "ana.nueva@empresa.cl"
+    respuesta = app_cliente.patch(
+        f"{API}/auth/me", headers=empresa_a["headers"],
+        json={"email": nueva, "password_actual": CLAVE})
+    assert respuesta.status_code == 200, respuesta.text
+    assert respuesta.json()["email"] == empresa_a["email"]
+    assert respuesta.json()["email_pendiente"] == nueva
+    assert respuesta.json()["email_confirmacion_enviada"] is True
+    assert respuesta.json()["cambios"] == ["email_solicitado"]
+    assert correos and correos[0][0] == nueva
+    me_a = app_cliente.get(f"{API}/auth/me", headers=empresa_a["headers"])
+    me_b = app_cliente.get(f"{API}/auth/me", headers=empresa_b["headers"])
+    assert me_a.json()["email_pendiente"] == nueva
+    assert me_b.json()["email_pendiente"] is None
+
+    import re
+    token = re.search(r"token=([A-Za-z0-9_-]+)", correos[0][2]).group(1)
+    with worker_session(is_admin=True) as db:
+        guardado = db.query(EmailChangeToken).filter(
+            EmailChangeToken.user_id == uuid.UUID(empresa_a["user_id"])).one()
+        assert guardado.pending_email == nueva
+        assert guardado.token_hash != token
+
+    # La nueva dirección no sirve para iniciar sesión hasta confirmar el enlace.
+    assert app_cliente.post(f"{API}/auth/login", json={
+        "email": nueva, "password": CLAVE}).status_code == 401
+    assert app_cliente.post(f"{API}/auth/login", json={
+        "email": empresa_a["email"], "password": CLAVE}).status_code == 200
+
+    confirmacion = app_cliente.post(
+        f"{API}/auth/email/confirm", json={"token": token})
+    assert confirmacion.status_code == 200, confirmacion.text
+    assert confirmacion.json()["email"] == nueva
+    assert app_cliente.post(f"{API}/auth/login", json={
+        "email": nueva, "password": CLAVE}).status_code == 200
+    reutilizado = app_cliente.post(
+        f"{API}/auth/email/confirm", json={"token": token})
+    assert reutilizado.status_code == 400
+    assert reutilizado.json()["error"]["code"] == "TOKEN_INVALIDO"
+
+
+def test_cambio_email_bloqueado_sin_smtp(app_cliente, empresa_a, monkeypatch):
+    from app.routers import auth
+
+    monkeypatch.setattr(auth, "smtp_configurado", lambda: False)
+    respuesta = app_cliente.patch(
+        f"{API}/auth/me", headers=empresa_a["headers"],
+        json={"email": "nuevo@empresa.cl", "password_actual": CLAVE})
+    assert respuesta.status_code == 503
+    assert respuesta.json()["error"]["code"] == "SMTP_NO_CONFIGURADO"
+    with worker_session(is_admin=True) as db:
+        user = db.get(User, uuid.UUID(empresa_a["user_id"]))
+        assert user.email == empresa_a["email"]
+        assert db.query(EmailChangeToken).filter(
+            EmailChangeToken.user_id == user.id).count() == 0
+
+
+def test_cambio_email_falla_si_no_se_entrega_el_correo(app_cliente, empresa_a,
+                                                        monkeypatch):
+    from app.routers import auth
+    from app.services.email import EmailDeliveryError
+
+    monkeypatch.setattr(auth, "smtp_configurado", lambda: True)
+
+    def fallo(*_args):
+        raise EmailDeliveryError("SMTP no disponible")
+
+    monkeypatch.setattr(auth, "enviar_email", fallo)
+    respuesta = app_cliente.patch(
+        f"{API}/auth/me", headers=empresa_a["headers"],
+        json={"email": "nuevo@empresa.cl", "password_actual": CLAVE})
+    assert respuesta.status_code == 503
+    assert respuesta.json()["error"]["code"] == "EMAIL_NO_ENVIADO"
+    with worker_session(is_admin=True) as db:
+        user = db.get(User, uuid.UUID(empresa_a["user_id"]))
+        assert user.email == empresa_a["email"]
+        assert db.query(EmailChangeToken).filter(
+            EmailChangeToken.user_id == user.id).count() == 0
+
+
+def test_cambio_email_no_envia_si_otros_cambios_son_invalidos(
+        app_cliente, empresa_a, monkeypatch):
+    from app.routers import auth
+
+    correos = []
+    monkeypatch.setattr(auth, "smtp_configurado", lambda: True)
+    monkeypatch.setattr(auth, "enviar_email",
+                        lambda *args: correos.append(args))
+    respuesta = app_cliente.patch(
+        f"{API}/auth/me", headers=empresa_a["headers"],
+        json={"nombre": "Nombre no aplicado", "email": "nuevo@empresa.cl",
+              "password": "debil", "password_actual": CLAVE})
+    assert respuesta.status_code == 400
+    assert respuesta.json()["error"]["code"] == "PASSWORD_DEBIL"
+    assert correos == []
+    with worker_session(is_admin=True) as db:
+        user = db.get(User, uuid.UUID(empresa_a["user_id"]))
+        assert user.nombre == f"Contacto {empresa_a['nombre']}"
+        assert user.email == empresa_a["email"]
+        assert db.query(EmailChangeToken).filter(
+            EmailChangeToken.user_id == user.id).count() == 0
+
+
+def test_confirmacion_email_expirada_se_rechaza(app_cliente, empresa_a):
+    token = "token-expirado-de-prueba"
+    with worker_session(is_admin=True) as db:
+        db.add(EmailChangeToken(
+            user_id=uuid.UUID(empresa_a["user_id"]),
+            pending_email="nuevo@empresa.cl",
+            token_hash=hashlib.sha256(token.encode()).hexdigest(),
+            expires_at=datetime.now(timezone.utc) - timedelta(minutes=1),
+        ))
+        db.commit()
+    respuesta = app_cliente.post(
+        f"{API}/auth/email/confirm", json={"token": token})
+    assert respuesta.status_code == 400
+    assert respuesta.json()["error"]["code"] == "TOKEN_INVALIDO"
+    with worker_session(is_admin=True) as db:
+        user = db.get(User, uuid.UUID(empresa_a["user_id"]))
+        assert user.email == empresa_a["email"]
 
 
 def test_patch_me_password_exige_la_actual(app_cliente, empresa_a):

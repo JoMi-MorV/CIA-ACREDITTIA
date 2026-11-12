@@ -1,3 +1,5 @@
+from datetime import date
+
 from sqlalchemy import func, select
 
 from app import seeds
@@ -8,13 +10,14 @@ from app.models_ops import OpsDisponibilidadDiaria
 from app.services.vencimientos import recalcular_documentos
 
 
-def test_seed_operacional_demo_es_amplio_y_repetible(app_cliente):
+def test_seed_operacional_demo_es_amplio_y_repetible(app_cliente, admin):
     with worker_session(is_admin=True) as db:
         seeds.run(db)
         recalcular_documentos(db)
 
         empresas = list(db.scalars(select(Company)))
-        assert len(empresas) == 16
+        assert len(empresas) >= 30
+        assert all(empresa.es_demo for empresa in empresas)
 
         def conteos(empresa):
             return (
@@ -47,6 +50,25 @@ def test_seed_operacional_demo_es_amplio_y_repetible(app_cliente):
                 assert documentos >= 100
             assert alertas > 0, empresa.nombre
             assert eventos >= 3, empresa.nombre
+
+        respuesta = app_cliente.patch(
+            "/api/v1/admin/ajustes-negocio", headers=admin["headers"],
+            json={
+                "valor_uf": 39000,
+                "uf_vigente_desde": date.today().isoformat(),
+                "uf_fuente": "Prueba de seed demo",
+                "cac_clp": 500000,
+                "margen_bruto_pct": 80,
+                "objetivo_churn_pct": 2,
+                "motivo": "Validar LTV CAC con datos demo",
+            })
+        assert respuesta.status_code == 200, respuesta.text
+        resumen = app_cliente.get(
+            "/api/v1/admin/ops/indicadores/resumen",
+            headers=admin["headers"])
+        assert resumen.status_code == 200, resumen.text
+        assert resumen.json()["ltv_cac"]["estado"] == "calculado"
+        assert resumen.json()["ltv_cac"]["valor"] > 0
 
         patentes = list(db.scalars(select(Sujeto.patente).where(
             Sujeto.tipo == "equipo")))

@@ -1,7 +1,7 @@
 # Gap Analysis — Acredittia
 
 Estado: borrador de revisión
-Fecha de referencia: 10-11-2026
+Fecha de referencia: 12-11-2026
 
 
 
@@ -102,6 +102,40 @@ prioridades ADMIN y **61,1%** para los nueve requisitos P0. No se realizó un
 recorrido manual de navegador; el proyecto conserva su NO-GO general de
 producción por otros bloqueos.
 
+**Reevaluación 12-11-2026 — perfil y procesos críticos:** se actualizan de
+forma conservadora dos fichas directamente afectadas:
+
+- **RF-CLI-01: 75% → 80% (+5 puntos).** Mi perfil exige la contraseña actual
+  al solicitar un correo nuevo y solo lo activa tras confirmar por email un
+  token hasheado, de un solo uso y con expiración; ausencia/fallo de SMTP
+  bloquea la solicitud. Se validó en pruebas de autenticación y esquema. No se
+  da por cerrado el canal real de recuperación de contraseña ni se probó SMTP
+  real.
+- **RF-SAL-03: 90% → 95% (+5 puntos).** Se persisten y exponen progreso/etapa
+  cuando el runner puede medirlos; cola, estado e historial se actualizan sin
+  recarga y el historial aparece junto al proceso seleccionado. La regresión
+  focalizada de operaciones y esquema pasó 54 pruebas y el build frontend
+  pasó. No se asigna porcentaje ficticio a tareas sin progreso medible. Siguen
+  pendientes aceptación visual del usuario, fallos/recuperación distribuida y
+  trazabilidad integral.
+
+La suma de las 37 estimaciones individuales vigentes es **2.918**, es decir,
+`2918 / 37 = 78,9%`. Al revertir para comparación los cinco puntos añadidos a
+RF-CLI-01 y RF-SAL-03, la base inmediatamente anterior a esta entrega es
+`2908 / 37 = 78,6%`; el efecto de estos cambios es `10 / 37 = +0,3 puntos
+porcentuales`. El agregado anterior publicado como `2888 / 37` estaba 20
+puntos por debajo de la suma de las fichas y se corrige en este corte. El
+promedio de ocho prioridades ADMIN pasa de 77,1% a **77,3%**: Salud se
+recalcula de `(75 + 80 + 90) / 3 = 81,7%` a
+`(75 + 80 + 95) / 3 = 83,3%`; los otros siete promedios no cambian.
+Recalculados desde las 37 fichas actuales, P0 suma `650 / 9 = 72,2%`, P1
+`1853 / 22 = 84,2%` y P2 `415 / 6 = 69,2%`. La base P1 sin estos cambios era
+`1843 / 22 = 83,8%`. Estos valores sustituyen los promedios P0/P1/P2
+publicados anteriormente, que no coincidían con las estimaciones individuales
+del SRS. Son estimaciones documentales de cobertura, no mediciones objetivas
+de esfuerzo, aceptación integral ni preparación productiva. La mejora visual
+sin salto se contabiliza dentro de RF-SAL-03, no como un incremento adicional.
+
 **Línea base de cobertura de código — SRS v0.62, 03-11-2026:** la revisión de
 las 37 fichas (29 funcionales y 8 no funcionales) estimó 68,6% (`2538 / 37`).
 Reevaluó RF-SAL-02 55→70, RF-SAL-03 80→90, RF-USU-01 65→75, RF-CLI-07 90→93,
@@ -159,20 +193,20 @@ La principal señal de riesgo es el bloqueo P0 documentado en el SRS:
 - DEC-08 quedó acordada como política interna el 09-11-2026; no pasar a producción con datos reales hasta confirmar su aplicabilidad.
 - En PostgreSQL, el usuario confirmó versión máxima de migración 16 y `effective_at=2026-11-09 03:00:00+00` (medianoche local UTC−03). También confirmó `ops_retencion` activo y reportó ejecución manual local `ok` el 10-11-2026 a las 00:18:52, con 0 filas podadas y 0 ejecuciones marcadas timeout. Esto acredita ejecución sin error, no la configuración de todas las fuentes. No se acreditaron la retención de 90 días en Log Analytics, el inventario/revisión de registros históricos ni la aprobación de aplicabilidad por producción.
 
-el avance reportable del conjunto de requisitos documentados es **78,1%
+el avance reportable del conjunto de requisitos documentados es **78,9%
 (78% redondeado)**: promedio de 37 porcentajes revaluados, con igual peso para
 cada requisito. El 67% del 13-10 era el promedio de ocho prioridades ADMIN;
 no era el avance total del proyecto. La línea base SRS v0.62 fue 68,6%;
 RNF-REC-01 se reestimó de 60% a 100% tras acreditar el ciclo local de creación,
 descarga `.acb`, eliminación, importación, verificación y restauración.
 Para mantener comparabilidad, el
-promedio actualizado de esas ocho prioridades es **77,1% (77% redondeado)**:
+promedio actualizado de esas ocho prioridades es **77,3% (77% redondeado)**:
 se reevalúan Buscador global (100%) y Salud y operación como promedio simple
-de RF-SAL-01 (75%), RF-SAL-02 (80%) y RF-SAL-03 (90%). Auditoría se recalcula a
+de RF-SAL-01 (75%), RF-SAL-02 (80%) y RF-SAL-03 (95%). Auditoría se recalcula a
 73,3% como promedio simple de RF-AUD-01 (90%), RF-AUD-02 (70%) y RF-AUD-03
 (60%); las otras cinco prioridades conservan su estimación previa. No hay un
 modelo de ponderación aprobado, y varios requisitos siguen
-usando estimaciones anteriores; por ello 77,1% es una
+usando estimaciones anteriores; por ello 77,3% es una
 estimación basada en cobertura de código/evidencia, no un porcentaje medido de
 líneas, esfuerzo o criterios aceptados. La preparación para producción real
 con datos sensibles no se puntúa: DEC-08 y otros bloqueos P0 permanecen
@@ -195,23 +229,23 @@ abiertos.
 
 ## 5. Matriz de cumplimiento por prioridad de ADMIN
 
-| Prioridad ADMIN | Estado | % estimado al 10-11-2026 | Observación |
+| Prioridad ADMIN | Estado | % estimado al 12-11-2026 | Observación |
 |---|---|---:|---|
 | Dashboard global | Parcial | 75% | Hay contadores, acreditación, estados documentales y actividad por eventos; falta validar universos/denominadores y crecimiento de adopción. |
 | Gestión global de empresas | Avanzado | 90% | Listado y ficha agregada con industria, estado de cuenta, perfiles y responsables; el rechazo y los casos límite siguen pendientes. |
 | Buscador global | IV en alcance probado | 100% | RF-BUS-01 y RF-BUS-02 al 100%. Pruebas API de autorización por categoría, alcance/vigencia/revocación de concesiones, ficha directa y ZIP limitado; 83 pruebas focalizadas y build frontend aprobados. El listado administrativo independiente de usuarios se sigue en RF-USU. |
 | Métricas SaaS | Parcial | 60% | Existen métricas y series; tiempo de uso continúa estimado, y documentos procesados no equivale necesariamente a documentos únicos. Faltan definiciones y cálculos validados. |
-| Alertas y salud de clientes | Parcial | 82% | Promedio de RF-SAL-01 (75%), RF-SAL-02 (80%) y RF-SAL-03 (90%). Las regresiones cubren API inaccesible, heartbeat vencido/recuperación, umbral p95, Redis caído, worker ausente y profundidad de cola. Falta recuperación distribuida real, casos de salud de clientes y totales/paginación. Azure Blob e IA simulada no acreditan disponibilidad SaaS externa. |
+| Alertas y salud de clientes | Parcial | 83,3% | Promedio de RF-SAL-01 (75%), RF-SAL-02 (80%) y RF-SAL-03 (95%). Los procesos muestran etapas/progreso cuando se puede medir, historial actualizado automáticamente y visible junto al proceso seleccionado; suite focalizada de operaciones/esquema y build aprobados. Siguen pendientes recuperación distribuida real, casos de salud de clientes y totales/paginación. Azure Blob e IA simulada no acreditan disponibilidad SaaS externa. |
 | Usuarios, roles y permisos | Parcial | 70% | La consola pagina usuarios; el portal permite convertir `company` a `contract_admin` si queda otro `company` activo. Se conserva el bloqueo de último administrador. Falta invitación/aceptación de cuentas existentes, correo de activación y validación integral de permisos. El 70% es la estimación histórica del 13-10, no recalculada en este corte. |
 | Auditoría y trazabilidad | Parcial | 73,3% | RF-AUD-01 al 90%: mutaciones acordadas revisadas por el usuario y registradas; queda comprobar anterior/nuevo para permisos/estados y pausa de procesos. RF-AUD-02 registra autenticación, cierre, rotación y revocación. RF-AUD-03 conserva pendientes de acceso/exportación, retención e integridad. |
 | Seguridad y aislamiento de datos | Parcial; bloqueo P0 | 67% | Hay autorización, RLS, pruebas multiempresa y concesiones excepcionales temporales. Falta integrar esas concesiones en operaciones sensibles, validar credenciales reales y cerrar DEC-10. |
 
 ### % global estimado
 
-El promedio actualizado de las ocho prioridades ADMIN es **77,1% (77%
+El promedio actualizado de las ocho prioridades ADMIN es **77,3% (77%
 redondeado)**: `(75 + 90 + 100 + 60 + 81,7 + 70 + 73,3 + 67) / 8`. La prioridad
 de Salud se obtiene del promedio de sus tres requisitos asociados. El promedio
-de los 37 requisitos es **78,1% (78% redondeado)**: `2888 / 37`. El primer valor
+de los 37 requisitos es **78,9% (79% redondeado)**: `2918 / 37`. El primer valor
 comparable con el 67% histórico de ADMIN; el segundo amplía el alcance e
 incluye el portal y requisitos no funcionales. No se dispone de ponderación
 por esfuerzo o criticidad, así que ambos son estimaciones, no medidas objetivas
@@ -219,15 +253,15 @@ ni aceptación.
 
 | Indicador | Valor |
 |---|---:|
-| Avance funcional estimado de las ocho prioridades ADMIN | 77,1% (77% redondeado) |
-| Cobertura estimada de los 37 requisitos SRS | 78,1% (78% redondeado) |
+| Avance funcional estimado de las ocho prioridades ADMIN | 77,3% (77% redondeado) |
+| Cobertura estimada de los 37 requisitos SRS | 78,9% (79% redondeado) |
 | Avance total ponderado del producto Acredittia | No determinado; falta ponderación por alcance/esfuerzo aprobada |
 | Preparación para producción real con datos sensibles | No puntuada; bloqueada por brechas P0 y DEC-08 |
 | Cumplimiento ADMIN validado como conjunto | No determinado; aceptación integral pendiente |
 | Estado del riesgo crítico operativo | Alto; no expresado como porcentaje de avance |
 
-Por prioridad de requisito, los nueve P0 promedian **61,1%**, los 22 P1
-**78,5%** y los seis P2 **63,3%**. La conclusión es que existe una base
+Por prioridad de requisito, los nueve P0 promedian **72,2%**, los 22 P1
+**84,2%** y los seis P2 **69,2%**. La conclusión es que existe una base
 funcional amplia, pero el 70% estimado no significa que el producto esté listo
 para producción real. Persisten brechas críticas de permisos granulares,
 aislamiento/mínimo privilegio, auditoría y revisión legal/retención.

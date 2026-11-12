@@ -1,4 +1,141 @@
-# Validación funcional — actualizado al 10 de noviembre de 2026
+# Validación funcional — actualizado al 12 de noviembre de 2026
+
+## Recálculo del avance general — 12 de noviembre de 2026
+
+Se actualizaron únicamente los requisitos directamente afectados: RF-CLI-01
+de 75% a 80% por el flujo de cambio seguro de correo y RF-SAL-03 de 90% a 95%
+por el progreso persistido/medible de procesos, la actualización automática y
+el historial junto a su proceso. Al verificar las 37 estimaciones individuales
+actuales del SRS, la suma base previa es 2.908 (78,6%) y la suma actual es 2.918
+(78,9%); el total 2.888 publicado en el corte anterior no coincidía con dichas
+fichas y queda corregido. El efecto de estos dos cambios es +10/37, es decir,
+**+0,3 puntos porcentuales**. Las ocho prioridades ADMIN pasan de 77,1% a
+**77,3%**, Salud de 81,7% a **83,3%**. Recalculados desde los requisitos
+individuales, P0 pasa a 72,2% (650/9), P1 a 84,2% (1853/22) y P2 a 69,2%
+(415/6); la base P1 era 83,8% (1843/22). No se suma nuevamente la mejora
+visual de la pantalla de procesos. Son estimaciones de cobertura, no aceptación
+integral ni preparación productiva; NO-GO para producción con datos reales
+permanece.
+
+## Progreso y actualización automática de procesos críticos — 12 de noviembre de 2026
+
+Las ejecuciones en cola se ordenan por fecha de creación y aparecen de inmediato
+en la primera página del historial. Los endpoints de procesos e historial usan
+`Cache-Control: private, no-store`; la pantalla actualiza procesos cada 10
+segundos en reposo y cada 2,5 segundos mientras hay una ejecución activa. El
+historial abierto se refresca automáticamente durante la ejecución y recoge el
+resultado final sin recargar la página.
+
+Se agregaron campos persistidos de porcentaje y etapa a cada run (migración
+19). Los runners informan hitos medibles; el panel y el historial muestran una
+barra con porcentaje cuando existe esa medición. En etapas sin avance
+cuantificable se muestra estado indeterminado, no un porcentaje ficticio. Una
+prueba de integración verifica la aparición en cola, el progreso durante una
+ejecución bloqueada de prueba, las cabeceras anti-caché y el cierre en 100%.
+
+Para evitar saltos visuales, `useOps` conserva el contenido ya cargado durante
+las recargas periódicas; el estado de carga solo reemplaza el contenido en la
+carga inicial. Cada historial expandido ahora se renderiza dentro de la fila
+inmediatamente posterior al proceso que lo abrió, no al final de la tabla.
+`npm run build` en `BASE/app/frontend`: correcto; Next.js compiló, validó tipos
+y generó las 29 rutas.
+
+## Cambio seguro de correo en Mi perfil — 12 de noviembre de 2026
+
+Se conserva el cambio de nombre sin contraseña. Para solicitar un correo nuevo
+se valida la contraseña actual, se comprueba que la dirección esté disponible y
+se envía un enlace de confirmación con token aleatorio de un solo uso (solo se
+guarda su hash, TTL de 24 horas). El correo de acceso vigente no cambia hasta
+que la persona confirma el enlace; confirmaciones inválidas, vencidas o
+reutilizadas se rechazan. La página de enlace requiere pulsar un botón y no
+consume el token al abrirse. Si SMTP no está configurado o falla el envío, la
+solicitud se rechaza sin actualizar el correo ni dejar un token activo.
+
+Migración 18 crea `email_change_tokens`, limita su lectura/escritura por RLS al
+usuario dueño o a una sesión ADMIN de autenticación y registra la confirmación
+en actividad. `SCHEMA_VERSION` y la versión esperada de configuración pasan a
+18. Las pruebas `tests/test_auth.py` y `tests/test_esquema.py` finalizaron con
+**56 aprobadas** en PostgreSQL temporal. La build de producción del frontend
+pasó y generó 29 rutas, incluida `/confirmar-correo`. SMTP real no se probó; la
+entrega correcta y el fallo de entrega se validaron mediante dobles de prueba.
+
+## UX de Mi perfil ADMIN — 12 de noviembre de 2026
+
+La vista presenta encabezado de identidad con iniciales, correo y estado de
+acceso; separa datos personales de seguridad de cuenta y añade ayudas
+informativas para rol, estado y cambio de contraseña. Se conserva la API y el
+flujo previo de guardar nombre/correo y cambiar contraseña opcionalmente; los
+mensajes de validación y éxito ahora usan el idioma seleccionado (español,
+inglés o portugués). Se corrigieron dos detalles visuales: el botón Guardar
+usa las clases base y primaria compartidas (`ops-btn ops-btn-primary`), y se
+retiró `overflow-hidden` de la tarjeta para que las ayudas de información no
+queden recortadas por el contenedor blanco.
+
+`npm run build` en `BASE/app/frontend`: correcto; Next.js compiló, validó tipos
+y generó las 28 rutas de la aplicación, incluida `/ops/perfil`.
+
+## UX de Ajustes de negocio — 12 de noviembre de 2026
+
+Se reorganizó la pantalla con secciones diferenciadas para valor UF y
+supuestos de rentabilidad. Cada campo y sección dispone de un botón de ayuda;
+los textos describen el significado, uso, limitaciones y efecto de los valores.
+La vista también destaca el alcance administrativo, el guardado/auditoría y la
+última actualización. El enlace de Ajustes de negocio se movió al final del
+menú lateral, inmediatamente después de Mi perfil. Se conservaron
+validaciones, persistencia y el flujo de actualización. Textos disponibles en
+español, inglés y portugués.
+
+`npm run build` en `BASE/app/frontend`: correcto; Next.js compiló, validó tipos
+y generó las 28 rutas de la aplicación, incluida `/ops/ajustes-negocio`.
+
+## Seed multiempresa y LTV/CAC demo — 10 de noviembre de 2026
+
+**Alcance de aplicación:** la prueba se ejecutó en la base PostgreSQL temporal
+creada por pytest. No se ejecutó `seeds.run` contra la base local del usuario,
+Compose habitual ni un entorno compartido; por lo tanto, esos entornos no
+recibieron las 14 empresas nuevas.
+
+La semilla se amplió de 16 a un mínimo de 30 empresas sintéticas. Cada una queda
+marcada como demo y recibe acceso, contratos, trabajadores, equipos, documentos,
+alertas y eventos de calendario. Se distribuyen suscripciones en planes y
+estados distintos, incluido un churn de ingresos en el mes de siembra. En
+conjunto con el snapshot histórico previo y CAC configurado, permite demostrar
+un LTV/CAC calculado. Los datos se mantienen dentro del guard de seed, que
+prohíbe ejecutarlo en producción.
+
+La prueba `tests/test_demo_seed.py` pasó: confirmó al menos 30 empresas marcadas
+como demo, conteos operacionales por empresa, alertas y calendario, unicidad de
+patentes/nombres, idempotencia sin alterar los conteos existentes y un LTV/CAC
+positivo con CAC configurado y churn demo disponible. Resultado: **1 aprobada**.
+Permanece el warning no bloqueante de deprecación de Starlette/httpx.
+
+Para poblar un entorno no productivo hay que habilitar explícitamente
+`SEED_DEMO_ENABLED` y reiniciar la aplicación. No habilitarlo en producción;
+el seed puede crear empresas y datos sintéticos y no forma parte de la
+validación ya ejecutada.
+
+## Ajustes de negocio ADMIN — 10 de noviembre de 2026
+
+Se agregó `/admin/ajustes-negocio` para modificar UF y su vigencia/fuente,
+CAC, margen bruto y objetivo de churn. Los valores se guardan en la tabla
+`ops_ajustes_negocio` (migración 17), se aplican a los cálculos en vivo y
+snapshots futuros y no recalculan snapshots históricos. Solo ADMIN tiene acceso;
+cada cambio exige motivo y queda en auditoría con valores anterior/nuevo.
+
+Validación ejecutada:
+- `tests/test_ajustes_negocio.py tests/test_esquema.py tests/test_admin.py tests/test_ops.py`:
+  **86 aprobadas**.
+- `npm run build`: correcto; se agregó la ruta de consola, navegación y soporte
+  de modo demo.
+- Regresión posterior: **4 pruebas aprobadas** en ajustes de negocio y cálculo
+  de indicadores. Tras cambiar CAC, el resumen se sirve con `Cache-Control:
+  private, no-store`; el indicador muestra el payback cuando es calculable y
+  distingue un churn de ingresos faltante de un CAC no configurado. El build
+  frontend volvió a completarse correctamente.
+
+La UF se ingresa manualmente; no hay consulta automática al SII/CMF. CAC,
+margen y churn son estimaciones internas. El warning no bloqueante de
+deprecación Starlette/httpx permanece.
 
 ## Buscador global — RF-BUS-01/02 — 10 de noviembre de 2026
 

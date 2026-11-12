@@ -19,20 +19,21 @@ from __future__ import annotations
 import re
 import uuid
 from datetime import date, datetime, timedelta, timezone
+from decimal import Decimal
 
 from fastapi import APIRouter, Body, Depends, Query, Response  
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session, joinedload
 
-from ..config_ops import ops_settings
 from ..database import get_db
 from ..deps import (Page, err, get_current_user, paginacion, require_admin,
                     sobre)
 from ..models import Company, Plan, Suscripcion, User
 from ..models_ops import (MetricasMensuales, MetricasMensualesPlan,
-                          OpsComponente, OpsDisponibilidadDiaria, OpsIncidente,
-                          OpsJob, OpsJobRun)
+                          OpsAjustesNegocio, OpsComponente,
+                          OpsDisponibilidadDiaria, OpsIncidente, OpsJob,
+                          OpsJobRun)
 from ..services import ops
 from ..services.backups import backup_configured
 from ..services.jobs import enqueue
@@ -106,11 +107,98 @@ def _metricas_de(db: Session, mes: date) -> tuple[MetricasMensuales | None, bool
     """(fila, parcial). Mes en curso: cálculo en vivo vía ops_calc_metricas;
     histórico: snapshot (None si no existe)."""
     if _es_mes_actual(mes):
+        ajustes = _ajustes_negocio(db)
         fila = db.execute(text(
             "SELECT * FROM ops_calc_metricas(:m, CAST(:uf AS NUMERIC))"),
-                          {"m": mes, "uf": ops_settings.ops_valor_uf}).one()
+                          {"m": mes, "uf": ajustes.valor_uf}).one()
         return fila, True
     return _snapshot(db, mes), False
+
+
+def _ajustes_negocio(db: Session) -> OpsAjustesNegocio:
+    ajustes = db.get(OpsAjustesNegocio, True)
+    if ajustes is None:
+        raise err(500, "AJUSTES_NEGOCIO_NO_CONFIGURADOS",
+                  "No existe la configuración inicial de negocio; ejecute la migración 17")
+    return ajustes
+
+
+def _ajustes_negocio_out(ajustes: OpsAjustesNegocio) -> dict:
+    return {
+        "valor_uf": float(ajustes.valor_uf),
+        "uf_vigente_desde": ajustes.uf_vigente_desde.isoformat(),
+        "uf_fuente": ajustes.uf_fuente,
+        "cac_clp": float(ajustes.cac_clp),
+        "margen_bruto_pct": float(ajustes.margen_bruto_pct),
+        "objetivo_churn_pct": float(ajustes.objetivo_churn_pct),
+        "updated_at": ajustes.updated_at.isoformat(),
+        "updated_by": str(ajustes.updated_by) if ajustes.updated_by else None,
+    }
+
+
+class AjustesNegocioBody(BaseModel):
+    valor_uf: Decimal = Field(gt=0, max_digits=12, decimal_places=2)
+    uf_vigente_desde: date
+    uf_fuente: str = Field(min_length=1, max_length=120)
+    cac_clp: Decimal = Field(ge=0, max_digits=14, decimal_places=2)
+    margen_bruto_pct: Decimal = Field(
+        ge=0, le=100, max_digits=5, decimal_places=2)
+    objetivo_churn_pct: Decimal = Field(
+        ge=0, le=100, max_digits=5, decimal_places=2)
+    motivo: str = Field(min_length=12, max_length=240)
+
+
+@router.get("/ajustes-negocio")
+def obtener_ajustes_negocio(
+        resp: Response, db: Session = Depends(get_db)):
+    resp.headers["Cache-Control"] = "private, no-store"
+    return _ajustes_negocio_out(_ajustes_negocio(db))
+
+
+@router.patch("/ajustes-negocio")
+def actualizar_ajustes_negocio(
+        body: AjustesNegocioBody,
+        db: Session = Depends(get_db),
+        user: User = Depends(get_current_user)):
+    motivo = " ".join(body.motivo.split())
+    fuente = " ".join(body.uf_fuente.split())
+    if len(motivo) < 12:
+        raise err(422, "MOTIVO_REQUERIDO",
+                  "Indique un motivo de al menos 12 caracteres")
+    if not fuente:
+        raise err(422, "FUENTE_UF_REQUERIDA",
+                  "Indique la fuente o referencia del valor UF")
+    if body.uf_vigente_desde > date.today():
+        raise err(422, "VIGENCIA_UF_FUTURA",
+                  "La fecha de vigencia no puede ser futura")
+
+    ajustes = _ajustes_negocio(db)
+    anterior = _ajustes_negocio_out(ajustes)
+    nuevo = {
+        "valor_uf": str(body.valor_uf),
+        "uf_vigente_desde": body.uf_vigente_desde.isoformat(),
+        "uf_fuente": fuente,
+        "cac_clp": str(body.cac_clp),
+        "margen_bruto_pct": str(body.margen_bruto_pct),
+        "objetivo_churn_pct": str(body.objetivo_churn_pct),
+    }
+    ajustes.valor_uf = body.valor_uf
+    ajustes.uf_vigente_desde = body.uf_vigente_desde
+    ajustes.uf_fuente = fuente
+    ajustes.cac_clp = body.cac_clp
+    ajustes.margen_bruto_pct = body.margen_bruto_pct
+    ajustes.objetivo_churn_pct = body.objetivo_churn_pct
+    ajustes.updated_at = datetime.now(timezone.utc)
+    ajustes.updated_by = user.id
+    db.flush()
+    ops.auditar(
+        db, "actualizacion",
+        "Ajustes de negocio actualizados; "
+        f"antes={anterior}; despues={nuevo}; motivo: {motivo}",
+        user_id=user.id, entidad_tipo="ops_ajustes_negocio")
+    db.commit()
+    db.refresh(ajustes)
+    return _ajustes_negocio_out(ajustes)
 
 
 def _auditar_confidencial(db: Session, user: User,
@@ -181,7 +269,6 @@ def usuarios_resumen(resp: Response,
                  .order_by(MetricasMensuales.mes))]
     serie.append({"mes": mes_actual.strftime("%Y-%m"), "usuarios_totales": totales})
 
-    _cache(resp)
     return {
         "generado_at": datetime.now(timezone.utc).isoformat(),
         "ventana_dias": ventana_dias,
@@ -383,10 +470,11 @@ def cliente_detalle(company_id: uuid.UUID, resp: Response,
                       .where(Suscripcion.company_id == c.id)).first()
     mrr = None
     if susc and susc.estado == "activa":
+        ajustes = _ajustes_negocio(db)
         mrr = db.execute(text(
             "SELECT ops_precio_a_mrr_clp(:p, :m, :per, CAST(:uf AS NUMERIC))"),
             {"p": susc.plan.precio, "m": susc.plan.moneda,
-             "per": susc.plan.periodo, "uf": ops_settings.ops_valor_uf}).scalar()
+             "per": susc.plan.periodo, "uf": ajustes.valor_uf}).scalar()
 
     f = db.execute(text(
         "SELECT * FROM ops_usuarios_por_empresa(30) WHERE company_id = :cid"),
@@ -572,22 +660,25 @@ def procesos(resp: Response, componente: str | None = Query(None),
             "ultima_ejecucion": {
                 "run_id": ultimo.id, "status": ultimo.status,
                 "disparo": ultimo.disparo,
+                "created_at": ultimo.created_at.isoformat(),
                 "started_at": ultimo.started_at.isoformat()
                               if ultimo.started_at else None,
-                "duracion_s": int((ultimo.finished_at - ultimo.started_at)
-                                  .total_seconds())
-                              if ultimo.started_at and ultimo.finished_at else None,
+                "duracion_s": int(((ultimo.finished_at or datetime.now(timezone.utc))
+                                   - ultimo.started_at).total_seconds())
+                              if ultimo.started_at else None,
+                "progress_pct": ultimo.progress_pct,
+                "progress_mensaje": ultimo.progress_mensaje,
                 "items_procesados": ultimo.items_procesados,
                 "mensaje": ultimo.mensaje,
                 "es_demo": (ultimo.params or {}).get("origen") == "seed_demo",
             } if ultimo else None,
         })
-    _cache(resp)
+    resp.headers["Cache-Control"] = "private, no-store"
     return {"items": items}
 
 
 @router.get("/procesos/{clave}/ejecuciones")
-def ejecuciones(clave: str, p: Page = Depends(paginacion),
+def ejecuciones(clave: str, resp: Response, p: Page = Depends(paginacion),
                 status: str | None = Query(None),
                 desde: date | None = Query(None),
                 hasta: date | None = Query(None),
@@ -608,21 +699,25 @@ def ejecuciones(clave: str, p: Page = Depends(paginacion),
 
     total = db.scalar(select(func.count()).select_from(q.subquery())) or 0
     filas = db.scalars(q.options(joinedload(OpsJobRun.actor))
-                       .order_by(OpsJobRun.started_at.desc().nulls_last(),
-                                 OpsJobRun.id.desc())
+                       .order_by(OpsJobRun.created_at.desc(), OpsJobRun.id.desc())
                        .offset(p.offset).limit(p.page_size)).all()
+    ahora = datetime.now(timezone.utc)
     items = [{
         "run_id": r.id, "status": r.status, "disparo": r.disparo,
         "actor": {"user_id": str(r.actor.id), "email": r.actor.email}
                  if r.actor else None,
+        "created_at": r.created_at.isoformat(),
         "started_at": r.started_at.isoformat() if r.started_at else None,
         "finished_at": r.finished_at.isoformat() if r.finished_at else None,
-        "duracion_s": int((r.finished_at - r.started_at).total_seconds())
-                      if r.started_at and r.finished_at else None,
+        "duracion_s": int(((r.finished_at or ahora) - r.started_at).total_seconds())
+                      if r.started_at else None,
+        "progress_pct": r.progress_pct,
+        "progress_mensaje": r.progress_mensaje,
         "items_procesados": r.items_procesados,
         "es_demo": (r.params or {}).get("origen") == "seed_demo",
         "mensaje": r.mensaje, "error_detalle": r.error_detalle,
     } for r in filas]
+    resp.headers["Cache-Control"] = "private, no-store"
     return sobre(items, total, p)
 
 
@@ -862,11 +957,13 @@ def indicadores_resumen(resp: Response, mes: str | None = Query(None),
                         motivo: str | None = Query(None, max_length=240),
                         db: Session = Depends(get_db),
                         user: User = Depends(get_current_user)):
+    resp.headers["Cache-Control"] = "private, no-store"
     m = _mes_param(mes)
     fila, parcial = _metricas_de(db, m)
     if fila is None:
         raise err(404, "NO_ENCONTRADO", f"No hay snapshot del mes {mes}")
     _auditar_confidencial(db, user, motivo)
+    ajustes = _ajustes_negocio(db)
 
     prev = _snapshot(db, (m - timedelta(days=1)).replace(day=1))
     mrr = float(fila.mrr_clp)
@@ -882,17 +979,23 @@ def indicadores_resumen(resp: Response, mes: str | None = Query(None),
 
     ltv_cac = None
     payback = None
-    if ops_settings.ops_cac_clp > 0 and fila.clientes_activos:
+    ltv_cac_estado = "cac_no_configurado"
+    if ajustes.cac_clp > 0:
+        ltv_cac_estado = "sin_clientes"
+    if ajustes.cac_clp > 0 and fila.clientes_activos:
         arpa = mrr / fila.clientes_activos
-        margen = ops_settings.ops_margen_bruto_pct / 100.0
+        margen = float(ajustes.margen_bruto_pct) / 100.0
         churn_ing = _num(fila.churn_ingresos_pct)
-        if churn_ing:
-            ltv = arpa * margen / (churn_ing / 100.0)
-            ltv_cac = round(ltv / ops_settings.ops_cac_clp, 1)
-        if arpa * margen > 0:
-            payback = round(ops_settings.ops_cac_clp / (arpa * margen), 1)
+        if margen > 0:
+            ltv_cac_estado = "sin_churn_ingresos"
+            if churn_ing is not None and churn_ing > 0:
+                ltv = arpa * margen / (churn_ing / 100.0)
+                ltv_cac = round(ltv / float(ajustes.cac_clp), 1)
+                ltv_cac_estado = "calculado"
+            payback = round(float(ajustes.cac_clp) / (arpa * margen), 1)
+        else:
+            ltv_cac_estado = "sin_margen"
 
-    _cache(resp)
     return {
         "mes": m.strftime("%Y-%m"), "parcial": parcial, "moneda": "CLP",
         "valor_uf": float(fila.valor_uf),
@@ -902,10 +1005,11 @@ def indicadores_resumen(resp: Response, mes: str | None = Query(None),
                   "ingresos_pct": _num(fila.churn_ingresos_pct),
                   "delta_trimestre_pts": delta_trim},
         "nrr_pct": _num(fila.nrr_pct),
-        "ltv_cac": {"valor": ltv_cac, "payback_meses": payback}
-                   if ltv_cac is not None else None,
+        "ltv_cac": {"valor": ltv_cac, "payback_meses": payback,
+                    "estado": ltv_cac_estado}
+                   if ajustes.cac_clp > 0 else None,
         "clientes_activos": fila.clientes_activos,
-        "objetivo_churn_pct": ops_settings.ops_objetivo_churn_pct,
+        "objetivo_churn_pct": float(ajustes.objetivo_churn_pct),
     }
 
 
@@ -953,13 +1057,14 @@ def clientes_flujo(resp: Response, meses: int = Query(12, ge=1, le=36),
 @router.get("/indicadores/churn")
 def indicadores_churn(resp: Response, meses: int = Query(12, ge=1, le=36),
                       db: Session = Depends(get_db)):
+    ajustes = _ajustes_negocio(db)
     items = [{
         "mes": m.strftime("%Y-%m"),
         "churn_clientes_pct": _num(f.churn_clientes_pct),
         "churn_ingresos_pct": _num(f.churn_ingresos_pct), "parcial": parcial,
     } for m, f, parcial in _serie_mensual(db, meses)]
     _cache(resp)
-    return {"objetivo_pct": ops_settings.ops_objetivo_churn_pct, "items": items}
+    return {"objetivo_pct": float(ajustes.objetivo_churn_pct), "items": items}
 
 
 @router.get("/indicadores/por-plan")
@@ -970,9 +1075,10 @@ def indicadores_por_plan(resp: Response, mes: str | None = Query(None),
     _auditar_confidencial(db, user)
 
     if _es_mes_actual(m):
+        ajustes = _ajustes_negocio(db)
         filas = db.execute(text(
             "SELECT * FROM ops_calc_metricas_plan(:m, CAST(:uf AS NUMERIC))"),
-            {"m": m, "uf": ops_settings.ops_valor_uf}).all()
+            {"m": m, "uf": ajustes.valor_uf}).all()
         parcial = True
     else:
         filas = db.execute(

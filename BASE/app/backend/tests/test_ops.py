@@ -11,7 +11,8 @@ from __future__ import annotations
 
 import json
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
+from threading import Event, Thread
 
 import pytest
 
@@ -708,6 +709,66 @@ def test_ejecutar_manual_y_409_en_ejecucion(app_cliente, admin, motor_admin):
         c.commit()
 
 
+def test_historial_muestra_run_encolado_y_progreso_en_vivo(
+        app_cliente, admin, monkeypatch):
+    from app.models_ops import OpsJob
+    from app.services import ops
+
+    iniciado = Event()
+    continuar = Event()
+
+    def runner_con_progreso(_db, _progress=None, **_):
+        _progress(42, "Sondeo 2 de 5")
+        iniciado.set()
+        if not continuar.wait(timeout=10):
+            raise TimeoutError("La prueba no liberó el runner")
+        return 5, "5 componentes sondeados"
+
+    monkeypatch.setitem(ops.OPS_RUNNERS, "ops_heartbeat", runner_con_progreso)
+    with worker_session(is_admin=True) as db:
+        job = db.get(OpsJob, "ops_heartbeat")
+        run = ops.crear_run(db, job, disparo="manual")
+        db.commit()
+        run_id = run.id
+
+    ruta_historial = f"{API}/admin/ops/procesos/ops_heartbeat/ejecuciones"
+    encolado = app_cliente.get(ruta_historial, headers=admin["headers"])
+    assert encolado.headers["cache-control"] == "private, no-store"
+    run_encolado = next(r for r in encolado.json()["items"]
+                        if r["run_id"] == run_id)
+    assert run_encolado["status"] == "queued"
+    assert run_encolado["created_at"]
+
+    hilo = Thread(target=ops.ejecutar_run, args=(run_id,), daemon=True)
+    hilo.start()
+    try:
+        assert iniciado.wait(timeout=5), "El runner no reportó progreso"
+        actualizado = app_cliente.get(ruta_historial, headers=admin["headers"])
+        run_activo = next(r for r in actualizado.json()["items"]
+                          if r["run_id"] == run_id)
+        assert run_activo["status"] == "running"
+        assert run_activo["progress_pct"] == 42
+        assert run_activo["progress_mensaje"] == "Sondeo 2 de 5"
+
+        procesos = app_cliente.get(
+            f"{API}/admin/ops/procesos", headers=admin["headers"])
+        assert procesos.headers["cache-control"] == "private, no-store"
+        ultima = next(p for p in procesos.json()["items"]
+                      if p["clave"] == "ops_heartbeat")["ultima_ejecucion"]
+        assert ultima["run_id"] == run_id
+        assert ultima["progress_pct"] == 42
+    finally:
+        continuar.set()
+        hilo.join(timeout=10)
+    assert not hilo.is_alive()
+
+    terminada = app_cliente.get(ruta_historial, headers=admin["headers"])
+    run_final = next(r for r in terminada.json()["items"]
+                     if r["run_id"] == run_id)
+    assert run_final["status"] == "ok"
+    assert run_final["progress_pct"] == 100
+
+
 def test_ejecutar_job_desconocido(app_cliente, admin):
     r = app_cliente.post(f"{API}/admin/ops/procesos/nada/ejecutar",
                          headers=admin["headers"], json={})
@@ -810,6 +871,24 @@ def test_indicadores_resumen_en_vivo(app_cliente, admin, suscripcion_a):
     assert d["objetivo_churn_pct"] == 2.0
     # Sin CAC configurado no se inventa un LTV/CAC.
     assert d["ltv_cac"] is None
+
+    ajustes = app_cliente.patch(
+        f"{API}/admin/ajustes-negocio", headers=admin["headers"],
+        json={
+            "valor_uf": 39000,
+            "uf_vigente_desde": date.today().isoformat(),
+            "uf_fuente": "Prueba",
+            "cac_clp": 500000,
+            "margen_bruto_pct": 80,
+            "objetivo_churn_pct": 2,
+            "motivo": "Prueba de actualización CAC",
+        })
+    assert ajustes.status_code == 200, ajustes.text
+    r = app_cliente.get(f"{API}/admin/ops/indicadores/resumen",
+                        headers=admin["headers"])
+    assert r.status_code == 200, r.text
+    assert r.headers["cache-control"] == "private, no-store"
+    assert r.json()["ltv_cac"]["payback_meses"] > 0
 
 
 def test_indicadores_mes_futuro(app_cliente, admin):

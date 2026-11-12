@@ -218,8 +218,10 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def create_backup(*, reason: str = "programado") -> dict:
+def create_backup(*, reason: str = "programado", progreso=None) -> dict:
     """Crea un pg_dump + copia local de archivos y cifra el paquete completo."""
+    if progreso:
+        progreso(5, "Validando destino y configuración del respaldo")
     if settings.storage_backend != "local":
         raise BackupError("El respaldo integrado solo admite STORAGE_BACKEND=local")
     _key()
@@ -247,6 +249,8 @@ def create_backup(*, reason: str = "programado") -> dict:
                 raise BackupError(f"No se pudo ejecutar pg_dump: {exc}") from exc
         if result.returncode:
             raise BackupError(f"No se pudo respaldar PostgreSQL: {result.stderr.decode(errors='replace')[-2000:]}")
+        if progreso:
+            progreso(35, "Base de datos respaldada")
         manifest = {
             "format": _FORMAT,
             "id": backup_id,
@@ -255,6 +259,8 @@ def create_backup(*, reason: str = "programado") -> dict:
             "reason": reason[:120],
             "database_dump_sha256": _sha256(dump_path),
         }
+        if progreso:
+            progreso(50, "Integridad del respaldo verificada")
         manifest_path = work / "manifest.json"
         manifest_path.write_text(json.dumps(manifest, ensure_ascii=False), encoding="utf-8")
         archive_path = work / "package.tar.gz"
@@ -262,12 +268,16 @@ def create_backup(*, reason: str = "programado") -> dict:
             archive.add(dump_path, arcname="database.dump")
             archive.add(manifest_path, arcname="manifest.json")
             file_count = _add_uploads(archive)
+        if progreso:
+            progreso(70, f"Empaquetando archivos: {file_count} incluidos")
         try:
             _encrypt(archive_path, temporary_path)
             os.replace(temporary_path, encrypted_path)
         except Exception:
             temporary_path.unlink(missing_ok=True)
             raise
+        if progreso:
+            progreso(90, "Respaldo cifrado y publicado")
     summary = {
         "id": backup_id, "file": filename, "created_at": created.isoformat(),
         "schema_version": settings.schema_version_esperada,
@@ -285,6 +295,8 @@ def create_backup(*, reason: str = "programado") -> dict:
         encrypted_path.unlink(missing_ok=True)
         raise
     _prune_backups(root, int(settings.backup_retention_count))
+    if progreso:
+        progreso(98, "Metadatos guardados y retención aplicada")
     return summary
 
 

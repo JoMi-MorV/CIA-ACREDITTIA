@@ -107,6 +107,7 @@ export type Usuario = {
   contrato: ContratoResumen | null;
   last_login_at: string | null;
   company: EmpresaResumen | null;
+  email_pendiente?: string | null;
 };
 
 export type Sesion = {
@@ -125,6 +126,7 @@ export type Tokens = {
 export type PerfilActualizado = Usuario & {
   cambios: string[];
   sesiones_cerradas: number;
+  email_confirmacion_enviada?: boolean;
 };
 
 /** En producción `_dev_token` NO aparece: no se puede depender de él. */

@@ -1,6 +1,6 @@
 "use client";
 /** Piezas de interfaz de la consola: tarjetas, KPI, pills, controles. */
-import { useEffect, useId, useState } from "react";
+import { useCallback, useEffect, useId, useState } from "react";
 import { useI18n, LANGS } from "@/lib/ops/i18n";
 import { useTema } from "@/lib/ops/theme";
 
@@ -222,7 +222,7 @@ export function useOps<T>(pedir: () => Promise<T>, deps: unknown[] = []) {
   const [tick, setTick] = useState(0);
   useEffect(() => {
     let vivo = true;
-    setCargando(true);
+    if (data === null) setCargando(true);
     setError(null);
     pedir().then((d) => { if (vivo) setData(d); })
       .catch((e) => { if (vivo) setError(e?.message ?? "Error"); })
@@ -230,5 +230,6 @@ export function useOps<T>(pedir: () => Promise<T>, deps: unknown[] = []) {
     return () => { vivo = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [...deps, tick]);
-  return { data, cargando, error, recargar: () => setTick((x) => x + 1) };
+  const recargar = useCallback(() => setTick((x) => x + 1), []);
+  return { data, cargando, error, recargar };
 }

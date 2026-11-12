@@ -37,7 +37,12 @@ function qs(params?: Query): string {
   return s ? `?${s}` : "";
 }
 
-type Opts = { method?: "GET" | "POST" | "PATCH" | "DELETE"; body?: unknown; query?: Query };
+type Opts = {
+  method?: "GET" | "POST" | "PATCH" | "DELETE";
+  body?: unknown;
+  query?: Query;
+  cache?: RequestCache;
+};
 
 export async function opsApi<T = any>(
   path: string, opts: Opts = {}, reintento = true,
@@ -55,6 +60,7 @@ export async function opsApi<T = any>(
     res = await fetch(`${BASE}/api/v1/admin${path}${qs(opts.query)}`, {
       method, headers,
       body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
+      cache: opts.cache,
     });
   } catch {
     throw new OpsApiError("SIN_CONEXION",

@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timezone
+from typing import Callable
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
@@ -95,7 +96,9 @@ def _mismo_minuto(a: datetime, b: datetime) -> bool:
     )
 
 
-def disparar_pendientes(db: Session, momento: datetime | None = None) -> int:
+def disparar_pendientes(
+        db: Session, momento: datetime | None = None,
+        progreso: Callable[[int, str], None] | None = None) -> int:
     """Encola los reportes programados cuyo cron coincide con el minuto actual.
 
     El beat consulta cada minuto. El antirrebote evita duplicados de ese mismo
@@ -108,9 +111,13 @@ def disparar_pendientes(db: Session, momento: datetime | None = None) -> int:
         ahora = ahora.astimezone(ZONA_HORARIA)
     disparados = 0
 
-    for p in db.scalars(
-            select(ReporteProgramado).where(ReporteProgramado.activo)
-            .with_for_update()):
+    programados = db.scalars(
+        select(ReporteProgramado).where(ReporteProgramado.activo)
+        .with_for_update()).all()
+    total = len(programados)
+    if not total and progreso:
+        progreso(100, "No hay reportes programados activos")
+    for indice, p in enumerate(programados, start=1):
         if p.ultimo_run_at and _mismo_minuto(p.ultimo_run_at, ahora):
             continue
         if not cron_coincide(p.cron_expr, ahora):
@@ -131,5 +138,10 @@ def disparar_pendientes(db: Session, momento: datetime | None = None) -> int:
                 company_id=str(p.company_id))
         disparados += 1
         log.info("Reporte programado %s encolado como %s", p.id, reporte.id)
+        if progreso:
+            progreso(round(indice * 100 / total),
+                     f"Revisando programación {indice} de {total}")
+    if progreso and total:
+        progreso(100, f"Revisadas {total} programaciones")
 
     return disparados

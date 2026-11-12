@@ -21,7 +21,7 @@ from datetime import date, datetime, timedelta, timezone
 
 from sqlalchemy import text
 
-from app.config_ops import COMPONENTES, ops_settings
+from app.config_ops import COMPONENTES
 from app.services import ops
 from app.services.jobs import tarea
 from app.services.ops_probes import SONDAS
@@ -52,18 +52,22 @@ def ops_ejecutar_run(run_id: int) -> None:
 # del ciclo de vida del run y devuelve (items_procesados, mensaje).
 # ============================================================================
 @ops.runner("ops_heartbeat")
-def run_heartbeat(db, **_):
+def run_heartbeat(db, _progress=None, **_):
     """Sondea los componentes, guarda los latidos y evalúa incidentes."""
-    for componente in COMPONENTES:
+    total = len(COMPONENTES)
+    for indice, componente in enumerate(COMPONENTES, start=1):
         estado, metricas = SONDAS[componente](db)
         ops.guardar_latido(componente, estado, metricas)
         ops.evaluar_incidentes(db, componente)
+        if _progress:
+            _progress(round(indice * 100 / total),
+                      f"Componente {indice} de {total}: {componente}")
     db.commit()
     return len(COMPONENTES), f"{len(COMPONENTES)} componentes sondeados"
 
 
 @ops.runner("ops_disponibilidad")
-def run_disponibilidad(db, fecha: str | None = None, **_):
+def run_disponibilidad(db, fecha: str | None = None, _progress=None, **_):
     """Consolida los latidos del día ANTERIOR en ops_disponibilidad_diaria.
 
     Con params {"fecha": "YYYY-MM-DD"} consolida ese día (re-cálculo manual).
@@ -73,69 +77,89 @@ def run_disponibilidad(db, fecha: str | None = None, **_):
     objetivo = (date.fromisoformat(fecha) if fecha
                 else date.today() - timedelta(days=1))
     n = 0
-    for componente in COMPONENTES:
+    total = len(COMPONENTES)
+    for indice, componente in enumerate(COMPONENTES, start=1):
         latidos = [h for h in ops.historia_latidos(componente, 1440)
                    if datetime.fromisoformat(h["ts"]).date() == objetivo]
-        if not latidos:
-            continue        # sin telemetría de ese día: no se inventa una fila
-        total = len(latidos)
-        caidos = sum(1 for x in latidos if x["estado"] == "caido")
-        peor = max(latidos, key=lambda x: ops.PESO_ESTADO[x["estado"]])["estado"]
-        p95s = sorted(x["metricas"].get("latencia_p95_ms") for x in latidos
-                      if x["metricas"].get("latencia_p95_ms") is not None)
-        db.execute(text(
-            "SELECT ops_upsert_disponibilidad(" 
-            "CAST(:c AS text), CAST(:f AS date), "
-            "CAST(:e AS ops_comp_estado), CAST(:u AS numeric), "
-            "CAST(:p AS integer), CAST(:t AS integer), CAST(:x AS integer))"), {
-            "c": componente, "f": objetivo, "e": peor,
-            "u": round(100.0 * (total - caidos) / total, 2),
-            "p": p95s[int(len(p95s) * 0.95) - 1] if p95s else None,
-            "t": total, "x": caidos,
-        })
-        n += 1
+        if latidos:
+            checks = len(latidos)
+            caidos = sum(1 for x in latidos if x["estado"] == "caido")
+            peor = max(latidos, key=lambda x: ops.PESO_ESTADO[x["estado"]])["estado"]
+            p95s = sorted(x["metricas"].get("latencia_p95_ms") for x in latidos
+                          if x["metricas"].get("latencia_p95_ms") is not None)
+            db.execute(text(
+                "SELECT ops_upsert_disponibilidad("
+                "CAST(:c AS text), CAST(:f AS date), "
+                "CAST(:e AS ops_comp_estado), CAST(:u AS numeric), "
+                "CAST(:p AS integer), CAST(:t AS integer), CAST(:x AS integer))"), {
+                "c": componente, "f": objetivo, "e": peor,
+                "u": round(100.0 * (checks - caidos) / checks, 2),
+                "p": p95s[int(len(p95s) * 0.95) - 1] if p95s else None,
+                "t": checks, "x": caidos,
+            })
+            n += 1
+        if _progress:
+            _progress(round(indice * 100 / total),
+                      f"Componente {indice} de {total}: {componente}")
     db.commit()
     return n, f"Disponibilidad de {objetivo.isoformat()} consolidada ({n} componentes)"
 
 
 @ops.runner("metricas_snapshot")
-def run_metricas_snapshot(db, mes: str | None = None, forzar: bool = False, **_):
+def run_metricas_snapshot(db, mes: str | None = None, forzar: bool = False,
+                          _progress=None, **_):
     """Snapshot del mes en curso; el día 1 consolida además el mes anterior.
 
     Con params {"mes": "YYYY-MM"} recalcula ese mes (forzar=true si estaba
     cerrado; queda auditado porque la ejecución manual registra actor).
     """
-    uf = ops_settings.ops_valor_uf
+    uf = db.execute(text(
+        "SELECT valor_uf FROM ops_ajustes_negocio WHERE id = true"
+    )).scalar_one()
     if mes:
         objetivo = date(int(mes[:4]), int(mes[5:7]), 1)
+        if _progress:
+            _progress(10, f"Preparando snapshot de {mes}")
         db.execute(text(
             # ops_valor_uf llega desde Python como float; la función SQL exige numeric.
             "SELECT ops_snapshot_metricas(:m, CAST(:uf AS NUMERIC), true, :fz)"),
             {"m": objetivo, "uf": uf, "fz": forzar})
         db.commit()
+        if _progress:
+            _progress(90, f"Snapshot de {mes} calculado")
         return 1, f"Snapshot de {mes} recalculado"
 
     hoy = date.today()
     n = 0
     if hoy.day == 1:
+        if _progress:
+            _progress(10, "Consolidando el mes anterior")
         anterior = (hoy - timedelta(days=1)).replace(day=1)
         db.execute(text(
             # El casteo evita que psycopg envíe la UF como double precision.
             "SELECT ops_snapshot_metricas(:m, CAST(:uf AS NUMERIC), true, false)"),
                    {"m": anterior, "uf": uf})
         n += 1
+    if _progress:
+        _progress(50 if hoy.day == 1 else 10, "Calculando snapshot del mes actual")
     db.execute(text(
         # Mantener el mismo tipo numeric en el snapshot del mes en curso.
         "SELECT ops_snapshot_metricas(:m, CAST(:uf AS NUMERIC), false, false)"),
                {"m": hoy.replace(day=1), "uf": uf})
     db.commit()
+    if _progress:
+        _progress(90, "Snapshot mensual guardado")
     return n + 1, f"Snapshot del mes en curso actualizado (UF {uf})"
 
 
 @ops.runner("ops_retencion")
-def run_retencion(db, **_):
+def run_retencion(db, _progress=None, **_):
+    if _progress:
+        _progress(10, "Aplicando política de retención")
     fila = db.execute(text("SELECT * FROM ops_podar_privacidad()")).one()
     db.commit()
+    if _progress:
+        _progress(90, "Consolidando resultados de retención")
     total = sum((fila.actividad_podada, fila.bitacora_podada,
                  fila.runs_podados, fila.incidentes_podados,
                  fila.disponibilidad_podada, fila.metricas_podadas))
@@ -148,40 +172,50 @@ def run_retencion(db, **_):
 
 # --- Jobs de negocio existentes, expuestos en la consola --------------------
 @ops.runner("vencimientos")
-def run_vencimientos(db, **_):
+def run_vencimientos(db, _progress=None, **_):
     """Mismo trabajo que acredittia.cron_diario, expuesto y reintetable."""
     from app.services.vencimientos import (escribir_snapshots,
                                            expirar_credenciales,
                                            recalcular_documentos)
     docs = recalcular_documentos(db)
+    if _progress:
+        _progress(33, "Documentos recalculados")
     snaps = escribir_snapshots(db)
+    if _progress:
+        _progress(66, "Snapshots de cumplimiento guardados")
     creds = expirar_credenciales(db)
     db.commit()
+    if _progress:
+        _progress(90, "Credenciales expiradas y cambios guardados")
     return docs, (f"{docs} documentos recalculados, {snaps} snapshots, "
                   f"{creds} credenciales expiradas")
 
 
 @ops.runner("reportes_programados")
-def run_reportes_programados(db, **_):
+def run_reportes_programados(db, _progress=None, **_):
     from app.services.programados import disparar_pendientes
-    n = disparar_pendientes(db)
+    n = disparar_pendientes(db, progreso=_progress)
     db.commit()
     return n, f"{n} reportes programados disparados"
 
 
 @ops.runner("purga_temporales")
-def run_purga_temporales(db, **_):
+def run_purga_temporales(db, _progress=None, **_):
     from app.services.tasks import purgar_temporales
+    if _progress:
+        _progress(10, "Buscando archivos temporales vencidos")
     n = purgar_temporales()
+    if _progress:
+        _progress(90, f"Purga completada: {n} archivos eliminados")
     return n, f"{n} blobs temporales purgados"
 
 
 @ops.runner("admin_backup")
-def run_admin_backup(db, **_):
+def run_admin_backup(db, _progress=None, **_):
     """Genera y cifra el respaldo PostgreSQL + Storage local."""
     from app.services.backups import create_backup
 
-    backup = create_backup(reason="programado")
+    backup = create_backup(reason="programado", progreso=_progress)
     return 1, (f"Respaldo {backup['id']} creado; "
                f"{backup['files']} archivos incluidos")
 

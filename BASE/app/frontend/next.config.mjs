@@ -16,6 +16,10 @@ const nextConfig = {
 				destination: "/ops/indicadores",
 			},
 			{
+				source: "/admin/ajustes-negocio",
+				destination: "/ops/ajustes-negocio",
+			},
+			{
 				source: "/api/:path*",
 				destination: "http://api:8000/api/:path*",
 			},

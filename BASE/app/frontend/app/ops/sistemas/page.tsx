@@ -3,7 +3,7 @@
  * Vista Sistemas: banner global, tarjetas por componente, disponibilidad 90d,
  * incidentes (con acción Resolver) y procesos (Ejecutar / Pausar con motivo).
  */
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { UptimeStrip } from "@/components/ops/charts";
 import { Card, CardHead, Estado, InfoButton, Legend, Modal, Pill, useOps } from "@/components/ops/ui";
 import { opsApi } from "@/lib/ops/api";
@@ -28,7 +28,7 @@ const INFO_EJECUCION_MANUAL: Record<string, { titulo: string; descripcion: strin
 export default function SistemasPage() {
   const { t, fmtN, locale } = useI18n();
   const estado = useOps(() => opsApi("/sistemas/estado"), []);
-  const procesos = useOps(() => opsApi("/procesos"), []);
+  const procesos = useOps(() => opsApi("/procesos", { cache: "no-store" }), []);
   const incidentes = useOps(() => opsApi("/incidentes", { query: { page_size: 10 } }), []);
 
   const [aviso, setAviso] = useState<string | null>(null);
@@ -46,11 +46,10 @@ export default function SistemasPage() {
   );
 
   useEffect(() => {
-    if (!hayEjecucionesPendientes) return;
     const timer = window.setInterval(() => {
       procesos.recargar();
       estado.recargar();
-    }, 4000);
+    }, hayEjecucionesPendientes ? 2500 : 10000);
     return () => window.clearInterval(timer);
   }, [estado.recargar, hayEjecucionesPendientes, procesos.recargar]);
 
@@ -274,7 +273,8 @@ export default function SistemasPage() {
                     : ult.status === "running" || ult.status === "queued" ? "mut"
                     : "crit";
                   return (
-                    <tr key={p.clave} style={p.activo ? undefined : { opacity: .6 }}>
+                    <Fragment key={p.clave}>
+                    <tr style={p.activo ? undefined : { opacity: .6 }}>
                       <td className="font-semibold">
                         {p.nombre}
                         {!p.activo && (
@@ -284,7 +284,7 @@ export default function SistemasPage() {
                       <td style={{ color: "var(--ops-mut)" }}>
                         {p.tipo === "continuo" ? t("job.continuo") : p.cron_expr}
                       </td>
-                      <td>{ult ? `${fechaDe(ult.started_at)} ${horaDe(ult.started_at)}` : "—"}</td>
+                      <td>{ult ? `${fechaDe(ult.started_at ?? ult.created_at)} ${horaDe(ult.started_at ?? ult.created_at)}` : "—"}</td>
                       <td className="num">
                         {ult?.duracion_s != null
                           ? `${Math.floor(ult.duracion_s / 60)} m ${ult.duracion_s % 60} s` : "—"}
@@ -294,6 +294,12 @@ export default function SistemasPage() {
                           {ult ? (p.tipo === "continuo" && ult.status === "ok"
                             ? t("job.operando") : t(`job.${ult.status}`)) : "—"}
                         </Pill>
+                        {ejecutando && (
+                          <ProgresoEjecucion
+                            porcentaje={ult.progress_pct}
+                            mensaje={ult.progress_mensaje}
+                            enCola={ult.status === "queued"} />
+                        )}
                         {ult?.es_demo && (
                           <span className="ml-2"><Pill tono="warn">Demostración</Pill></span>
                         )}
@@ -334,16 +340,17 @@ export default function SistemasPage() {
                         </div>
                       </td>
                     </tr>
+                    {historialAbierto === p.clave && <tr>
+                      <td id={`historial-${p.clave}`} colSpan={6} className="px-3 py-4"
+                        style={{ background: "var(--ops-line-soft)" }}>
+                        <HistorialEjecuciones clave={p.clave}
+                          hayEjecucionesPendientes={hayEjecucionesPendientes} />
+                      </td>
+                    </tr>
+                    }
+                    </Fragment>
                   );
                 })}
-                {(procesos.data?.items ?? []).map((p: any) => historialAbierto === p.clave && (
-                  <tr key={`historial-${p.clave}`}>
-                    <td id={`historial-${p.clave}`} colSpan={6} className="px-3 py-4"
-                      style={{ background: "var(--ops-line-soft)" }}>
-                      <HistorialEjecuciones clave={p.clave} />
-                    </td>
-                  </tr>
-                ))}
               </tbody>
             </table>
           </div>
@@ -386,6 +393,7 @@ type Ejecucion = {
   status: string;
   disparo: string;
   actor: { user_id: string; email: string } | null;
+  created_at: string;
   started_at: string | null;
   finished_at: string | null;
   duracion_s: number | null;
@@ -393,6 +401,8 @@ type Ejecucion = {
   es_demo?: boolean;
   mensaje: string | null;
   error_detalle: string | null;
+  progress_pct: number | null;
+  progress_mensaje: string | null;
 };
 
 type PaginaEjecuciones = {
@@ -403,13 +413,21 @@ type PaginaEjecuciones = {
   total_pages: number;
 };
 
-function HistorialEjecuciones({ clave }: { clave: string }) {
+function HistorialEjecuciones({ clave, hayEjecucionesPendientes }: {
+  clave: string; hayEjecucionesPendientes: boolean;
+}) {
   const [pagina, setPagina] = useState(1);
   const [status, setStatus] = useState("");
   const historial = useOps<PaginaEjecuciones>(() => opsApi(
     `/procesos/${clave}/ejecuciones`,
-    { query: { page: pagina, page_size: TAMANO_HISTORIAL, status: status || undefined } },
+    { query: { page: pagina, page_size: TAMANO_HISTORIAL, status: status || undefined },
+      cache: "no-store" },
   ), [clave, pagina, status]);
+  useEffect(() => {
+    if (!hayEjecucionesPendientes) return;
+    const timer = window.setInterval(historial.recargar, 2500);
+    return () => window.clearInterval(timer);
+  }, [hayEjecucionesPendientes, historial.recargar]);
   const fecha = (valor: string | null) => valor
     ? new Date(valor).toLocaleString("es-CL") : "—";
 
@@ -443,12 +461,17 @@ function HistorialEjecuciones({ clave }: { clave: string }) {
             <tbody>
               {historial.data.items.map((run) => (
                 <tr key={run.run_id}>
-                  <td>{fecha(run.started_at)}</td>
+                  <td>{fecha(run.started_at ?? run.created_at)}</td>
                   <td><Pill tono={run.status === "ok" ? "ok"
                     : run.status === "queued" || run.status === "running" ? "mut" : "crit"}>
                     {run.status}
                   </Pill>
                     {run.es_demo && <span className="ml-2"><Pill tono="warn">Demostración</Pill></span>}
+                    {(run.status === "queued" || run.status === "running") && (
+                      <ProgresoEjecucion porcentaje={run.progress_pct}
+                        mensaje={run.progress_mensaje}
+                        enCola={run.status === "queued"} />
+                    )}
                   </td>
                   <td>{run.disparo}</td>
                   <td>{run.actor?.email ?? "Sistema"}</td>
@@ -486,6 +509,42 @@ function HistorialEjecuciones({ clave }: { clave: string }) {
       </>}
     </Estado>
   </section>;
+}
+
+function ProgresoEjecucion({ porcentaje, mensaje, enCola }: {
+  porcentaje: number | null | undefined;
+  mensaje: string | null | undefined;
+  enCola: boolean;
+}) {
+  const { t } = useI18n();
+  const progresoConocido = !enCola && porcentaje != null;
+  const valor = progresoConocido ? Math.min(99, Math.max(0, porcentaje)) : null;
+  return (
+    <div className="mt-2 min-w-40 max-w-xs space-y-1.5">
+      <div className="flex items-center justify-between gap-3 text-[11px]"
+        style={{ color: "var(--ops-mut)" }}>
+        <span>{enCola ? t("job.esperando_worker")
+          : mensaje || t("job.progreso_indeterminado")}</span>
+        {valor != null && <span className="shrink-0 font-semibold tabular-nums">{valor}%</span>}
+      </div>
+      <div role="progressbar"
+        aria-label={t("job.progreso")}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={valor ?? undefined}
+        aria-valuetext={valor == null ? mensaje || t("job.progreso_indeterminado")
+          : `${valor}%: ${mensaje || ""}`}
+        className="h-1.5 overflow-hidden rounded-full"
+        style={{ background: "var(--ops-line)" }}>
+        <div className={`h-full rounded-full ${valor == null ? "w-2/5 animate-pulse" : ""}`}
+          style={{
+            width: valor == null ? undefined : `${valor}%`,
+            background: "var(--ops-accent)",
+            transition: "width 300ms ease",
+          }} />
+      </div>
+    </div>
+  );
 }
 
 /** Fila de la tarjeta de disponibilidad: nombre + tira 90d + % del rango. */

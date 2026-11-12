@@ -1,7 +1,7 @@
 # Resumen de requisitos ADMIN
 
-**Corte ADMIN:** 10 de noviembre de 2026  
-**Base documental:** SRS versión 0.74, GAP, `VALIDACION_ACTUAL.md` y el [cronograma de cierre de 2 semanas](CRONOGRAMA_CIERRE_PRODUCCION.md).
+**Corte ADMIN:** 12 de noviembre de 2026  
+**Base documental:** SRS versión 0.85, GAP, `VALIDACION_ACTUAL.md` y el [cronograma de cierre de 2 semanas](CRONOGRAMA_CIERRE_PRODUCCION.md).
 **Propósito:** resumir el estado técnico de las ocho prioridades ADMIN, distinguir lo implementado de lo validado y proponer criterios concretos para revisar su cierre.
 
 Este documento es una guía de revisión, no una aceptación contractual ni una certificación de producción. Los estados reflejan los requisitos y la evidencia descritos en el [SRS](SRS.md) y en [VALIDACION_ACTUAL.md](VALIDACION_ACTUAL.md). `IV` significa implementado y validado dentro del alcance probado; `ISV`, implementado sin validación completa; `PAR`, parcial; `COR`, requiere corrección; y `PEN`, pendiente. Los porcentajes estimados del SRS no equivalen a porcentaje de cumplimiento validado.
@@ -13,9 +13,12 @@ Celery, sondas locales, el módulo inicial de respaldos/exportaciones ADMIN y
 cinco regresiones focalizadas de sondas y umbrales. El corte del 10-11-2026
 registra RF-BUS-01 al 100% (IV) por confirmación manual del usuario y RF-BUS-02
 al 100% (IV/P0) tras 83 pruebas focalizadas de autorización, alcance, ficha y
-exportación. El promedio de las ocho prioridades ADMIN es **77,1% (77%
-redondeado)** y la cobertura media de los 37 requisitos SRS es **78,1% (78%
-redondeado)**; RNF-REC-01 alcanza 100% para su ciclo funcional local.
+exportación. El corte del 12-11-2026 reevalúa RF-CLI-01 a 80% y RF-SAL-03 a
+95%, con pruebas focalizadas de autenticación/esquema y operaciones/esquema,
+respectivamente, y build frontend aprobado. El promedio de las ocho prioridades
+ADMIN es **77,3% (77% redondeado)** y la cobertura media de los 37 requisitos
+SRS es **78,9% (79% redondeado)**; RNF-REC-01 alcanza 100% para su ciclo
+funcional local.
 Ninguna cifra mide preparación productiva.
 
 La ampliación de Reportes del portal documentada el 14-10-2026 no forma parte
@@ -46,6 +49,14 @@ exportaciones probadas: 83 pruebas focalizadas aprobaron y el build frontend
 pasó. El listado administrativo independiente de usuarios continúa en RF-USU
 y no queda incluido en este cierre. No se realizó recorrido manual de navegador.
 
+El corte del 12-11-2026 eleva RF-CLI-01 de 75% a 80% por el cambio de correo
+confirmado y RF-SAL-03 de 90% a 95% por el seguimiento persistido y la
+actualización automática de procesos. La interfaz sin salto se contabiliza
+dentro de RF-SAL-03 y no se puntúa dos veces. SMTP real, recuperación completa
+de contraseña, trazabilidad integral y recuperación distribuida siguen
+pendientes. Las cifras son estimaciones de cobertura, no preparación para
+producción.
+
 ## Resumen ejecutivo
 
 | # | Prioridad | Avance estimado | Estado actual | En síntesis |
@@ -54,21 +65,23 @@ y no queda incluido en este cierre. No se realizó recorrido manual de navegador
 | 2 | Gestión global de empresas | **90%** | **IV en alcance verificado; rechazo/casos límite pendientes** — RF-EMP-01/02 | Tabla «Empresas (cuentas)» con industria y estado de cuenta; detalle de perfiles y responsables por contrato. Flujo normal de registro/aprobación verificado; falta validar rechazo y transiciones repetidas. |
 | 3 | Buscador global | **100%** | **RF-BUS-01 IV (100%); RF-BUS-02 IV/P0 (100%)** | Autorización por categoría, detalle directo y exportación ZIP con concesiones y alcance validados por pruebas focalizadas. El listado administrativo independiente de usuarios queda en RF-USU. |
 | 4 | Métricas SaaS | **60%** | **PAR** — RF-MET-01/02/03 | Hay métricas de clientes/usuarios, sesiones y series mensuales; baja actividad y uso/adopción aparecen en Salud. El tiempo de uso sigue siendo estimado y las revisiones de IA no equivalen necesariamente a documentos únicos. |
-| 5 | Alertas y salud de clientes | **82%** | **Mixto:** RF-SAL-01 **PAR**; RF-SAL-02 **ISV**; RF-SAL-03 **ISV** | Cinco regresiones cubren API inaccesible, heartbeat vencido/recuperación, umbral p95, Redis caído, worker ausente y profundidad de cola. Falta recuperación distribuida real, validar riesgos de clientes y totales/paginación. |
+| 5 | Alertas y salud de clientes | **83,3%** | **Mixto:** RF-SAL-01 **PAR**; RF-SAL-02 **ISV**; RF-SAL-03 **ISV** | Promedio de RF-SAL-01 (75%), RF-SAL-02 (80%) y RF-SAL-03 (95%). Seguimiento de procesos validado en pruebas focalizadas; continúan pendientes recuperación distribuida real, validar riesgos de clientes y totales/paginación. |
 | 6 | Usuarios, roles y permisos | **70%** | **PAR** — RF-USU-01/02 | El listado ADMIN pagina usuarios y los cambios de alcance invalidan sesiones. El portal permite convertir `company` en `contract_admin` si queda otro `company` activo; siguen pendientes invitación/aceptación de cuentas existentes, historial completo de acceso y validación integral. El porcentaje es el estimado histórico del 13-10. |
 | 7 | Auditoría y trazabilidad | **73,3%** | **PAR** — RF-AUD-01/02/03 | RF-AUD-01 está al 90%; el usuario confirmó revisión y registro de las mutaciones acordadas. Queda comprobar valores anterior/nuevo para permisos/estados y pausa de procesos. RF-AUD-02 registra autenticación, cierre y rotación. RF-AUD-03 conserva pendientes de integridad, retención y autorización/exportación. |
 | 8 | Seguridad y aislamiento | **67%** | **PAR** — RF-SEG-01/02/03, RNF-SEG-01 | Hay autorización, RLS y concesiones excepcionales temporales. Falta integrarlas en operaciones sensibles, validar credenciales reales y cerrar alcance contractual. |
 
 ### Estimación global del corte
 
-**Avance funcional ADMIN estimado: 77,1% (77% redondeado)**. Incluye la
+**Avance funcional ADMIN estimado: 77,3% (77% redondeado)**. Incluye la
 actualización de RF-BUS-01 y RF-BUS-02 al 100%, RF-SEG-03 al 65% y los
 avances documentados de salud, auditoría, privacidad, respaldos e integraciones. No hay
 ponderaciones acordadas por criticidad o esfuerzo. No es porcentaje de pruebas
 aprobadas, aceptación contractual ni preparación para producción.
 
 La cobertura estimada actual de los 37 requisitos (29 funcionales y 8 no funcionales)
-es **78,1% (78% redondeado)**. Este es el porcentaje de avance de código más
+es **78,9% (79% redondeado)** (`2918 / 37`). La suma anterior publicada
+(`2888`) no coincidía con los valores de las 37 fichas; al revertir solo las dos
+mejoras de este corte, la suma base es 2908 (78,6%). Este es el porcentaje de avance de código más
 amplio que se puede reportar con el inventario actual del SRS; no incluye una
 ponderación aprobada por esfuerzo ni convierte criterios pendientes en
 completados. No se asigna un porcentaje de «listo para producción con datos
@@ -77,7 +90,7 @@ categoría/recurso, auditoría integral y evidencia de aislamiento/mínimo
 privilegio en un entorno equivalente a producción.
 
 La nueva cifra combina estimaciones documentadas por requisito con evidencia
-de pruebas y ejecución local del 03-11-2026; no es una medición de líneas de
+de pruebas y ejecución local hasta el 12-11-2026; no es una medición de líneas de
 código ni una aceptación de extremo a extremo. Los porcentajes anteriores del
 GAP (75–80% general y 55–65% para producción) son históricos y no deben
 presentarse como estimación vigente.

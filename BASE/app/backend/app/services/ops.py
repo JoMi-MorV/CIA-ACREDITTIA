@@ -28,6 +28,7 @@ import time
 import traceback
 import uuid
 from datetime import datetime, timedelta, timezone
+from typing import Callable
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -273,6 +274,24 @@ def crear_run(db: Session, job: OpsJob, disparo: str = "cron",
     return run
 
 
+def reportar_progreso(run_id: int, porcentaje: int, mensaje: str) -> None:
+    """Publica progreso de una corrida en una transacción visible para el API."""
+    from ..database import worker_session
+
+    if not 0 <= porcentaje <= 100:
+        raise ValueError("El progreso debe estar entre 0 y 100")
+    texto = (mensaje or "").strip()
+    if not texto:
+        raise ValueError("El mensaje de progreso es obligatorio")
+    with worker_session(is_admin=True) as db:
+        run = db.get(OpsJobRun, run_id)
+        if run is None or run.status != "running":
+            raise RuntimeError(f"La ejecución {run_id} ya no está activa")
+        run.progress_pct = min(porcentaje, 99)
+        run.progress_mensaje = texto[:300]
+        db.commit()
+
+
 def cerrar_runs_atascados(db: Session, job: OpsJob,
                           ahora: datetime | None = None) -> OpsJobRun | None:
     """Cierra runs queued/running que superaron dos veces el timeout del job.
@@ -324,17 +343,27 @@ def ejecutar_run(run_id: int) -> None:
             return
         run.status = "running"
         run.started_at = datetime.now(timezone.utc)
+        run.progress_pct = None
+        run.progress_mensaje = "Preparando ejecución"
         db.commit()
 
         try:
-            items, mensaje = fn(db, **(run.params or {}))
+            callback: Callable[[int, str], None] = (
+                lambda porcentaje, mensaje: reportar_progreso(
+                    run_id, porcentaje, mensaje))
+            params = dict(run.params or {})
+            params.pop("_progress", None)
+            items, mensaje = fn(db, _progress=callback, **params)
             run.status = "ok"
+            run.progress_pct = 100
+            run.progress_mensaje = "Ejecución completada"
             run.items_procesados = items
             run.mensaje = mensaje
         except Exception:
             db.rollback()
             run = db.get(OpsJobRun, run_id)     # la sesión pudo invalidarse
             run.status = "error"
+            run.progress_mensaje = "Ejecución fallida"
             run.error_detalle = traceback.format_exc()[:8192]
         run.finished_at = datetime.now(timezone.utc)
         db.commit()

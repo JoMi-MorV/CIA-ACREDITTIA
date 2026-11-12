@@ -73,7 +73,9 @@ SCRIPTS = ["01_esquema.sql", "02_indices.sql", "03_triggers.sql",
            "09_indices_consola.sql", "10_version_sesion.sql",
            "11_ciclo_vida_contratos.sql", "12_scheduling_operacional.sql",
            "13_respaldos_admin.sql", "14_auditoria_autenticacion.sql",
-           "15_acceso_excepcional_admin.sql", "16_privacidad_retencion.sql"]
+           "15_acceso_excepcional_admin.sql", "16_privacidad_retencion.sql",
+           "17_ajustes_negocio.sql", "18_confirmacion_cambio_email.sql",
+           "19_progreso_procesos.sql"]
 
 _TMP = os.path.join(tempfile.gettempdir(), "acredittia_pruebas")
 PGDATA = os.path.join(_TMP, "pgdata")
@@ -86,7 +88,8 @@ PSQL = [sys.executable, os.path.join(os.path.dirname(pgserver.__file__), "pginst
 # Catálogos globales sembrados al arrancar: NO se vacían entre pruebas.
 CATALOGOS = {"app_schema_migrations", "faenas", "faena_plataformas", "doc_ejemplos", "requisito_templates",
              "requisitos_terreno", "proveedores_catalogo", "planes",
-             "ops_componentes", "ops_jobs", "privacy_retention_policy"}
+             "ops_componentes", "ops_jobs", "privacy_retention_policy",
+             "ops_ajustes_negocio"}
 
 
 def _parchear_scripts() -> str:
@@ -297,6 +300,12 @@ def app_cliente(_app_arrancada, motor_admin, catalogo_procesos):
         conn.execute(sa.text(
             "TRUNCATE " + ", ".join(f'"{t}"' for t in tablas)
             + " RESTART IDENTITY CASCADE"))
+        conn.execute(sa.text(
+            "UPDATE ops_ajustes_negocio SET valor_uf = 39000, "
+            "uf_vigente_desde = CURRENT_DATE, "
+            "uf_fuente = 'Valor inicial de referencia', cac_clp = 0, "
+            "margen_bruto_pct = 80, objetivo_churn_pct = 2, "
+            "updated_at = now(), updated_by = NULL WHERE id = true"))
         # La FK pausado_por -> users hace que CASCADE también vacíe el
         # catálogo de procesos, aunque esté excluido en CATALOGOS.
         # Restaurar la copia inicial evita procesos ausentes y pausas

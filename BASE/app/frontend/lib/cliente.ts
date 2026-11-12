@@ -72,6 +72,10 @@ export const auth = {
     password_actual?: string; refresh_token?: string;
   }) => patch<PerfilActualizado>("/auth/me", cambios),
 
+  confirmarCambioEmail: (token: string) =>
+    api<{ ok: boolean; email: string; message: string }>(
+      "/auth/email/confirm", { body: { token } }),
+
   /** Responde siempre 200, exista o no la cuenta. */
   olvidePassword: (email: string) =>
     api<OlvidoPassword>("/auth/password/forgot", { body: { email } }),

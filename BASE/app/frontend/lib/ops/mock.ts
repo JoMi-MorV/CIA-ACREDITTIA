@@ -164,6 +164,16 @@ const mrr24 = [9.6, 10.1, 10.5, 10.8, 11.2, 11.9, 12.4, 12.8, 13.1, 13.6, 14.2,
 const altas12 = [2, 3, 2, 1, 4, 3, 2, 5, 3, 4, 3, 3];
 const bajas12 = [1, 0, 1, 2, 0, 1, 1, 0, 2, 1, 0, 1];
 const churn12 = [2.6, 2.4, 2.5, 2.3, 2.2, 2.4, 2.1, 2.0, 2.1, 1.9, 1.9, 1.8];
+let ajustesNegocio = {
+  valor_uf: 39847.12,
+  uf_vigente_desde: new Date().toISOString().slice(0, 10),
+  uf_fuente: "Fuente de demostración",
+  cac_clp: 0,
+  margen_bruto_pct: 80,
+  objetivo_churn_pct: 2,
+  updated_at: iso(),
+  updated_by: "u-admin",
+};
 
 // ---------------------------------------------------------------- dispatch
 type Opts = { method?: string; body?: any; query?: Record<string, any> };
@@ -172,6 +182,23 @@ export async function mockDispatch(path: string, opts: Opts = {}): Promise<any> 
   await espera();
   const q = opts.query ?? {};
   const method = opts.method || (opts.body !== undefined ? "POST" : "GET");
+
+  if (path === "/ajustes-negocio") {
+    if (method === "PATCH") {
+      ajustesNegocio = {
+        ...ajustesNegocio,
+        valor_uf: opts.body.valor_uf,
+        uf_vigente_desde: opts.body.uf_vigente_desde,
+        uf_fuente: opts.body.uf_fuente,
+        cac_clp: opts.body.cac_clp,
+        margen_bruto_pct: opts.body.margen_bruto_pct,
+        objetivo_churn_pct: opts.body.objetivo_churn_pct,
+        updated_at: iso(),
+        updated_by: "u-admin",
+      };
+    }
+    return { ...ajustesNegocio };
+  }
 
   // ---- usuarios
   if (path === "/usuarios/resumen") {
@@ -336,11 +363,16 @@ export async function mockDispatch(path: string, opts: Opts = {}): Promise<any> 
   // ---- indicadores
   if (path === "/indicadores/resumen") {
     return {
-      mes: M12[11], parcial: true, moneda: "CLP", valor_uf: 39847.12,
+      mes: M12[11], parcial: true, moneda: "CLP", valor_uf: ajustesNegocio.valor_uf,
       mrr: { valor: 18400000, variacion_mom_pct: 6.2 }, arr: 220800000,
       churn: { clientes_pct: 1.8, ingresos_pct: 1.2, delta_trimestre_pts: -0.4 },
-      nrr_pct: 112.0, ltv_cac: { valor: 4.3, payback_meses: 9.5 },
-      clientes_activos: 47, objetivo_churn_pct: 2.0,
+      nrr_pct: 112.0,
+      ltv_cac: ajustesNegocio.cac_clp > 0
+        ? { valor: Math.round(538750 / ajustesNegocio.cac_clp * 10) / 10,
+          payback_meses: Math.round(18400000 / 47 *
+            (ajustesNegocio.margen_bruto_pct / 100) / ajustesNegocio.cac_clp * 10) / 10 }
+        : null,
+      clientes_activos: 47, objetivo_churn_pct: ajustesNegocio.objetivo_churn_pct,
     };
   }
   if (path === "/indicadores/mrr") {
@@ -366,7 +398,7 @@ export async function mockDispatch(path: string, opts: Opts = {}): Promise<any> 
     }) };
   }
   if (path === "/indicadores/churn") {
-    return { objetivo_pct: 2.0, items: M12.map((mes, i) => ({
+    return { objetivo_pct: ajustesNegocio.objetivo_churn_pct, items: M12.map((mes, i) => ({
       mes, churn_clientes_pct: churn12[i],
       churn_ingresos_pct: Math.round((churn12[i] - 0.6) * 10) / 10,
       parcial: i === 11 })) };

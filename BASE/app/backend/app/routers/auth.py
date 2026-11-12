@@ -28,18 +28,21 @@ from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, EmailStr, Field, field_validator
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..config import settings
 from ..database import auth_session, get_db
 from ..deps import err, get_current_user
-from ..models import Company, Contrato, PasswordResetToken, RefreshToken, User
+from ..models import (
+    Company, Contrato, EmailChangeToken, PasswordResetToken, RefreshToken, User,
+)
 from ..security import (
     create_access_token, hash_password, hash_refresh, new_refresh_token,
     validar_rut, verify_password,
 )
 from ..services import actividad
-from ..services.email import EmailDeliveryError, enviar_email
+from ..services.email import EmailDeliveryError, enviar_email, smtp_configurado
 
 logger = logging.getLogger("acredittia.auth")
 
@@ -84,6 +87,10 @@ class ForgotIn(BaseModel):
 class ResetIn(BaseModel):
     token: str
     password: str
+
+
+class EmailChangeConfirmIn(BaseModel):
+    token: str = Field(min_length=1, max_length=256)
 
 
 class MePatch(BaseModel):
@@ -409,7 +416,70 @@ def me(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     frontend lo necesita para rotular la cabecera sin pedir `/contratos`, que
     para ese rol devolvería una sola fila.
     """
-    return _user_out(user, _contrato_out(db, user))
+    out = _user_out(user, _contrato_out(db, user))
+    out["email_pendiente"] = _email_pendiente(db, user.id)
+    return out
+
+
+def _email_pendiente(db: Session, user_id: uuid.UUID) -> str | None:
+    pendiente = db.scalar(select(EmailChangeToken.pending_email).where(
+        EmailChangeToken.user_id == user_id,
+        EmailChangeToken.used_at.is_(None),
+        EmailChangeToken.expires_at > datetime.now(timezone.utc),
+    ).order_by(EmailChangeToken.created_at.desc()).limit(1))
+    return pendiente
+
+
+@router.post("/email/confirm")
+def confirmar_cambio_email(body: EmailChangeConfirmIn):
+    """Activa el correo solo al consumir el enlace enviado a esa dirección."""
+    with auth_session() as db:
+        ahora = datetime.now(timezone.utc)
+        token = db.scalar(select(EmailChangeToken).where(
+            EmailChangeToken.token_hash == _hash_reset(body.token)
+        ).with_for_update())
+        if not token or token.used_at or token.expires_at < ahora:
+            raise err(400, "TOKEN_INVALIDO", "El enlace es inválido o expiró")
+
+        user = db.get(User, token.user_id)
+        if not user or user.status != "approved" or not user.activo:
+            raise err(400, "TOKEN_INVALIDO", "El enlace es inválido o expiró")
+        if _email_ocupado(token.pending_email, user.id):
+            token.used_at = ahora
+            db.commit()
+            raise err(409, "EMAIL_EN_USO",
+                      "El correo ya está registrado y no puede confirmarse")
+
+        user.email = token.pending_email
+        user.updated_at = ahora
+        token.used_at = ahora
+        for anterior in db.scalars(select(EmailChangeToken).where(
+                EmailChangeToken.user_id == user.id,
+                EmailChangeToken.used_at.is_(None),
+                EmailChangeToken.id != token.id)):
+            anterior.used_at = ahora
+        actividad.log(
+            db, user.company_id, "actualizacion", "auth",
+            "Correo actualizado tras confirmar la nueva dirección",
+            user_id=user.id, entidad_tipo="usuario", entidad_id=user.id,
+        )
+        try:
+            db.commit()
+        except IntegrityError as exc:
+            constraint = getattr(getattr(exc.orig, "diag", None),
+                                 "constraint_name", None)
+            if constraint != "users_email_key":
+                raise
+            db.rollback()
+            invalidar = db.get(EmailChangeToken, token.id)
+            if invalidar and invalidar.used_at is None:
+                invalidar.used_at = datetime.now(timezone.utc)
+                db.commit()
+            raise err(409, "EMAIL_EN_USO",
+                      "El correo ya está registrado y no puede confirmarse") from exc
+        logger.info("cambio de correo confirmado para user=%s", user.id)
+        return {"ok": True, "email": user.email,
+                "message": "Correo actualizado. Ya puedes iniciar sesión con la nueva dirección."}
 
 
 @router.patch("/me")
@@ -434,21 +504,39 @@ def editar_me(body: MePatch, db: Session = Depends(get_db),
     sesiones = 0
 
     if "nombre" in data:
-        u.nombre = (data["nombre"] or "").strip() or None
-        cambios.append("nombre")
+        nombre = (data["nombre"] or "").strip() or None
+        if nombre != u.nombre:
+            u.nombre = nombre
+            cambios.append("nombre")
 
-    if "email" in data and data["email"] and data["email"] != u.email:
+    email_nuevo: str | None = None
+    if "email" in data and data["email"]:
         nuevo = str(data["email"]).strip().lower()
-        if _email_ocupado(nuevo, u.id):
-            raise err(409, "EMAIL_EN_USO", "El email ya está registrado")
-        u.email = nuevo
-        cambios.append("email")
+        if nuevo != u.email.lower():
+            if not body.password_actual:
+                db.rollback()
+                raise err(401, "PASSWORD_ACTUAL_REQUERIDA",
+                          "Debe indicar la contraseña actual para cambiar el correo")
+            if not verify_password(body.password_actual, u.password_hash):
+                db.rollback()
+                raise err(401, "PASSWORD_ACTUAL_INVALIDA",
+                          "La contraseña actual no coincide")
+            if _email_ocupado(nuevo, u.id):
+                db.rollback()
+                raise err(409, "EMAIL_EN_USO", "El email ya está registrado")
+            if not smtp_configurado():
+                db.rollback()
+                raise err(503, "SMTP_NO_CONFIGURADO",
+                          "No se puede solicitar el cambio: el correo no está configurado")
+            email_nuevo = nuevo
 
     if data.get("password"):
         if not body.password_actual:
+            db.rollback()
             raise err(401, "PASSWORD_ACTUAL_REQUERIDA",
                       "Debe indicar la contraseña actual para cambiarla")
         if not verify_password(body.password_actual, u.password_hash):
+            db.rollback()
             raise err(401, "PASSWORD_ACTUAL_INVALIDA",
                       "La contraseña actual no coincide")
         _valida_password(data["password"])
@@ -459,6 +547,41 @@ def editar_me(body: MePatch, db: Session = Depends(get_db),
                           if body.refresh_token else None))
         cambios.append("contraseña")
 
+    if email_nuevo:
+        ahora = datetime.now(timezone.utc)
+        for anterior in db.scalars(select(EmailChangeToken).where(
+                EmailChangeToken.user_id == u.id,
+                EmailChangeToken.used_at.is_(None))):
+            anterior.used_at = ahora
+        raw = secrets.token_urlsafe(48)
+        db.add(EmailChangeToken(
+            user_id=u.id, pending_email=email_nuevo,
+            token_hash=_hash_reset(raw),
+            expires_at=ahora + timedelta(hours=settings.email_change_ttl_hours),
+        ))
+        enlace = (f"{settings.frontend_url.rstrip('/')}/confirmar-correo"
+                  f"?token={raw}")
+        try:
+            enviar_email(
+                email_nuevo,
+                "Confirma tu nuevo correo de Acredittia",
+                "Solicitaste cambiar el correo de tu cuenta.\n\n"
+                f"Confirma la nueva dirección abriendo este enlace: {enlace}\n\n"
+                "El correo actual seguirá vigente hasta que confirmes. "
+                "Si no solicitaste este cambio, ignora este mensaje.",
+            )
+        except EmailDeliveryError as exc:
+            db.rollback()
+            logger.warning("No se pudo enviar confirmación de correo para user=%s",
+                           u.id)
+            raise err(503, "EMAIL_NO_ENVIADO",
+                      "No se pudo enviar el enlace de confirmación. "
+                      "El correo actual no ha cambiado.") from exc
+        cambios.append("email_solicitado")
+
+    if not cambios:
+        db.rollback()
+        raise err(400, "SIN_CAMBIOS", "No hay cambios para guardar")
     u.updated_at = datetime.now(timezone.utc)
     if u.company_id:
         actividad.log(db, u.company_id, "actualizacion", "auth",
@@ -468,4 +591,6 @@ def editar_me(body: MePatch, db: Session = Depends(get_db),
     out = _user_out(u, _contrato_out(db, u))
     out["cambios"] = cambios
     out["sesiones_cerradas"] = sesiones
+    out["email_pendiente"] = email_nuevo or _email_pendiente(db, u.id)
+    out["email_confirmacion_enviada"] = bool(email_nuevo)
     return out

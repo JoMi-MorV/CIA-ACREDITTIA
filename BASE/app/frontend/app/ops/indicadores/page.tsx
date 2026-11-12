@@ -10,7 +10,8 @@ export default function IndicadoresPage() {
   const { t, fmtN, fmtMes } = useI18n();
   const [rango, setRango] = useState<"6" | "12" | "24">("12");
 
-  const resumen = useOps(() => opsApi("/indicadores/resumen"), []);
+  const resumen = useOps(
+    () => opsApi("/indicadores/resumen", { cache: "no-store" }), []);
   const mrr = useOps(() => opsApi("/indicadores/mrr", { query: { meses: rango } }), [rango]);
   const flujo = useOps(() => opsApi("/indicadores/clientes-flujo"), []);
   const churn = useOps(() => opsApi("/indicadores/churn"), []);
@@ -48,7 +49,12 @@ export default function IndicadoresPage() {
           info="Relación estimada entre valor de vida del cliente (LTV) y costo de adquisición (CAC). Se estima usando ingreso promedio por cliente, margen bruto y churn de ingresos, junto con el CAC configurado. Depende de esos supuestos y puede no mostrarse si faltan datos."
           delta={d?.ltv_cac?.payback_meses != null
             ? t("kpi.payback", { n: fmtN(d.ltv_cac.payback_meses, 1) })
-            : t("kpi.sin_cac")}
+            : t(!d?.ltv_cac || d.ltv_cac.estado === "cac_no_configurado"
+              ? "kpi.sin_cac"
+              : d.ltv_cac.estado === "sin_clientes"
+                ? "kpi.sin_clientes_ltv"
+                : d.ltv_cac.estado === "sin_margen"
+                  ? "kpi.sin_margen_ltv" : "kpi.sin_churn_ingresos")}
           tono="flat" />
       </div>
 

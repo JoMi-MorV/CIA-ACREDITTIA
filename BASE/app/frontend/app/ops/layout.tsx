@@ -36,6 +36,8 @@ const NAV = [
     <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M2 3h12v10H2zM5 3V1.5h6V3M5 8h6M5 10.5h4" /></svg> },
   { href: "/admin/perfil", clave: "nav.perfil", icono:
     <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="8" cy="5" r="3" /><path d="M2.5 14c.7-3.2 2.5-5 5.5-5s4.8 1.8 5.5 5" /></svg> },
+  { href: "/admin/ajustes-negocio", clave: "nav.ajustes", icono:
+    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M2 4h12M2 8h12M2 12h12" /><circle cx="5" cy="4" r="1.4" fill="var(--ops-navy)" /><circle cx="10" cy="8" r="1.4" fill="var(--ops-navy)" /><circle cx="7" cy="12" r="1.4" fill="var(--ops-navy)" /></svg> },
 ];
 
 const TITULOS: Record<string, [string, string]> = {
@@ -43,6 +45,7 @@ const TITULOS: Record<string, [string, string]> = {
   "/admin/empresas": ["empresas.titulo", "empresas.crumb"],
   "/admin/busqueda": ["busqueda.titulo", "busqueda.crumb"],
   "/admin/metricas": ["kpi.titulo", "kpi.crumb"],
+  "/admin/ajustes-negocio": ["ajustes.titulo", "ajustes.crumb"],
   "/admin/salud": ["salud.titulo", "salud.crumb"],
   "/admin/usuarios": ["usuarios.titulo", "usuarios.crumb"],
   "/admin/sistemas": ["sistemas.titulo", "sistemas.crumb"],

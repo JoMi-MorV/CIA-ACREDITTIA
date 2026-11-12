@@ -2,22 +2,31 @@
 
 ## Estado actual verificado
 
-Actualizado al 04-11-2026.
+Actualizado al 12-11-2026.
 
-- Avance estimado vigente: **75,9%**, redondeado a 76%, para las 37 fichas SRS.
-- Backend: suite completa final con **446 pruebas aprobadas, 0 fallidas y 0 errores**.
-- Frontend: `npm ci` y `npm run build` completaron correctamente.
-- Docker Compose: `docker compose config --quiet` completó correctamente.
-- `npm audit --omit=dev` reportó **1 vulnerabilidad crítica y 2 altas** en
-  Next.js/PostCSS/source-map-js.
+- Avance estimado vigente: **78,9%** para las 37 fichas SRS, calculado como
+  `2918 / 37`. El promedio de las ocho prioridades ADMIN es **77,3%**.
+- RF-CLI-01 se reevalúa en 80% por el cambio seguro de correo; RF-SAL-03, en
+  95% por el progreso medible y la actualización automática de procesos.
+- Validación focalizada del cambio de correo: **56 pruebas aprobadas** en
+  autenticación y esquema. Seguimiento de procesos: **54 pruebas aprobadas**
+  en operaciones y esquema. El build frontend pasó para ambos cambios.
+  La entrega SMTP se probó con dobles; no se verificó un servidor SMTP real.
+- La suma anterior publicada (`2888 / 37`) no coincidía con los porcentajes
+  individuales del SRS; se corrigió a `2918 / 37`. P0/P1/P2 promedian
+  72,2% / 84,2% / 69,2%, recalculados desde sus fichas.
+- En la auditoría de dependencias reportada el 04-11, `npm audit --omit=dev`
+  encontró **1 vulnerabilidad crítica y 2 altas** en Next.js/PostCSS/source-map-js;
+  confirmar el estado actual con una nueva ejecución de auditoría.
 - Respaldos: ciclo funcional local 100% acreditado (crear, descargar `.acb`,
   eliminar, importar, verificar y restaurar). Faltan RPO/RTO aprobados y
   recuperación ante pérdida total del entorno.
 - Producción con datos reales: **NO-GO** por dependencias, controles de
   privacidad/retención pendientes, roles reales, infraestructura y recuperación.
 
-Estos porcentajes son estimaciones de código/evidencia, no cumplimiento
-contractual ni preparación certificada para producción.
+Estos porcentajes son estimaciones de cobertura de código/evidencia, no
+mediciones de esfuerzo, cumplimiento contractual ni preparación certificada
+para producción. No se ejecutó una suite backend completa en este corte.
 
 Documentos vigentes:
 
@@ -41,6 +50,12 @@ el 10-11-2026 a las 00:18:52, con cero filas podadas. Falta verificar Log
 Analytics, documentar la revisión histórica y obtener aprobación del responsable
 de producción, junto con permisos granulares, dependencias vulnerables y
 restauración efectiva.
+
+El estado de producción continúa **NO-GO**. El aumento de avance no cierra los
+bloqueos P0 de privacidad, seguridad/aislamiento, auditoría y continuidad.
+Consultar el [estado de salud](documentacion/ESTADO_SALUD_GENERAL.md) y la
+[validación actual](documentacion/VALIDACION_ACTUAL.md) para el detalle de
+pendientes y límites de evidencia.
 
 ## Requisitos y planificación
 
@@ -67,7 +82,7 @@ Bash
 cd BASE/app
 docker compose up --build
 
-### Actualización de esquema 13
+### Actualización de esquema 19
 
 Las migraciones `09_indices_consola.sql` y `10_version_sesion.sql` crean índices
 administrativos y añaden `users.auth_version`. `11_ciclo_vida_contratos.sql`
@@ -76,8 +91,11 @@ operacional existente del contrato.
 `12_scheduling_operacional.sql` cambia el despachador de reportes programados a
 una revisión cada minuto, necesaria para respetar el minuto de sus expresiones cron.
 `13_respaldos_admin.sql` incorpora el esquema del módulo inicial de respaldos y
-exportaciones ADMIN. Desde `BASE/app`, actualizar las imágenes y aplicar la
-migración antes de recrear los servicios:
+exportaciones ADMIN. La migración 18 (`18_confirmacion_cambio_email.sql`) agrega
+el flujo de confirmación de correo; la migración 19
+(`19_progreso_procesos.sql`) persiste etapa y porcentaje de procesos. Desde
+`BASE/app`, actualizar las imágenes y aplicar las migraciones pendientes antes
+de recrear los servicios:
 
 ```bash
 docker compose build api worker beat migrate
@@ -85,18 +103,20 @@ docker compose run --rm migrate
 docker compose up -d api worker beat
 ```
 
-Si se configuró `SCHEMA_VERSION_ESPERADA` externamente, usar `13`. Las
-migraciones conservan los datos; la validación automatizada se realiza en
-PostgreSQL temporal y no aplica cambios a la base habitual. En el entorno local
-el esquema 13 fue aplicado durante la validación del 03-11; la pila permanece
-detenida hasta que se solicite iniciarla.
+Si se configuró `SCHEMA_VERSION_ESPERADA` externamente, debe coincidir con la
+versión que requiere la aplicación (19 para este corte). Las migraciones
+conservan los datos; la validación automatizada se realiza en PostgreSQL
+temporal y no aplica cambios a la base habitual. La migración 19 se validó con
+las pruebas focalizadas descritas en `documentacion/VALIDACION_ACTUAL.md`;
+confirma el esquema de tu entorno antes de arrancar la API y workers.
 
 En Usuarios, las cuentas revocadas tienen la acción **Reactivar** con confirmación.
 Conserva identidad, rol y alcance. Revocar o cambiar el estado activo desde ADMIN
 invalida los JWT anteriores y los refresh tokens; el usuario debe iniciar sesión
 nuevamente. Reactivar no aprueba una solicitud pendiente/rechazada. Instalar esquema
-11 antes de arrancar esta versión de API/worker. Las cuentas que ya estaban revocadas
-también invalidan sus sesiones antiguas al reactivarse.
+11 fue el requisito de la versión que introdujo esta función; para el código
+actual, seguir la sección de esquema 19 anterior. Las cuentas que ya estaban
+revocadas también invalidan sus sesiones antiguas al reactivarse.
 
 
 
@@ -140,9 +160,10 @@ activar production con ellas provoca rechazo de la conexión.
 La recuperación ya no devuelve tokens por usar un secreto `dev-*`. Solo los
 entornos no productivos que activen `AUTH_DEV_RESET_TOKEN_ENABLED=true` pueden
 recibir `_dev_token`; por defecto y en Compose está desactivado. El envío real de
-correo sigue pendiente, por lo que aún no hay un flujo productivo completo de
-recuperación. Las pruebas aisladas habilitan estas opciones explícitamente.
-Se poblaron 16 empresas demo con industrias, usuarios y antigüedades diferentes para
+correo para recuperación de contraseña sigue pendiente, por lo que aún no hay un
+flujo productivo completo de recuperación. Las pruebas aisladas habilitan estas
+opciones explícitamente. El seed actual incluye al menos 30 empresas demo con
+industrias, usuarios y antigüedades diferentes para
 que los filtros y el resumen de clientes se parezcan a un entorno de producción.
 
 Para crear el primer administrador productivo sin ejecutar semillas demo, configurar
@@ -698,20 +719,22 @@ con enlaces previos. Las rutas Ops antiguas de Plataforma, Usuarios e
 Indicadores también redirigen a sus destinos Admin. `/admin` y la entrada Ops
 abren ahora el Dashboard global.
 
-## Cambios a la fecha — 14-10-2026
+## Cambios a la fecha — 12-11-2026
 
-El documento funcional vigente es el [SRS v0.56](documentacion/SRS.md). Esta
+El documento funcional vigente es el [SRS v0.85](documentacion/SRS.md). Esta
 sección resume los cambios relevantes y el estado conocido a la fecha; no
 sustituye los criterios, pendientes ni evidencias detallados en el SRS y la
 [validación actual](documentacion/VALIDACION_ACTUAL.md).
 
-**Resumen de esta sesión:** se actualizaron Empresas (cuentas), Salud de
-clientes, el buscador y la confirmación/auditoría de cambios de permisos. El
-análisis documental/código estima 67% de avance funcional ADMIN, sin que esto
-equivalga a cumplimiento validado ni preparación para producción. El detalle y
-las limitaciones están en SRS, GAP y Validación actual. También se integró la
-página Reportes al portal con PDF/CSV para todos los tipos y PDF multipágina;
-su build pasó, pero los flujos aún requieren validación operativa.
+**Resumen del corte:** se actualizó el avance general a **78,9%** y el promedio
+de las prioridades ADMIN a **77,3%**, con cálculo simple desde las fichas del
+SRS. La suma previa publicada no coincidía con los valores individuales y se
+corrigió. Se mejoraron el cambio seguro de correo en Mi perfil y el seguimiento
+de procesos críticos (progreso medible, actualización automática, historial
+inline y refresco sin salto visual). La documentación mantiene los pendientes
+de SMTP real, recuperación completa de contraseña, trazabilidad integral y
+recuperación distribuida. Estos porcentajes no significan aceptación integral
+ni preparación para producción; el estado continúa **NO-GO** con datos reales.
 
 ### Funcionalidad y cambios recientes
 
@@ -733,9 +756,12 @@ su build pasó, pero los flujos aún requieren validación operativa.
   de su fila; solo queda una abierta y se descartan respuestas tardías al
   cambiar la búsqueda o selección.
 - El registro solicita el nombre del usuario inicial, separado de la razón
-    social. «Mi perfil» permite editar nombre, correo y contraseña tanto en
-    el portal (`/perfil`) como en la consola interna ADMIN (`/admin/perfil`).
-    Ambos usan el perfil autenticado de `/auth/me`. Al usar «Ver como empresa»,
+    social. «Mi perfil» permite editar el nombre sin contraseña; para cambiar
+    correo exige contraseña actual y confirmación de un enlace de un solo uso,
+    con token hasheado y vencimiento. Si SMTP no está disponible, el correo no
+    cambia. El cambio de contraseña es un flujo separado. El perfil está
+    disponible en el portal (`/perfil`) y en la consola interna ADMIN
+    (`/admin/perfil`), ambos usando `/auth/me`. Al usar «Ver como empresa»,
     ADMIN conserva su identidad administrativa, pero la vista de empresa muestra
     el perfil de esa empresa (nombre y correo editables; RUT y estado solo lectura),
     no el perfil personal. También puede gestionar responsables de contrato en
@@ -826,10 +852,11 @@ su build pasó, pero los flujos aún requieren validación operativa.
   ADMIN; al aprobarlo, la empresa y el usuario inicial quedan aprobados y el
   usuario conserva el rol `company`. La verificación manual cubrió la
   aprobación; rechazo y transiciones repetidas requieren validación separada.
-- El esquema vigente requerido por la API es v12. La migración v9 incorporó
+- El esquema requerido por este corte de API es v19. La migración v9 incorporó
   invalidación de sesiones al cambiar el estado de acceso; la validación de
   seguridad de conexiones de producción no configura por sí sola los roles
-  reales de la base de datos.
+  reales de la base de datos. Las migraciones 18 y 19 añaden confirmación de
+  cambio de correo y progreso persistido de procesos, respectivamente.
 
 ### Validación y límites conocidos
 

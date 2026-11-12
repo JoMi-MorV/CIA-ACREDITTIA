@@ -94,6 +94,8 @@ class OpsJobRun(Base):
     params: Mapped[dict] = mapped_column(JSONB, default=dict)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    progress_pct: Mapped[int | None] = mapped_column(SmallInteger)
+    progress_mensaje: Mapped[str | None] = mapped_column(Text)
     items_procesados: Mapped[int | None] = mapped_column(Integer)
     mensaje: Mapped[str | None] = mapped_column(Text)
     error_detalle: Mapped[str | None] = mapped_column(Text)
@@ -158,3 +160,16 @@ class MetricasMensualesPlan(Base):
     mrr_clp: Mapped[float] = mapped_column(Numeric(14, 2))
     churn_clientes_pct: Mapped[float | None] = mapped_column(Numeric(5, 2))
     nrr_pct: Mapped[float | None] = mapped_column(Numeric(6, 2))
+
+
+class OpsAjustesNegocio(Base):
+    __tablename__ = "ops_ajustes_negocio"
+    id: Mapped[bool] = mapped_column(Boolean, primary_key=True, default=True)
+    valor_uf: Mapped[float] = mapped_column(Numeric(12, 2))
+    uf_vigente_desde: Mapped[date] = mapped_column(Date)
+    uf_fuente: Mapped[str] = mapped_column(Text)
+    cac_clp: Mapped[float] = mapped_column(Numeric(14, 2))
+    margen_bruto_pct: Mapped[float] = mapped_column(Numeric(5, 2))
+    objetivo_churn_pct: Mapped[float] = mapped_column(Numeric(5, 2))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    updated_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
