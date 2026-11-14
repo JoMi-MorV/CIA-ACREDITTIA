@@ -1,6 +1,6 @@
 # Estado de salud general de Acredittia
 
-**Fecha de corte:** 12 de noviembre de 2026
+**Fecha de corte:** 14 de noviembre de 2026
 **Preparado para:** revisión técnica, operativa y de gestión  
 **Alcance:** backend, frontend, SQL/migraciones, seguridad, privacidad, continuidad operativa, documentación y preparación para producción.
 
@@ -9,6 +9,17 @@
 El proyecto presenta una base técnica sólida para desarrollo y validación focalizada, pero aún no alcanza un estado de madurez compatible con producción real. El backend muestra estabilidad funcional y la mayoría de las capas de aplicación tienen evidencia concreta; sin embargo, el conjunto presenta riesgos de integración, seguridad, requisitos de cumplimiento por confirmar y continuidad que siguen bloqueando el paso a producción con datos reales.
 
 La evaluación actual se mantiene en **NO GO** para producción. La mejora más importante desde el último corte es que el código y la documentación han convergido hacia una visión más realista: el proyecto no se presenta como “listo para producción”, sino como una plataforma con avances relevantes y con bloqueadores específicos todavía abiertos.
+
+### Actualización de avance — 14 de noviembre de 2026
+
+RF-DAS-01 pasa de 90% a 100% tras definir los universos de sus KPI, alinear los
+conteos documentales con el universo de acreditación y representar la ausencia
+de datos evaluables como “N/A”. La prueba focalizada pasó 2/2, el build
+frontend compiló y validó tipos y el usuario confirmó la revisión visual. El
+avance estimado de las 37 fichas queda en 2.928/37 = **79,1%**; las ocho
+prioridades ADMIN promedian **79,2%**, y P1 84,7%, P0 72,2%, P2 69,2%.
+RF-DAS-01 queda IV/100% en su alcance funcional. El estado de producción sigue
+**NO-GO**.
 
 ### Actualización de avance — 12 de noviembre de 2026
 
@@ -37,7 +48,7 @@ y continuidad. El detalle y los límites de evidencia están en
 | Buscador global | 🟢 RF-BUS-01 y RF-BUS-02 cerrados (IV, 100%) | 83 pruebas focalizadas validan autorización por categoría, concesiones (titular, vigencia, revocación y alcance), ficha directa y exportación ZIP limitada; build frontend aprobado. El listado administrativo independiente de usuarios continúa bajo RF-USU. No se realizó recorrido manual de navegador. |
 | Ajustes de negocio ADMIN | 🟢 Implementado | UF/vigencia/fuente, CAC, margen bruto y objetivo de churn son persistentes; solo ADMIN puede modificarlos, motivo obligatorio y auditoría con antes/después. Migración 17; suites focalizadas 86 aprobadas y build frontend correcto. La fuente UF es manual. |
 | Recuperación y continuidad | 🔴 Rojo | Faltan pruebas de restauración real y objetivos RPO/RTO certificados. |
-| Documentación y arquitectura | 🟡 Amarillo | Buena cobertura documental; SRS v0.85 refleja el recálculo actual, aunque persisten rutas heredadas, decisiones pendientes y verificaciones de consistencia por completar. |
+| Documentación y arquitectura | 🟡 Amarillo | Buena cobertura documental; SRS v0.86 refleja el recálculo actual, aunque persisten rutas heredadas, decisiones pendientes y verificaciones de consistencia por completar. |
 | Producción con datos reales | 🔴 No GO | Bloqueado por seguridad, continuidad, controles de privacidad y validación operativa. |
 
 ## 1. Alcance y método de auditoría

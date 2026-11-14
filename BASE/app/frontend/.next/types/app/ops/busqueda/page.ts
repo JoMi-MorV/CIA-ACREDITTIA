@@ -1,4 +1,4 @@
-// File: C:\Users\amaru\Desktop\consola-interna-70\CIA-ACREDITTIA-main\BASE\app\frontend\app\ops\busqueda\page.tsx
+// File: C:\Users\amaru\Desktop\consola-interna-80\CIA-ACREDITTIA-main\BASE\app\frontend\app\ops\busqueda\page.tsx
 import * as entry from '../../../../../app/ops/busqueda/page.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 

@@ -23,7 +23,8 @@ def verify_password(plain: str, hashed: str) -> bool:
 
 
 def create_access_token(user_id: uuid.UUID, role: str, company_id: uuid.UUID | None,
-                        auth_version: int = 0) -> str:
+                        auth_version: int = 0,
+                        session_id: uuid.UUID | None = None) -> str:
     now = datetime.now(timezone.utc)
     payload = {
         "sub": str(user_id),
@@ -34,6 +35,8 @@ def create_access_token(user_id: uuid.UUID, role: str, company_id: uuid.UUID | N
         "exp": now + timedelta(minutes=settings.access_ttl_min),
         "jti": secrets.token_hex(8),
     }
+    if session_id is not None:
+        payload["sid"] = str(session_id)
     return jwt.encode(payload, settings.jwt_secret, algorithm="HS256")
 
 

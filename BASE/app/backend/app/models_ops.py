@@ -173,3 +173,32 @@ class OpsAjustesNegocio(Base):
     objetivo_churn_pct: Mapped[float] = mapped_column(Numeric(5, 2))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     updated_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+
+
+class OpsActivitySession(Base):
+    __tablename__ = "ops_sesiones_actividad"
+    session_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    company_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("companies.id", ondelete="CASCADE"))
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    last_heartbeat_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class OpsUserActivityDaily(Base):
+    __tablename__ = "ops_actividad_usuario_diaria"
+    fecha: Mapped[date] = mapped_column(Date, primary_key=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    company_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("companies.id", ondelete="CASCADE"))
+    segundos_activos: Mapped[int] = mapped_column(BigInteger, default=0)
+
+
+class OpsCompanyActivityDaily(Base):
+    __tablename__ = "ops_actividad_empresa_diaria"
+    fecha: Mapped[date] = mapped_column(Date, primary_key=True)
+    company_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("companies.id", ondelete="CASCADE"), primary_key=True)
+    segundos_activos: Mapped[int] = mapped_column(BigInteger, default=0)

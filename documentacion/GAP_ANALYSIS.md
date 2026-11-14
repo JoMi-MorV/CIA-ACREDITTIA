@@ -234,7 +234,7 @@ abiertos.
 | Dashboard global | Parcial | 75% | Hay contadores, acreditación, estados documentales y actividad por eventos; falta validar universos/denominadores y crecimiento de adopción. |
 | Gestión global de empresas | Avanzado | 90% | Listado y ficha agregada con industria, estado de cuenta, perfiles y responsables; el rechazo y los casos límite siguen pendientes. |
 | Buscador global | IV en alcance probado | 100% | RF-BUS-01 y RF-BUS-02 al 100%. Pruebas API de autorización por categoría, alcance/vigencia/revocación de concesiones, ficha directa y ZIP limitado; 83 pruebas focalizadas y build frontend aprobados. El listado administrativo independiente de usuarios se sigue en RF-USU. |
-| Métricas SaaS | Parcial | 60% | Existen métricas y series; tiempo de uso continúa estimado, y documentos procesados no equivale necesariamente a documentos únicos. Faltan definiciones y cálculos validados. |
+| Métricas SaaS | Parcial | 60% histórico, no recalculado | RF-MET-02 tiene telemetría real implementada y probada; la estimación previa queda aparte. RF-MET-01/03 y la distinción entre revisiones de IA y documentos únicos siguen pendientes. |
 | Alertas y salud de clientes | Parcial | 83,3% | Promedio de RF-SAL-01 (75%), RF-SAL-02 (80%) y RF-SAL-03 (95%). Los procesos muestran etapas/progreso cuando se puede medir, historial actualizado automáticamente y visible junto al proceso seleccionado; suite focalizada de operaciones/esquema y build aprobados. Siguen pendientes recuperación distribuida real, casos de salud de clientes y totales/paginación. Azure Blob e IA simulada no acreditan disponibilidad SaaS externa. |
 | Usuarios, roles y permisos | Parcial | 70% | La consola pagina usuarios; el portal permite convertir `company` a `contract_admin` si queda otro `company` activo. Se conserva el bloqueo de último administrador. Falta invitación/aceptación de cuentas existentes, correo de activación y validación integral de permisos. El 70% es la estimación histórica del 13-10, no recalculada en este corte. |
 | Auditoría y trazabilidad | Parcial | 73,3% | RF-AUD-01 al 90%: mutaciones acordadas revisadas por el usuario y registradas; queda comprobar anterior/nuevo para permisos/estados y pausa de procesos. RF-AUD-02 registra autenticación, cierre, rotación y revocación. RF-AUD-03 conserva pendientes de acceso/exportación, retención e integridad. |
@@ -340,10 +340,8 @@ Cumple parcialmente:
 - identificación de clientes con baja actividad, presentada ahora en Salud de clientes.
 
 Brechas:
-- tiempo de uso aún no está basado en telemetría real del producto;
-- faltan definiciones de ventana temporal y denominadores consentidos;
-- no está cerrada la fuente de sesión/uso ni la lógica de actividad productiva;
-- la validación de crecimiento y series positivas/negativas no está completamente cerrada. Los indicadores de uso/adopción y la distribución de usuarios por plan/industria ahora se presentan en Salud de clientes, no en esta vista.
+- RF-MET-02 está implementado y pasó pruebas focalizadas; queda revisión visual y desplegar la migración en el entorno destino;
+- la validación de crecimiento y series positivas/negativas de RF-MET-01/03 no está completamente cerrada; documentos procesados siguen sin equivaler necesariamente a documentos únicos. Los indicadores de uso/adopción y la distribución de usuarios por plan/industria se presentan en Salud de clientes.
 
 Riesgo:
 - métricas no auditables ni comparables entre períodos.

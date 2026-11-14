@@ -1,7 +1,7 @@
 # Resumen de requisitos ADMIN
 
-**Corte ADMIN:** 12 de noviembre de 2026  
-**Base documental:** SRS versión 0.85, GAP, `VALIDACION_ACTUAL.md` y el [cronograma de cierre de 2 semanas](CRONOGRAMA_CIERRE_PRODUCCION.md).
+**Corte ADMIN:** 14 de noviembre de 2026  
+**Base documental:** SRS versión 0.86, GAP, `VALIDACION_ACTUAL.md` y el [cronograma de cierre de 2 semanas](CRONOGRAMA_CIERRE_PRODUCCION.md).
 **Propósito:** resumir el estado técnico de las ocho prioridades ADMIN, distinguir lo implementado de lo validado y proponer criterios concretos para revisar su cierre.
 
 Este documento es una guía de revisión, no una aceptación contractual ni una certificación de producción. Los estados reflejan los requisitos y la evidencia descritos en el [SRS](SRS.md) y en [VALIDACION_ACTUAL.md](VALIDACION_ACTUAL.md). `IV` significa implementado y validado dentro del alcance probado; `ISV`, implementado sin validación completa; `PAR`, parcial; `COR`, requiere corrección; y `PEN`, pendiente. Los porcentajes estimados del SRS no equivalen a porcentaje de cumplimiento validado.
@@ -15,10 +15,12 @@ registra RF-BUS-01 al 100% (IV) por confirmación manual del usuario y RF-BUS-02
 al 100% (IV/P0) tras 83 pruebas focalizadas de autorización, alcance, ficha y
 exportación. El corte del 12-11-2026 reevalúa RF-CLI-01 a 80% y RF-SAL-03 a
 95%, con pruebas focalizadas de autenticación/esquema y operaciones/esquema,
-respectivamente, y build frontend aprobado. El promedio de las ocho prioridades
-ADMIN es **77,3% (77% redondeado)** y la cobertura media de los 37 requisitos
-SRS es **78,9% (79% redondeado)**; RNF-REC-01 alcanza 100% para su ciclo
-funcional local.
+respectivamente, y build frontend aprobado. El 14-11-2026 RF-DAS-01 queda en 100% (IV) con universo documental unificado,
+salida N/A para denominador cero, 2 pruebas focalizadas aprobadas, build
+frontend y revisión visual confirmada por el usuario. El promedio de las ocho
+prioridades ADMIN es **79,2% (79% redondeado)** y la cobertura media de los 37
+requisitos SRS es **79,1% (79% redondeado)**; RNF-REC-01 alcanza 100% para su
+ciclo funcional local.
 Ninguna cifra mide preparación productiva.
 
 La ampliación de Reportes del portal documentada el 14-10-2026 no forma parte
@@ -61,10 +63,10 @@ producción.
 
 | # | Prioridad | Avance estimado | Estado actual | En síntesis |
 |---|---|---:|---|---|
-| 1 | Dashboard global | **75%** | **PAR** — RF-DAS-01/02 | Muestra contadores, acreditación, estados documentales y actividad por eventos. Falta aplicar y validar universos, denominadores y crecimiento de empresas/usuarios. |
+| 1 | Dashboard global | **90%** | **RF-DAS-01 IV (100%); RF-DAS-02 PAR (80%)** | RF-DAS-01 validado con universos y estados de documentos alineados, N/A sin denominador, pruebas y revisión visual confirmada. RF-DAS-02 aún requiere sus series de adopción. |
 | 2 | Gestión global de empresas | **90%** | **IV en alcance verificado; rechazo/casos límite pendientes** — RF-EMP-01/02 | Tabla «Empresas (cuentas)» con industria y estado de cuenta; detalle de perfiles y responsables por contrato. Flujo normal de registro/aprobación verificado; falta validar rechazo y transiciones repetidas. |
 | 3 | Buscador global | **100%** | **RF-BUS-01 IV (100%); RF-BUS-02 IV/P0 (100%)** | Autorización por categoría, detalle directo y exportación ZIP con concesiones y alcance validados por pruebas focalizadas. El listado administrativo independiente de usuarios queda en RF-USU. |
-| 4 | Métricas SaaS | **60%** | **PAR** — RF-MET-01/02/03 | Hay métricas de clientes/usuarios, sesiones y series mensuales; baja actividad y uso/adopción aparecen en Salud. El tiempo de uso sigue siendo estimado y las revisiones de IA no equivalen necesariamente a documentos únicos. |
+| 4 | Métricas SaaS | **60% estimado, no recalculado** | **PAR** — RF-MET-01/03 pendientes; RF-MET-02 implementado y probado | La telemetría real de RF-MET-02 ya aparece en Salud, separada de la estimación de transición. El porcentaje de la prioridad no se recalcula porque los otros requisitos y su ponderación siguen pendientes; revisiones de IA no equivale necesariamente a documentos únicos. |
 | 5 | Alertas y salud de clientes | **83,3%** | **Mixto:** RF-SAL-01 **PAR**; RF-SAL-02 **ISV**; RF-SAL-03 **ISV** | Promedio de RF-SAL-01 (75%), RF-SAL-02 (80%) y RF-SAL-03 (95%). Seguimiento de procesos validado en pruebas focalizadas; continúan pendientes recuperación distribuida real, validar riesgos de clientes y totales/paginación. |
 | 6 | Usuarios, roles y permisos | **70%** | **PAR** — RF-USU-01/02 | El listado ADMIN pagina usuarios y los cambios de alcance invalidan sesiones. El portal permite convertir `company` en `contract_admin` si queda otro `company` activo; siguen pendientes invitación/aceptación de cuentas existentes, historial completo de acceso y validación integral. El porcentaje es el estimado histórico del 13-10. |
 | 7 | Auditoría y trazabilidad | **73,3%** | **PAR** — RF-AUD-01/02/03 | RF-AUD-01 está al 90%; el usuario confirmó revisión y registro de las mutaciones acordadas. Queda comprobar valores anterior/nuevo para permisos/estados y pausa de procesos. RF-AUD-02 registra autenticación, cierre y rotación. RF-AUD-03 conserva pendientes de integridad, retención y autorización/exportación. |
@@ -72,16 +74,16 @@ producción.
 
 ### Estimación global del corte
 
-**Avance funcional ADMIN estimado: 77,3% (77% redondeado)**. Incluye la
+**Avance funcional ADMIN estimado: 79,2% (79% redondeado)**. Incluye la
 actualización de RF-BUS-01 y RF-BUS-02 al 100%, RF-SEG-03 al 65% y los
 avances documentados de salud, auditoría, privacidad, respaldos e integraciones. No hay
 ponderaciones acordadas por criticidad o esfuerzo. No es porcentaje de pruebas
 aprobadas, aceptación contractual ni preparación para producción.
 
 La cobertura estimada actual de los 37 requisitos (29 funcionales y 8 no funcionales)
-es **78,9% (79% redondeado)** (`2918 / 37`). La suma anterior publicada
-(`2888`) no coincidía con los valores de las 37 fichas; al revertir solo las dos
-mejoras de este corte, la suma base es 2908 (78,6%). Este es el porcentaje de avance de código más
+es **79,1% (79% redondeado)** (`2928 / 37`). La suma anterior publicada
+(`2888`) no coincidía con los valores de las 37 fichas; la suma previa vigente
+era 2918 (78,9%) antes del cierre de RF-DAS-01. Este es el porcentaje de avance de código más
 amplio que se puede reportar con el inventario actual del SRS; no incluye una
 ponderación aprobada por esfuerzo ni convierte criterios pendientes en
 completados. No se asigna un porcentaje de «listo para producción con datos
@@ -90,7 +92,7 @@ categoría/recurso, auditoría integral y evidencia de aislamiento/mínimo
 privilegio en un entorno equivalente a producción.
 
 La nueva cifra combina estimaciones documentadas por requisito con evidencia
-de pruebas y ejecución local hasta el 12-11-2026; no es una medición de líneas de
+de pruebas y ejecución local hasta el 14-11-2026; no es una medición de líneas de
 código ni una aceptación de extremo a extremo. Los porcentajes anteriores del
 GAP (75–80% general y 55–65% para producción) son históricos y no deben
 presentarse como estimación vigente.
@@ -105,15 +107,15 @@ presentarse como estimación vigente.
 - Calcula acreditación ponderada por número de documentos obligatorios correctos de empresas aprobadas. También existe un promedio simple por empresa en la respuesta del backend, pero la pantalla presenta el porcentaje global ponderado.
 - Muestra documentos pendientes, por vencer y vencidos.
 - Presenta una serie mensual y un total de actividad expresados como eventos. No equivale a nuevas empresas, nuevos usuarios ni tiempo efectivo de uso.
-- Algunos universos difieren: por ejemplo, el contador de usuarios excluye ADMIN y los documentos de la sección de estados no están restringidos a empresas aprobadas.
+- Empresas incluye todos los estados y distingue aprobadas; contratos activos e históricos se separan; trabajadores/equipos excluyen bajas; usuarios excluye ADMIN y muestra habilitados aparte. El porcentaje y los estados documentales usan documentos obligatorios no EMSIPOR de empresas aprobadas. Sin datos evaluables, el porcentaje es N/A.
 
 **Sugerencias y criterios a considerar**
 
-1. Definir para cada contador su universo y exclusiones: estados de empresa, tipos de usuario, bajas, documentos obligatorios y si se incluyen empresas no aprobadas.
+1. Universos del RF-DAS-01 definidos y visibles; revisión visual confirmada por el usuario.
 2. Etiquetar la acreditación como porcentaje ponderado por documentos y mostrar numerador/denominador o una explicación accesible.
 3. Mantener actividad por eventos separada de crecimiento de adopción.
 4. Propuesta de crecimiento: presentar empresas nuevas y usuarios nuevos por mes, con períodos y universos visibles; validar por separado la definición de alta de empresa/usuario y el tratamiento de registros desactivados.
-5. Contrastar cada tarjeta y punto de serie con fixtures conocidos, incluyendo cero empresas/documentos, meses sin actividad y cambios de período.
+5. Se cubren con datos controlados los estados documentales, exclusiones y denominador cero; revisión visual de RF-DAS-01 confirmada. Los casos de actividad/adopción de RF-DAS-02 siguen pendientes.
 6. No presentar métricas comerciales en el Dashboard; mantener MRR y crecimiento comercial en Métricas SaaS.
 
 **Para considerar el punto validado:** definiciones acordadas y visibles, cálculos reproducibles con datos controlados, meses vacíos representados correctamente y ausencia de información personal/documental innecesaria. La propuesta de crecimiento requiere confirmación funcional antes de tratarla como alcance aprobado.
@@ -175,7 +177,7 @@ presentarse como estimación vigente.
 
 - Hay indicadores de clientes activos, usuarios habilitados, DAU/WAU, actividad, revisiones de IA y series comerciales.
 - Se cuentan sesiones vigentes usando refresh tokens.
-- No existe aún una medición plenamente observada: el tiempo de uso actual es una estimación derivada de eventos/tokens. Se acordó telemetría real y como métrica principal minutos activos por usuario único con actividad (no duración promedio por sesión), bajo sesión autenticada, pestaña visible e interacción reciente; pausa tras cinco minutos inactivo y heartbeat cada 60 segundos.
+- RF-MET-02 ya mide minutos activos por usuario único mediante heartbeat de sesión autenticada, pestaña visible e interacción reciente; pausa tras cinco minutos inactivo. La métrica anterior derivada de eventos/tokens continúa aparte y etiquetada como estimación durante la transición.
 - Hay documentos procesados y series mensuales, pero debe conservarse la distinción entre revisiones/intentos y documentos únicos.
 - Salud de clientes presenta uso/adopción, usuarios por plan e industria y la clasificación de clientes sin usuarios, sin actividad o con baja actividad; sus riesgos se pueden desplegar por categoría.
 - La conversión UF tiene un caso mensual probado, pero la respuesta aún requiere identificar fecha/fuente de UF y completar cobertura de períodos/monedas.
@@ -183,7 +185,7 @@ presentarse como estimación vigente.
 **Actualización al 13-10-2026:** los indicadores de uso/adopción, usuarios por
 plan/industria y clientes de baja actividad se encuentran en Salud de clientes,
 con secciones de detalle plegables y ayudas informativas. El tiempo de uso
-sigue siendo estimado y la telemetría acordada no está implementada. El
+seguía siendo estimado y la telemetría acordada aún no estaba implementada. El
 endpoint global entrega un diccionario de definiciones. El panel etiqueta la
 duración como estimada y denomina “revisiones IA procesadas” a la métrica
 documental, sin presentarla como cantidad de documentos únicos. La
@@ -191,20 +193,24 @@ clasificación sigue visible en la consola, ahora dentro de Salud. DEC-03 define
 DAU/WAU como usuarios únicos de empresas con actividad humana, sin ADMIN de
 plataforma ni eventos automáticos, usando `America/Santiago`. `past_due` se
 muestra aparte como pago atrasado y otros estados no activos/trial como «otro
-estado/no activo»; ninguno cuenta como cliente activo. El requisito sigue PAR:
-falta implementar y validar la telemetría acordada, además de la fuente/fecha
-de UF en cada respuesta. El heartbeat, la persistencia por sesión lógica y
-agregados diarios están acordados; la retención propuesta sigue sujeta a
-DEC-08. El período se selecciona entre día, últimos 7 días, últimos 30 días o
-mes calendario, usando días calendario inclusivos en `America/Santiago`. Las
-sesiones simultáneas se suman incluso si exceden el tiempo de reloj; el
-denominador es usuarios únicos con actividad en el período.
+estado/no activo»; ninguno cuenta como cliente activo. El requisito seguía PAR
+por la telemetría pendiente y la fuente/fecha de UF en cada respuesta.
+
+**Actualización RF-MET-02:** se implementó en la tarjeta Tiempo activo medido de
+Salud de clientes, con períodos calendario en `America/Santiago`, fechas,
+denominador visible y N/A cuando no existen usuarios medidos. Las sesiones
+concurrentes se suman; los pings de pestañas compartidas se deduplican. El
+backend solo acredita hasta 120 segundos por señal, exige un refresh vigente y
+excluye ADMIN. La retención se conecta a DEC-08. Pasaron 28 pruebas focalizadas
+y el build frontend. Falta revisión visual de la tarjeta y despliegue de la
+migración 20 en el entorno destino. RF-MET-01/03 continúan pendientes, por lo
+que la prioridad Métricas SaaS sigue PAR y su 60% histórico no se recalcula.
 
 **Sugerencias y criterios a considerar**
 
 1. Aprobar un diccionario de métricas: nombre, definición, fuente, ventana temporal, unidad y universo.
 2. Diferenciar “cuentas habilitadas”, “usuarios con actividad”, DAU/WAU y “sesiones vigentes”; no usarlos como equivalentes.
-3. Mantener la etiqueta “estimado” en tiempo/duración hasta que exista telemetría de sesión lógica acordada.
+3. Mantener el tiempo medido separado de la estimación anterior; conservar la etiqueta “estimado” solo durante la transición.
 4. Definir si documentos procesados cuenta revisiones, resultados completados o documentos únicos; mostrar estados fallidos/en proceso por separado cuando corresponda.
 5. Validar que Salud presente clientes de baja actividad con umbral, ventana temporal y casos sin usuarios/sin actividad.
 6. Identificar fecha y fuente del valor UF; probar períodos mensual/anual, monedas admitidas, suscripción ausente y acceso denegado.

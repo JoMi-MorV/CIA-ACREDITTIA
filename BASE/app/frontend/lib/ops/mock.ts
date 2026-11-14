@@ -183,6 +183,25 @@ export async function mockDispatch(path: string, opts: Opts = {}): Promise<any> 
   const q = opts.query ?? {};
   const method = opts.method || (opts.body !== undefined ? "POST" : "GET");
 
+  if (path === "/stats/active-usage") {
+    const hoy = new Date();
+    const fin = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate() + 1);
+    const comienzo = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
+    const period = String(q.period ?? "last_30_days");
+    if (period === "last_7_days") comienzo.setDate(comienzo.getDate() - 6);
+    else if (period === "last_30_days") comienzo.setDate(comienzo.getDate() - 29);
+    else if (period === "month") comienzo.setDate(1);
+    const formatDate = (d: Date) =>
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const start_date = formatDate(comienzo);
+    const end_date_exclusive = formatDate(fin);
+    return {
+      period, time_zone: "America/Santiago", start_date, end_date_exclusive,
+      measured_users: 1274, active_minutes_total: 198432.5,
+      active_minutes_per_user: 155.75, unit: "minutes",
+    };
+  }
+
   if (path === "/ajustes-negocio") {
     if (method === "PATCH") {
       ajustesNegocio = {

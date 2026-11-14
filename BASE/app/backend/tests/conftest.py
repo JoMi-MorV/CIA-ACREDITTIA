@@ -75,7 +75,7 @@ SCRIPTS = ["01_esquema.sql", "02_indices.sql", "03_triggers.sql",
            "13_respaldos_admin.sql", "14_auditoria_autenticacion.sql",
            "15_acceso_excepcional_admin.sql", "16_privacidad_retencion.sql",
            "17_ajustes_negocio.sql", "18_confirmacion_cambio_email.sql",
-           "19_progreso_procesos.sql"]
+           "19_progreso_procesos.sql", "20_telemetria_actividad.sql"]
 
 _TMP = os.path.join(tempfile.gettempdir(), "acredittia_pruebas")
 PGDATA = os.path.join(_TMP, "pgdata")

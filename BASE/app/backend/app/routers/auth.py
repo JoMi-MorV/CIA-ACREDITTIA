@@ -33,15 +33,16 @@ from sqlalchemy.orm import Session
 
 from ..config import settings
 from ..database import auth_session, get_db
-from ..deps import err, get_current_user
+from ..deps import err, get_current_session_id, get_current_user
 from ..models import (
     Company, Contrato, EmailChangeToken, PasswordResetToken, RefreshToken, User,
 )
+from ..models_ops import OpsActivitySession
 from ..security import (
     create_access_token, hash_password, hash_refresh, new_refresh_token,
     validar_rut, verify_password,
 )
-from ..services import actividad
+from ..services import actividad, session_activity
 from ..services.email import EmailDeliveryError, enviar_email, smtp_configurado
 
 logger = logging.getLogger("acredittia.auth")
@@ -265,7 +266,8 @@ def login(body: LoginIn):
         _log_auth(db, "auth_login_ok", user, session_id)
         db.commit()
         return {
-            "access_token": create_access_token(user.id, user.role, user.company_id, user.auth_version),
+            "access_token": create_access_token(
+                user.id, user.role, user.company_id, user.auth_version, session_id),
             "refresh_token": raw,
             "token_type": "bearer",
             "user": _user_out(user, _contrato_out(db, user)),
@@ -303,7 +305,8 @@ def refresh(body: RefreshIn):
         _log_auth(db, "auth_refresh_rotated", user, session_id)
         db.commit()
         return {
-            "access_token": create_access_token(user.id, user.role, user.company_id, user.auth_version),
+            "access_token": create_access_token(
+                user.id, user.role, user.company_id, user.auth_version, session_id),
             "refresh_token": raw,
             "token_type": "bearer",
         }
@@ -312,13 +315,43 @@ def refresh(body: RefreshIn):
 @router.post("/logout")
 def logout(body: RefreshIn, db: Session = Depends(get_db),
            user: User = Depends(get_current_user)):
+    now = datetime.now(timezone.utc)
     rt = db.scalar(select(RefreshToken).where(
         RefreshToken.token_hash == hash_refresh(body.refresh_token)))
     if rt and rt.user_id == user.id:
-        rt.revoked_at = datetime.now(timezone.utc)
+        rt.revoked_at = now
+        if rt.session_id:
+            db.query(OpsActivitySession).filter(
+                OpsActivitySession.session_id == rt.session_id,
+                OpsActivitySession.ended_at.is_(None),
+            ).update({OpsActivitySession.ended_at: now})
         _log_auth(db, "auth_logout", user, rt.session_id)
         db.commit()
     return {"ok": True}
+
+
+@router.post("/activity/heartbeat")
+def activity_heartbeat(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+    session_id: uuid.UUID = Depends(get_current_session_id),
+):
+    if user.role == "admin":
+        raise err(403, "TELEMETRIA_NO_APLICA", "La telemetría aplica a sesiones de clientes")
+    now = datetime.now(timezone.utc)
+    vigente = db.scalar(select(RefreshToken.id).where(
+        RefreshToken.user_id == user.id,
+        RefreshToken.session_id == session_id,
+        RefreshToken.revoked_at.is_(None),
+        RefreshToken.expires_at > now,
+    ).limit(1).with_for_update())
+    if vigente is None:
+        raise err(401, "SESION_INVALIDA", "La sesión ya no está vigente")
+    try:
+        segundos = session_activity.registrar_heartbeat(db, user, session_id, now)
+    except ValueError as exc:
+        raise err(403, "SESION_INVALIDA", str(exc))
+    return {"ok": True, "segundos_registrados": segundos}
 
 
 # ------------------------------------------------------ recuperar contraseña

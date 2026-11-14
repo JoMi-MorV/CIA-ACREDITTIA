@@ -1,6 +1,45 @@
-# Validación funcional — actualizado al 12 de noviembre de 2026
+# Validación funcional — actualizado al 14 de noviembre de 2026
 
-## Recálculo del avance general — 12 de noviembre de 2026
+## RF-DAS-01 — universos del resumen global — 14 de noviembre de 2026
+
+Se acordaron y aplicaron las definiciones del dashboard: empresas de todos los
+estados (aprobadas indicadas aparte); contratos activos e históricos separados;
+trabajadores/equipos sin baja; usuarios no ADMIN, con habilitados aparte. El
+porcentaje de acreditación y los contadores por estado consideran el mismo
+universo: documentos obligatorios no EMSIPOR de empresas aprobadas. La
+morosidad permanece como alerta separada. Si no existen documentos evaluables,
+la API devuelve `null` para los porcentajes y la interfaz muestra “N/A / Sin
+documentos evaluables”, no 0%.
+
+La regresión `tests/test_ops.py::test_stats_documentos_usan_mismo_universo_aprobado`
+comprueba el conteo de los cuatro estados, excluye documentos opcionales y
+EMSIPOR, verifica que todos los conteos dejan de incluir una empresa al pasar
+a pendiente y cubre el denominador cero. También pasó
+`test_stats_incluye_empresa_aprobada_sin_usuarios`.
+
+Validación ejecutada desde `BASE/app/backend`:
+
+```powershell
+python -m pytest tests/test_ops.py::test_stats_documentos_usan_mismo_universo_aprobado tests/test_ops.py::test_stats_incluye_empresa_aprobada_sin_usuarios -q --tb=short
+```
+
+Resultado: **2 aprobadas, 0 fallidas**. Se mantiene un warning no bloqueante
+de compatibilidad `starlette.testclient` + `httpx`. `npm run build` en
+`BASE/app/frontend` compiló, validó tipos y generó las 29 rutas. El usuario
+confirmó la revisión visual y que las métricas se ven bien en general;
+RF-DAS-01 queda **IV/100%** en su alcance funcional.
+
+## Recálculo del avance general — 14 de noviembre de 2026
+
+RF-DAS-01 pasa de 90% a 100% tras acordar y aplicar los universos de los KPI,
+unificar el universo de documentos del porcentaje y sus estados, y representar
+la ausencia de documentos evaluables como “N/A”. La regresión focalizada pasó
+2 pruebas, el build frontend pasó y el usuario confirmó que revisó visualmente
+el dashboard y las métricas se ven bien en general. La suma de las fichas del
+SRS v0.86 es 2.928/37 = **79,1%**, frente a 2.918/37 = 78,9% antes de este
+cierre. El promedio de las ocho prioridades ADMIN se recalcula a **79,2%**;
+P1 queda en 84,7%, P0 en 72,2% y P2 en 69,2%. RF-DAS-01 queda IV/100% en su
+alcance funcional. No cambia el NO-GO para producción.
 
 Se actualizaron únicamente los requisitos directamente afectados: RF-CLI-01
 de 75% a 80% por el flujo de cambio seguro de correo y RF-SAL-03 de 90% a 95%
@@ -627,7 +666,7 @@ explícitos, no indicadores de salud ni riesgos con valor cero.
 
 Estos umbrales no se han validado contra todos los casos límite ni implementado
 de forma integral. La inactividad por eventos no equivale a duración real de
-uso, cuya telemetría sigue pendiente según DEC-05.
+uso; esta se mide por separado mediante RF-MET-02 y su telemetría de sesión.
 
 ## DEC-05 — medición de tiempo activo — 7 de octubre de 2026
 
@@ -699,8 +738,40 @@ días previos; o el mes calendario local. Si una persona tiene sesiones
 concurrentes, se suman sus minutos aunque superen el tiempo de reloj: una hora
 activa simultánea en dos sesiones computa dos horas de actividad de sesión para
 esa persona. El denominador continúa siendo usuarios únicos con actividad.
-Implementación y validación siguen pendientes; las reglas no certifican que la
-telemetría actual mida ya ese comportamiento.
+La definición se complementa con la aceptación posterior del usuario: cuentan
+clic, teclado, toque y scroll; no cuentan movimiento del puntero ni foco por sí
+solos. Se tolera un intervalo de heartbeat perdido, con un máximo de 120 segundos
+acreditables; una brecha mayor no se reconstruye. El login crea una sesión, la
+rotación de refresh conserva su ID, un login/dispositivo nuevo crea otro y las
+pestañas que comparten sesión no duplican tiempo. En Salud de clientes se
+presenta el promedio medido y se conserva la estimación anterior en una tarjeta
+aparte durante la transición. Sin usuarios medidos: N/A y 0 usuarios; con
+usuarios medidos y cero segundos: 0 minutos.
+
+### Implementación y validación focalizada — RF-MET-02
+
+- La migración 20 agrega sesiones lógicas, agregados diarios identificables por
+  usuario y agregados diarios no identificables por usuario para cada empresa,
+  con RLS y los límites de retención conectados a `ops_retencion`.
+- El JWT incluye `sid`; el heartbeat requiere usuario aprobado/activo y un
+  refresh token vigente no revocado. La interfaz solo envía señales con la
+  pestaña visible y dentro de cinco minutos desde interacción confiable; el
+  backend deduplica señales de pestañas compartidas y acredita como máximo dos
+  minutos.
+- `GET /admin/stats/active-usage` devuelve únicamente agregados globales, con
+  ventanas de hoy, 7 días, 30 días y mes calendario de Santiago. La respuesta
+  usa una función SQL de agregación que no expone filas identificables a ADMIN,
+  y distingue denominador cero (`null`, mostrado como N/A) de minutos cero con
+  usuarios medidos.
+- `tests/test_session_activity.py`, `tests/test_auth.py::test_refresh_rota_el_token`,
+  `tests/test_esquema.py` y `tests/test_privacidad.py`: **28 aprobadas** en
+  PostgreSQL temporal. Se cubren
+  rotación, cierre/revocación, ADMIN excluido, pestañas/sesiones simultáneas,
+  brechas de señal, períodos calendario, N/A/cero, retención y migración
+  repetible.
+- `npm run build` en el frontend: **aprobado**. Queda pendiente la revisión
+  visual del nuevo indicador en Salud de clientes y aplicar/verificar la
+  migración en el entorno destino antes de desplegar.
 
 ## DEC-11 — exportación de datos de negocio y archivos — 8 de octubre de 2026
 

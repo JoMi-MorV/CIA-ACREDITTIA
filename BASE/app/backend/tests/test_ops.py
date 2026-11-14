@@ -17,7 +17,7 @@ from threading import Event, Thread
 import pytest
 
 from app.database import worker_session
-from app.models import Company
+from app.models import Company, Documento
 from tests.conftest import API
 
 ENVOLTURA = {"items", "page", "page_size", "total", "total_pages"}
@@ -104,6 +104,79 @@ def test_stats_incluye_empresa_aprobada_sin_usuarios(app_cliente, admin):
     assert item["usuarios"] == 0
     assert item["usuarios_activos"] == 0
     assert item["actividad_pct"] == 0
+
+
+def test_stats_documentos_usan_mismo_universo_aprobado(
+        app_cliente, admin, empresa_a, contrato_a):
+    def obtener_stats():
+        respuesta = app_cliente.get(f"{API}/admin/stats",
+                                    headers=admin["headers"])
+        assert respuesta.status_code == 200, respuesta.text
+        return respuesta.json()
+
+    inicial = obtener_stats()
+    estados = ("ok", "falta", "porvenc", "venc")
+    with worker_session(is_admin=True) as db:
+        db.add_all([
+            Documento(
+                company_id=empresa_a["company_id"],
+                contrato_id=contrato_a["id"],
+                titulo=f"Documento de prueba {estado}",
+                estado="ok" if estado == "ok" else "falta",
+                estado_calc=estado,
+            )
+            for estado in estados
+        ])
+        db.add_all([
+            Documento(
+                company_id=empresa_a["company_id"],
+                contrato_id=contrato_a["id"],
+                titulo="Documento opcional",
+                obligatorio=False,
+            ),
+            Documento(
+                company_id=empresa_a["company_id"],
+                contrato_id=contrato_a["id"],
+                titulo="Documento EMSIPOR",
+                es_emsipor=True,
+            ),
+        ])
+        db.commit()
+
+    aprobado = obtener_stats()
+    assert aprobado["documentos_total"] == inicial["documentos_total"] + 4
+    assert aprobado["documentos_ok"] == inicial["documentos_ok"] + 1
+    assert aprobado["documentos"] == {
+        "total": inicial["documentos"]["total"] + 4,
+        "ok": inicial["documentos"]["ok"] + 1,
+        "pendientes": inicial["documentos"]["pendientes"] + 1,
+        "por_vencer": inicial["documentos"]["por_vencer"] + 1,
+        "vencidos": inicial["documentos"]["vencidos"] + 1,
+    }
+    assert aprobado["cumplimiento_global_pct"] == round(
+        100 * aprobado["documentos_ok"] / aprobado["documentos_total"])
+
+    with worker_session(is_admin=True) as db:
+        company = db.get(Company, empresa_a["company_id"])
+        assert company is not None
+        company.status = "pending"
+        db.commit()
+
+    sin_empresas_aprobadas = obtener_stats()
+    assert sin_empresas_aprobadas["empresas_total"] == aprobado["empresas_total"]
+    assert sin_empresas_aprobadas["aprobadas"] == 0
+    assert sin_empresas_aprobadas["contratos_total"] == aprobado["contratos_total"]
+    assert sin_empresas_aprobadas["documentos_total"] == 0
+    assert sin_empresas_aprobadas["documentos_ok"] == 0
+    assert sin_empresas_aprobadas["documentos"] == {
+        "total": 0,
+        "ok": 0,
+        "pendientes": 0,
+        "por_vencer": 0,
+        "vencidos": 0,
+    }
+    assert sin_empresas_aprobadas["cumplimiento_promedio"] is None
+    assert sin_empresas_aprobadas["cumplimiento_global_pct"] is None
 
 
 # ============================================================================

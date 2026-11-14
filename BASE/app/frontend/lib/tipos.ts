@@ -853,9 +853,9 @@ export type AdminStats = {
   documentos_total: number;
   documentos_ok: number;
   /** Media simple por empresa aprobada. */
-  cumplimiento_promedio: number;
+  cumplimiento_promedio: number | null;
   /** Media ponderada por documentos. Es otro número, a propósito. */
-  cumplimiento_global_pct: number;
+  cumplimiento_global_pct: number | null;
   empresas_medidas: number;
   usuarios_total: number;
   usuarios_activos: number;

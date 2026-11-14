@@ -95,8 +95,9 @@ SCHEMA_SCRIPTS = ["01_esquema.sql", "02_indices.sql", "03_triggers.sql",
                   "15_acceso_excepcional_admin.sql",
                   "16_privacidad_retencion.sql", "17_ajustes_negocio.sql",
                   "18_confirmacion_cambio_email.sql",
-                  "19_progreso_procesos.sql"]
-SCHEMA_VERSION = 19
+                  "19_progreso_procesos.sql",
+                  "20_telemetria_actividad.sql"]
+SCHEMA_VERSION = 20
 MIGRATION_LOCK_ID = 918273        # clave del pg_advisory_lock de migración
 
 
@@ -396,21 +397,27 @@ def apply_schema(schema_dir: str | None = None) -> int:
                 pendientes = ["16_privacidad_retencion.sql"]
             if actual == 16:
                 pendientes = ["17_ajustes_negocio.sql", "18_confirmacion_cambio_email.sql",
-                              "19_progreso_procesos.sql"]
+                              "19_progreso_procesos.sql",
+                              "20_telemetria_actividad.sql"]
             elif actual == 17:
                 pendientes = ["18_confirmacion_cambio_email.sql",
-                              "19_progreso_procesos.sql"]
+                              "19_progreso_procesos.sql",
+                              "20_telemetria_actividad.sql"]
             elif actual == 18:
-                pendientes = ["19_progreso_procesos.sql"]
+                pendientes = ["19_progreso_procesos.sql",
+                              "20_telemetria_actividad.sql"]
+            elif actual == 19:
+                pendientes = ["20_telemetria_actividad.sql"]
             elif actual < 16:
                 for script in ("17_ajustes_negocio.sql", "18_confirmacion_cambio_email.sql",
-                               "19_progreso_procesos.sql"):
+                               "19_progreso_procesos.sql", "20_telemetria_actividad.sql"):
                     if script not in pendientes:
                         pendientes.append(script)
             elif actual < 19:
                 for script in ("18_confirmacion_cambio_email.sql", "19_progreso_procesos.sql"):
                     if script not in pendientes:
                         pendientes.append(script)
+                pendientes.append("20_telemetria_actividad.sql")
 
             for nombre in pendientes:
                 ruta = os.path.join(sdir, nombre)

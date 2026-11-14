@@ -209,7 +209,7 @@ no la instalación ni la ejecución normal de la imagen de la aplicación.
 | DATABASE_URL | postgres local | Conexión SQLAlchemy (psycopg) |
 | DB_RLS_ENABLED | true | Activa el contexto de aislamiento por tenant |
 | DB_APPLY_SCHEMA_ON_START | false | En Compose el servicio `migrate` aplica el esquema |
-| SCHEMA_VERSION_ESPERADA | 12 | Versión de esquema exigida por la API |
+| SCHEMA_VERSION_ESPERADA | 20 | Versión de esquema exigida por la API |
 | STORAGE_BACKEND / STORAGE_DIR | local / `/data/uploads` | Almacenamiento local o `azure` |
 | AZURE_STORAGE_ACCOUNT / AZURE_BLOB_CONN / AZURE_BLOB_CONTAINER | vacío / vacío / `docs` | Configuración de Azure Blob Storage |
 | QUEUE_BACKEND / REDIS_URL | inproc / Redis local | `celery` usa Redis para trabajos en segundo plano |

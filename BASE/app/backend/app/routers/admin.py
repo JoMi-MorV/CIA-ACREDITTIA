@@ -21,6 +21,8 @@ from __future__ import annotations
 import logging
 import uuid
 from datetime import date, datetime, timedelta, timezone
+from typing import Literal
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, Header, Query
 from pydantic import BaseModel, Field
@@ -1445,6 +1447,46 @@ def eliminar_template(template_id: uuid.UUID, db: Session = Depends(get_db),
 # ============================================================================
 # §5.4 — Estadísticas globales
 # ============================================================================
+@router.get("/stats/active-usage")
+def active_usage(
+    period: Literal["today", "last_7_days", "last_30_days", "month"] = Query(
+        default="last_30_days"),
+    db: Session = Depends(get_db),
+):
+    """Devuelve solo agregados globales, sin identificadores de usuarios o empresas."""
+    zone = ZoneInfo("America/Santiago")
+    today = datetime.now(zone).date()
+    if period == "today":
+        start = today
+    elif period == "last_7_days":
+        start = today - timedelta(days=6)
+    elif period == "last_30_days":
+        start = today - timedelta(days=29)
+    else:
+        start = today.replace(day=1)
+    end = today + timedelta(days=1)
+
+    total_seconds, measured_users = db.execute(text(
+        "SELECT segundos_activos, usuarios_medidos "
+        "FROM ops_resumen_actividad_usuario(:desde, :hasta)"
+    ), {"desde": start, "hasta": end}).one()
+    total_minutes = round(float(total_seconds) / 60, 2)
+    average_minutes = (
+        round(float(total_seconds) / 60 / measured_users, 2)
+        if measured_users else None
+    )
+    return {
+        "period": period,
+        "time_zone": "America/Santiago",
+        "start_date": start.isoformat(),
+        "end_date_exclusive": end.isoformat(),
+        "measured_users": measured_users,
+        "active_minutes_total": total_minutes,
+        "active_minutes_per_user": average_minutes,
+        "unit": "minutes",
+    }
+
+
 @router.get("/stats")
 def stats(db: Session = Depends(get_db)):
     """KPI de la plataforma.
@@ -1460,17 +1502,19 @@ def stats(db: Session = Depends(get_db)):
     aprob = _cuenta(db, Company, Company.status == "approved")
     rech = _cuenta(db, Company, Company.status == "rejected")
 
-    # Cumplimiento por empresa en una sola pasada: documentos obligatorios no
-    # EMSIPOR, que es la misma base que usa `_cumplimiento_empresa`.
+    # Todos los indicadores de documentos del dashboard comparten este universo.
+    filtros_documentos = (
+        Documento.obligatorio.is_(True),
+        Documento.es_emsipor.is_(False),
+        Company.status == "approved",
+    )
     filas = db.execute(
         select(Documento.company_id,
                func.count().label("total"),
                func.count().filter(Documento.estado_calc == "ok").label("ok"))
         .select_from(Documento)
         .join(Company, Company.id == Documento.company_id)
-        .where(Documento.obligatorio.is_(True),
-               Documento.es_emsipor.is_(False),
-               Company.status == "approved")
+        .where(*filtros_documentos)
         .group_by(Documento.company_id)).all()
     pcts = [round(100 * int(f.ok) / int(f.total)) for f in filas if int(f.total)]
     docs_total = sum(int(f.total) for f in filas)
@@ -1478,11 +1522,13 @@ def stats(db: Session = Depends(get_db)):
 
     sujetos = _sujetos_por_tipo(db)
 
-    # El dashboard distingue falta de vencimiento: mezclar ambos estados
-    # oculta dos acciones operativas distintas para el administrador.
+    # El dashboard distingue falta de vencimiento y usa el mismo universo
+    # aprobado del porcentaje de acreditación.
     estados_documentos = dict(db.execute(
         select(Documento.estado_calc, func.count())
-        .where(Documento.obligatorio.is_(True), Documento.es_emsipor.is_(False))
+        .select_from(Documento)
+        .join(Company, Company.id == Documento.company_id)
+        .where(*filtros_documentos)
         .group_by(Documento.estado_calc)).all())
     documentos = {
         "total": sum(int(v) for v in estados_documentos.values()),
@@ -1755,9 +1801,9 @@ def stats(db: Session = Depends(get_db)):
         "clientes_activos": int(clientes_activos),
         "documentos_total": docs_total, "documentos_ok": docs_ok,
         "documentos": documentos,
-        "cumplimiento_promedio": round(sum(pcts) / len(pcts)) if pcts else 0,
+        "cumplimiento_promedio": round(sum(pcts) / len(pcts)) if pcts else None,
         "cumplimiento_global_pct": (round(100 * docs_ok / docs_total)
-                                    if docs_total else 0),
+                                    if docs_total else None),
         "empresas_medidas": len(pcts),
         "actividad_global": {
             "total": _cuenta(db, Actividad),

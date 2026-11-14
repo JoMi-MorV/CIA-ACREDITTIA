@@ -157,16 +157,24 @@ def run_retencion(db, _progress=None, **_):
     if _progress:
         _progress(10, "Aplicando política de retención")
     fila = db.execute(text("SELECT * FROM ops_podar_privacidad()")).one()
+    actividad = db.execute(
+        text("SELECT * FROM ops_podar_telemetria_actividad()")).one()
     db.commit()
     if _progress:
         _progress(90, "Consolidando resultados de retención")
     total = sum((fila.actividad_podada, fila.bitacora_podada,
                  fila.runs_podados, fila.incidentes_podados,
-                 fila.disponibilidad_podada, fila.metricas_podadas))
+                 fila.disponibilidad_podada, fila.metricas_podadas,
+                 actividad.sesiones_podadas,
+                 actividad.agregados_usuario_podados,
+                 actividad.agregados_empresa_podados))
     return int(total), (
         f"actividad={fila.actividad_podada}, bitácora={fila.bitacora_podada}, "
         f"runs={fila.runs_podados}, incidentes={fila.incidentes_podados}, "
         f"disponibilidad={fila.disponibilidad_podada}, métricas={fila.metricas_podadas}; "
+        f"telemetría_sesiones={actividad.sesiones_podadas}, "
+        f"telemetría_usuarios={actividad.agregados_usuario_podados}, "
+        f"telemetría_empresas={actividad.agregados_empresa_podados}; "
         f"{fila.runs_timeout} runs marcados timeout")
 
 

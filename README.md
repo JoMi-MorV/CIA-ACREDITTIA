@@ -2,10 +2,14 @@
 
 ## Estado actual verificado
 
-Actualizado al 12-11-2026.
+Actualizado al 14-11-2026.
 
-- Avance estimado vigente: **78,9%** para las 37 fichas SRS, calculado como
-  `2918 / 37`. El promedio de las ocho prioridades ADMIN es **77,3%**.
+- Avance estimado vigente: **79,1%** para las 37 fichas SRS, calculado como
+  `2928 / 37`. El promedio de las ocho prioridades ADMIN es **79,2%**.
+- RF-DAS-01 queda **IV/100%**: universos acordados, conteos de documentos
+  alineados, salida “N/A” sin datos evaluables, pruebas/build aprobados y
+  revisión visual confirmada por el usuario.
+- RF-DAS-01: **2 pruebas focalizadas aprobadas** y build frontend correcto.
 - RF-CLI-01 se reevalúa en 80% por el cambio seguro de correo; RF-SAL-03, en
   95% por el progreso medible y la actualización automática de procesos.
 - Validación focalizada del cambio de correo: **56 pruebas aprobadas** en
@@ -13,8 +17,8 @@ Actualizado al 12-11-2026.
   en operaciones y esquema. El build frontend pasó para ambos cambios.
   La entrega SMTP se probó con dobles; no se verificó un servidor SMTP real.
 - La suma anterior publicada (`2888 / 37`) no coincidía con los porcentajes
-  individuales del SRS; se corrigió a `2918 / 37`. P0/P1/P2 promedian
-  72,2% / 84,2% / 69,2%, recalculados desde sus fichas.
+  individuales del SRS; quedó corregida a `2928 / 37`. P0/P1/P2 promedian
+  72,2% / 84,7% / 69,2%, recalculados desde sus fichas.
 - En la auditoría de dependencias reportada el 04-11, `npm audit --omit=dev`
   encontró **1 vulnerabilidad crítica y 2 altas** en Next.js/PostCSS/source-map-js;
   confirmar el estado actual con una nueva ejecución de auditoría.
@@ -93,7 +97,9 @@ una revisión cada minuto, necesaria para respetar el minuto de sus expresiones 
 `13_respaldos_admin.sql` incorpora el esquema del módulo inicial de respaldos y
 exportaciones ADMIN. La migración 18 (`18_confirmacion_cambio_email.sql`) agrega
 el flujo de confirmación de correo; la migración 19
-(`19_progreso_procesos.sql`) persiste etapa y porcentaje de procesos. Desde
+(`19_progreso_procesos.sql`) persiste etapa y porcentaje de procesos; la 20
+(`20_telemetria_actividad.sql`) agrega telemetría de sesiones activas y retención.
+La API exige el esquema 20 para este corte. Desde
 `BASE/app`, actualizar las imágenes y aplicar las migraciones pendientes antes
 de recrear los servicios:
 
@@ -104,11 +110,12 @@ docker compose up -d api worker beat
 ```
 
 Si se configuró `SCHEMA_VERSION_ESPERADA` externamente, debe coincidir con la
-versión que requiere la aplicación (19 para este corte). Las migraciones
+versión que requiere la aplicación (20 para este corte). Las migraciones
 conservan los datos; la validación automatizada se realiza en PostgreSQL
 temporal y no aplica cambios a la base habitual. La migración 19 se validó con
-las pruebas focalizadas descritas en `documentacion/VALIDACION_ACTUAL.md`;
-confirma el esquema de tu entorno antes de arrancar la API y workers.
+las pruebas focalizadas descritas en `documentacion/VALIDACION_ACTUAL.md`; la
+migración 20 también pasó pruebas en PostgreSQL temporal. Confirma el esquema
+de tu entorno antes de arrancar la API y workers.
 
 En Usuarios, las cuentas revocadas tienen la acción **Reactivar** con confirmación.
 Conserva identidad, rol y alcance. Revocar o cambiar el estado activo desde ADMIN
@@ -719,22 +726,22 @@ con enlaces previos. Las rutas Ops antiguas de Plataforma, Usuarios e
 Indicadores también redirigen a sus destinos Admin. `/admin` y la entrada Ops
 abren ahora el Dashboard global.
 
-## Cambios a la fecha — 12-11-2026
+## Cambios a la fecha — 14-11-2026
 
-El documento funcional vigente es el [SRS v0.85](documentacion/SRS.md). Esta
+El documento funcional vigente es el [SRS v0.86](documentacion/SRS.md). Esta
 sección resume los cambios relevantes y el estado conocido a la fecha; no
 sustituye los criterios, pendientes ni evidencias detallados en el SRS y la
 [validación actual](documentacion/VALIDACION_ACTUAL.md).
 
-**Resumen del corte:** se actualizó el avance general a **78,9%** y el promedio
-de las prioridades ADMIN a **77,3%**, con cálculo simple desde las fichas del
-SRS. La suma previa publicada no coincidía con los valores individuales y se
-corrigió. Se mejoraron el cambio seguro de correo en Mi perfil y el seguimiento
-de procesos críticos (progreso medible, actualización automática, historial
-inline y refresco sin salto visual). La documentación mantiene los pendientes
-de SMTP real, recuperación completa de contraseña, trazabilidad integral y
-recuperación distribuida. Estos porcentajes no significan aceptación integral
-ni preparación para producción; el estado continúa **NO-GO** con datos reales.
+**Resumen del corte:** se actualizó el avance general a **79,1%** y el promedio
+de las prioridades ADMIN a **79,2%**, con cálculo simple desde las fichas del
+SRS. RF-DAS-01 queda en 100% tras alinear los universos y estados documentales,
+agregar el caso “N/A”, aprobar las pruebas focalizadas y el build, y registrar
+la revisión visual confirmada por el usuario. También se mantienen
+los pendientes de SMTP real, recuperación completa de contraseña, trazabilidad
+integral y recuperación distribuida. Estos porcentajes no significan aceptación
+integral ni preparación para producción; el estado continúa **NO-GO** con datos
+reales.
 
 ### Funcionalidad y cambios recientes
 

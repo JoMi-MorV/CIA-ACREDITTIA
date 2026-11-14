@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
+import SessionTelemetry from "@/components/SessionTelemetry";
 import { currentUser } from "@/lib/api";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
@@ -16,6 +17,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   if (!listo) return null;
   return (
     <div className="min-h-screen md:flex">
+      <SessionTelemetry />
       <Sidebar />
       <main className="min-w-0 flex-1 overflow-x-auto px-4 pb-8 pt-20 md:px-7 md:pt-7">{children}</main>
     </div>

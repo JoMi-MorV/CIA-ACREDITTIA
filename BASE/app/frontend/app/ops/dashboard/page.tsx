@@ -18,23 +18,30 @@ export default function DashboardGlobalPage() {
   return <div className="space-y-4">
     <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
       <Kpi label="Empresas" valor={fmt(data.empresas_total)} delta={`${fmt(data.aprobadas)} aprobadas`} tono="up"
-        info="Total de empresas registradas en la plataforma. La cifra secundaria indica cuántas tienen estado aprobado." />
+        info="Cuenta todas las empresas registradas, sin importar su estado. La cifra secundaria indica cuántas tienen estado aprobado." />
       <Kpi label="Contratos activos" valor={fmt(data.contratos_total)}
         delta={`${fmt(data.contratos_historicos)} en histórico`}
-        info="Contratos vigentes registrados para las empresas. La cifra secundaria corresponde a contratos históricos, no activos." />
+        info="Cuenta contratos activos de toda la plataforma. La cifra secundaria muestra aparte los contratos desactivados o finalizados." />
       <Kpi label="Trabajadores" valor={fmt(data.personal.total)} delta={`${fmt(data.personal.acreditados)} acreditados`} tono="up"
-        info="Personas registradas como trabajadores; el valor secundario cuenta las que tienen acreditación vigente según sus documentos." />
+        info="Cuenta trabajadores que no están dados de baja, incluso si su empresa aún no está aprobada. El dato secundario muestra trabajadores acreditados." />
       <Kpi label="Usuarios" valor={fmt(data.usuarios_total)} delta={`${fmt(data.usuarios_activos)} cuentas habilitadas`}
-        info="Cuentas de usuario no administrativas. La cifra secundaria cuenta las cuentas habilitadas, no necesariamente las que tuvieron actividad reciente." />
+        info="Cuenta todas las cuentas no administrativas, incluidas las deshabilitadas. La cifra secundaria muestra las cuentas habilitadas, no necesariamente las que tuvieron actividad reciente." />
     </div>
     <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.4fr_1fr]">
       <Card>
         <CardHead titulo="Acreditación global" sub="Documentos obligatorios de empresas aprobadas"
-          info="Porcentaje de documentos obligatorios correctos respecto del total evaluado en empresas aprobadas. Pendientes, por vencer y vencidos se muestran aparte; sirven para identificar dónde priorizar seguimiento." />
+          info="Considera documentos obligatorios no EMSIPOR de empresas aprobadas. El porcentaje es documentos correctos sobre el total evaluable; los estados usan exactamente el mismo universo. Si no hay documentos evaluables se muestra “N/A”." />
         <div className="flex items-end gap-4">
-          <div className="text-4xl font-bold" style={{ color: "var(--ops-accent)" }}>{data.cumplimiento_global_pct}%</div>
+          <div className="text-4xl font-bold" style={{ color: "var(--ops-accent)" }}>
+            {data.cumplimiento_global_pct === null
+              ? "N/A"
+              : `${data.cumplimiento_global_pct}%`}
+          </div>
           <div className="ops-sub pb-1">{fmt(data.documentos_ok)} de {fmt(data.documentos_total)} documentos correctos</div>
         </div>
+        {data.cumplimiento_global_pct === null && (
+          <p className="ops-sub mt-2">Sin documentos evaluables de empresas aprobadas.</p>
+        )}
         <div className="mt-4 grid grid-cols-3 gap-3">
           <EstadoMini label="Pendientes" value={docs.pendientes} tono="warn" />
           <EstadoMini label="Por vencer" value={docs.por_vencer} tono="warn" />

@@ -5,6 +5,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
+import jwt
 from fastapi import Depends, Header, HTTPException, Query
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session, joinedload
@@ -57,6 +58,19 @@ def get_current_user(token: str | None = Depends(oauth2)) -> User:
     # con X-Company-Id en get_company_id().
     set_ctx(company_id=user.company_id, is_admin=(user.role == "admin"), user_id=user.id)
     return user
+
+
+def get_current_session_id(token: str | None = Depends(oauth2)) -> uuid.UUID:
+    """Obtiene el identificador de sesión autenticado incluido en el JWT."""
+    if not token:
+        raise err(401, "TOKEN_AUSENTE", "Falta el header Authorization")
+    try:
+        session_id = decode_access_token(token).get("sid")
+        if not session_id:
+            raise ValueError("Token sin identificador de sesión")
+        return uuid.UUID(str(session_id))
+    except (jwt.InvalidTokenError, KeyError, TypeError, ValueError):
+        raise err(401, "SESION_INVALIDA", "El token no identifica una sesión vigente")
 
 
 def require_admin(user: User = Depends(get_current_user)) -> User:

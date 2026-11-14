@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import { Children } from "react";
+import { useState } from "react";
 import { HBars, HBarsStacked, LineChart } from "@/components/ops/charts";
 import { Card, CardHead, Estado, Pill, useOps } from "@/components/ops/ui";
 import { opsApi } from "@/lib/ops/api";
@@ -34,6 +35,17 @@ type ActividadMensual = {
   }[];
 };
 
+type UsoActivo = {
+  period: string;
+  time_zone: string;
+  start_date: string;
+  end_date_exclusive: string;
+  measured_users: number;
+  active_minutes_total: number;
+  active_minutes_per_user: number | null;
+  unit: "minutes";
+};
+
 const INDUSTRIAS = [
   ["mineria", "Minería"],
   ["construccion", "Construcción"],
@@ -46,7 +58,13 @@ const nombreIndustria = (industria: string | null) =>
   INDUSTRIAS.find(([clave]) => clave === industria)?.[1] ?? "Sin industria";
 
 export default function SaludClientesPage() {
+  const [periodoActivo, setPeriodoActivo] = useState<
+    "today" | "last_7_days" | "last_30_days" | "month"
+  >("last_30_days");
   const stats = useOps<AdminStats>(() => opsApi("/stats"), []);
+  const usoActivo = useOps<UsoActivo>(
+    () => opsApi("/stats/active-usage", { query: { period: periodoActivo } }),
+    [periodoActivo]);
   const sistemas = useOps(() => opsApi("/sistemas/estado"), []);
   const usoUsuarios = useOps(() => opsApi("/usuarios/resumen"), []);
   const porPlan = useOps<UsuariosPorPlan>(() => opsApi("/usuarios/por-plan"), []);
@@ -58,6 +76,15 @@ export default function SaludClientesPage() {
   if (stats.error || !stats.data) return <Card><p style={{ color: "var(--ops-crit)" }}>{stats.error ?? "No se pudieron cargar los riesgos."}</p><button className="ops-btn ops-btn-ghost mt-3" onClick={stats.recargar}>Reintentar</button></Card>;
   const health = stats.data.salud_clientes;
   const fmt = (number: number) => new Intl.NumberFormat("es-CL").format(number);
+  const formatoFecha = new Intl.DateTimeFormat("es-CL", {
+    dateStyle: "medium", timeZone: "UTC",
+  });
+  const finVentana = usoActivo.data
+    ? new Date(`${usoActivo.data.end_date_exclusive}T00:00:00Z`) : null;
+  if (finVentana) finVentana.setUTCDate(finVentana.getUTCDate() - 1);
+  const rangoVentana = usoActivo.data && finVentana
+    ? `${formatoFecha.format(new Date(`${usoActivo.data.start_date}T00:00:00Z`))} – ${formatoFecha.format(finVentana)}`
+    : null;
   return <div className="space-y-4">
     <Card>
       <CardHead titulo="Salud operacional" sub="Estado general de los componentes técnicos" />
@@ -176,6 +203,50 @@ export default function SaludClientesPage() {
         {actividadMensual.data?.items.at(-1)?.parcial && (
           <p className="ops-sub mt-2">El último mes aún está en curso.</p>
         )}
+      </Card>
+      <Card>
+        <CardHead titulo="Tiempo activo medido"
+          sub="Minutos acreditados por actividad real en sesiones autenticadas"
+          info="La página debe estar visible y registrar interacción del usuario (clic, teclado, toque o scroll). Se pausa tras cinco minutos sin interacción; las sesiones simultáneas se suman. El promedio usa usuarios únicos con al menos una señal medida. Sin usuarios medidos se muestra N/A." />
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <p className="ops-sub">
+            {rangoVentana
+              ? `Período: ${rangoVentana} · ${usoActivo.data?.time_zone}`
+              : `Zona horaria: ${usoActivo.data?.time_zone ?? "America/Santiago"}`}
+          </p>
+          <label className="flex items-center gap-2 text-sm">
+            <span>Período</span>
+            <select
+              aria-label="Período del tiempo activo"
+              className="rounded-md border bg-transparent px-3 py-2 text-sm"
+              value={periodoActivo}
+              onChange={(event) => setPeriodoActivo(
+                event.target.value as typeof periodoActivo)}>
+              <option value="today">Hoy</option>
+              <option value="last_7_days">Últimos 7 días</option>
+              <option value="last_30_days">Últimos 30 días</option>
+              <option value="month">Mes calendario</option>
+            </select>
+          </label>
+        </div>
+        <Estado cargando={usoActivo.cargando} error={usoActivo.error}
+          reintentar={usoActivo.recargar}>
+          {usoActivo.data && <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <SaaSValue
+              label="Minutos promedio por usuario medido"
+              value={usoActivo.data.active_minutes_per_user === null
+                ? "N/A"
+                : `${new Intl.NumberFormat("es-CL", {
+                    maximumFractionDigits: 2,
+                  }).format(usoActivo.data.active_minutes_per_user)} min`} />
+            <SaaSValue label="Usuarios medidos"
+              value={fmt(usoActivo.data.measured_users)} />
+            <SaaSValue label="Minutos activos totales"
+              value={`${new Intl.NumberFormat("es-CL", {
+                maximumFractionDigits: 2,
+              }).format(usoActivo.data.active_minutes_total)} min`} />
+          </div>}
+        </Estado>
       </Card>
       <Card>
         <CardHead titulo="Uso y adopción" sub="Actividad de cuentas, sesiones y uso de la plataforma"
