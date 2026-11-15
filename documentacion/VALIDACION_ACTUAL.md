@@ -35,11 +35,22 @@ RF-DAS-01 pasa de 90% a 100% tras acordar y aplicar los universos de los KPI,
 unificar el universo de documentos del porcentaje y sus estados, y representar
 la ausencia de documentos evaluables como “N/A”. La regresión focalizada pasó
 2 pruebas, el build frontend pasó y el usuario confirmó que revisó visualmente
-el dashboard y las métricas se ven bien en general. La suma de las fichas del
-SRS v0.86 es 2.928/37 = **79,1%**, frente a 2.918/37 = 78,9% antes de este
-cierre. El promedio de las ocho prioridades ADMIN se recalcula a **79,2%**;
-P1 queda en 84,7%, P0 en 72,2% y P2 en 69,2%. RF-DAS-01 queda IV/100% en su
-alcance funcional. No cambia el NO-GO para producción.
+el dashboard y las métricas se ven bien en general. Después, RF-SEG-02 subió de 55% a 90% tras integrar concesiones en los flujos
+API cubiertos y añadir el botón ADMIN “Autorizar lectura y ver (1 h)”. Pasaron
+88/88 pruebas focalizadas y `npm run build`; se observó el botón y su diálogo.
+El usuario confirmó que revisó el recorrido completo, funciona y queda
+auditado, por lo que RF-SEG-02 sube a 95%. El usuario confirmó también
+RNF-SEG-01 en el entorno destino: roles separados de mínimo privilegio, RLS
+activo y comprobado con los roles reales de API/worker, denegaciones entre
+empresas/contratos, secretos externos y la condición aplicable de DEC-10. El
+requisito queda IV/100%. La suma vigente en el SRS
+v0.92 es 3.013/37 = **81,4%**; antes de RF-SEG-02 era 2.928/37 = 79,1%.
+El promedio de las ocho prioridades ADMIN es **81,0%**,
+P0 81,7%, P1 84,7% y P2 69,2%. RF-DAS-01 queda IV/100%, RF-SEG-02 PAR/95%
+y RNF-SEG-01 IV/100%. Continúan pendientes otras lecturas sensibles y brechas
+de producción; no cambia el NO-GO general. La suite focalizada de roles,
+configuración, tenants y esquema pasó **76/76**, con un warning no bloqueante
+de Starlette/httpx.
 
 Se actualizaron únicamente los requisitos directamente afectados: RF-CLI-01
 de 75% a 80% por el flujo de cambio seguro de correo y RF-SAL-03 de 90% a 95%
@@ -357,24 +368,35 @@ Evidencia ejecutada:
 RNF-PER-01 permanece parcial: la línea base automatizada no sustituye una
 medición con población, concurrencia y escenarios representativos aprobados.
 
-## RF-SEG-02 — mínimo privilegio y acceso excepcional — 4 de noviembre de 2026
+## RF-SEG-02 — mínimo privilegio y acceso excepcional — 14 de noviembre de 2026
 
 Se añadió el esquema v15 para concesiones excepcionales de ADMIN. Cada
 concesión queda limitada por usuario ADMIN, empresa, tipo/id de recurso,
 motivo de 12-240 caracteres y vigencia máxima de 24 horas. La creación y la
-revocación generan actividad de auditoría.
+revocación generan actividad de auditoría. La integración cubre lecturas de
+personal, documentos y expedientes, ficha de empresa vinculada, búsqueda ADMIN
+y exportaciones cubiertas; los usos de concesión en los flujos protegidos
+generan auditoría. El listado global `GET /admin/users` permanece bajo RF-USU.
 
 La tabla tiene RLS reforzado, índices para sus claves de relación y permisos
-SQL explícitos para el rol de aplicación. La dependencia de backend rechaza
-operaciones sensibles sin concesión vigente.
+SQL explícitos para el rol de aplicación. La autorización del backend valida
+titular, categoría, expiración, revocación y alcance por empresa/recurso.
 
 Evidencia ejecutada:
-- backend Python compilado sin errores.
-- `tests/test_esquema.py`: **13 aprobadas, 0 fallidas**.
+- `tests/test_documentos.py`, `tests/test_admin_busqueda.py`,
+  `tests/test_admin_backups.py` y `tests/test_privacidad.py`:
+  **88 aprobadas, 0 fallidas**.
+- Pruebas sobre PostgreSQL temporal con el rol de aplicación `acredittia_app`.
+- Warning no bloqueante de deprecación de Starlette/httpx.
 
-RF-SEG-02 permanece parcial: falta incorporar la dependencia en los endpoints
-sensibles concretos, ejecutar pruebas negativas de cada recurso y validar
-credenciales reales de mínimo privilegio en el despliegue.
+RF-SEG-02 permanece parcial (95%). Se agregó el flujo de autoconcesión por
+empresa: motivo obligatorio, acceso de lectura por una hora a personal y
+documentos, y revocación al volver a la consola. El usuario confirmó que la
+concesión no añade permisos de escritura y que conserva los permisos ADMIN
+ordinarios; además, revisó el recorrido completo y confirmó que funciona y
+queda auditado. Falta terminar la revisión de lecturas sensibles restantes y
+validar credenciales/permisos reales del despliegue. Las pruebas locales no
+acreditan el comportamiento de producción.
 
 ## RF-AUD-02 — auditoría de autenticación — 4 de noviembre de 2026
 
@@ -715,11 +737,13 @@ propagación no puede hacerse de forma segura, no se debe activar RLS contractua
 de manera parcial o con un contexto que el cliente pueda falsificar; los
 controles de API siguen siendo obligatorios.
 
-Esta es una decisión de diseño, no evidencia de implementación. El código y la
-configuración deben probar autorización negativa entre contratos y empresa,
-credenciales sin superusuario/BYPASSRLS, y el aislamiento de cualquier contexto
-si se adopta RLS. El estado de RF-SEG-01/RNF-SEG-01 continúa pendiente de
-validación integral.
+Esta es una decisión de diseño, no por sí misma evidencia de implementación.
+El 14-11-2026 el usuario confirmó para RNF-SEG-01 la validación en el entorno
+destino de roles separados, RLS efectivo con roles de runtime, denegaciones
+entre empresas/contratos y secretos externos. También confirmó que RLS
+contractual no se adoptó o, si se adoptó, sus pruebas SQL directas pasaron.
+RNF-SEG-01 queda IV/100%; RF-SEG-01 conserva su validación parcial de la matriz
+completa de operaciones.
 
 ## DEC-03 — clasificación comercial de clientes — 8 de octubre de 2026
 
@@ -744,8 +768,8 @@ solos. Se tolera un intervalo de heartbeat perdido, con un máximo de 120 segund
 acreditables; una brecha mayor no se reconstruye. El login crea una sesión, la
 rotación de refresh conserva su ID, un login/dispositivo nuevo crea otro y las
 pestañas que comparten sesión no duplican tiempo. En Salud de clientes se
-presenta el promedio medido y se conserva la estimación anterior en una tarjeta
-aparte durante la transición. Sin usuarios medidos: N/A y 0 usuarios; con
+presenta el promedio medido como única métrica de duración; se retiró la
+duración promedio estimada por sesión. Sin usuarios medidos: N/A y 0 usuarios; con
 usuarios medidos y cero segundos: 0 minutos.
 
 ### Implementación y validación focalizada — RF-MET-02

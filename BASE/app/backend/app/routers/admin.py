@@ -80,18 +80,54 @@ class AccessGrantIn(BaseModel):
 @router.post("/access-grants", status_code=201)
 def create_access_grant(body: AccessGrantIn, admin: User = Depends(require_admin),
                         db: Session = Depends(get_db)):
+    recurso_tipo = body.recurso_tipo.strip()
+    if recurso_tipo not in {"personal", "trabajador", "usuario", "documento"}:
+        raise err(422, "RECURSO_INVALIDO",
+                  "El tipo de recurso de la concesión no está permitido")
+    if body.company_id is None and body.recurso_id is None:
+        raise err(422, "ALCANCE_REQUERIDO",
+                  "La concesión debe limitarse a una empresa o recurso")
+
+    company_id = body.company_id
+    if company_id is not None and not db.get(Company, company_id):
+        raise err(422, "EMPRESA_INVALIDA",
+                  "La empresa de la concesión no existe")
+    if body.recurso_id is not None:
+        if recurso_tipo in {"personal", "trabajador"}:
+            recurso = db.get(Sujeto, body.recurso_id)
+            if not recurso or recurso.tipo != "trabajador":
+                raise err(422, "RECURSO_INVALIDO",
+                          "El recurso debe ser un trabajador existente")
+            recurso_company_id = recurso.company_id
+        elif recurso_tipo == "usuario":
+            recurso = db.get(User, body.recurso_id)
+            if not recurso or recurso.company_id is None:
+                raise err(422, "RECURSO_INVALIDO",
+                          "El recurso debe ser un usuario de una empresa")
+            recurso_company_id = recurso.company_id
+        else:
+            recurso = db.get(Documento, body.recurso_id)
+            if not recurso:
+                raise err(422, "RECURSO_INVALIDO",
+                          "El recurso debe ser un documento existente")
+            recurso_company_id = recurso.company_id
+        if company_id is not None and company_id != recurso_company_id:
+            raise err(422, "ALCANCE_INVALIDO",
+                      "La empresa no corresponde al recurso de la concesión")
+        company_id = recurso_company_id
+
     target = db.get(User, body.admin_user_id)
     if not target or target.role != "admin":
         raise err(422, "ADMIN_INVALIDO", "La concesión solo puede asignarse a un ADMIN activo")
     if not target.activo:
         raise err(422, "ADMIN_INACTIVO", "El ADMIN objetivo está desactivado")
     grant = AdminAccessGrant(
-        admin_user_id=target.id, granted_by=admin.id, company_id=body.company_id,
-        recurso_tipo=body.recurso_tipo.strip(), recurso_id=body.recurso_id,
+        admin_user_id=target.id, granted_by=admin.id, company_id=company_id,
+        recurso_tipo=recurso_tipo, recurso_id=body.recurso_id,
         motivo=body.motivo.strip(), expires_at=datetime.now(timezone.utc) + timedelta(hours=body.horas),
     )
     db.add(grant)
-    actividad.log(db, body.company_id, "creacion", "admin_acceso",
+    actividad.log(db, company_id, "creacion", "admin_acceso",
                   "Concesión excepcional ADMIN creada", user_id=admin.id,
                   entidad_tipo="concesion_acceso", entidad_id=grant.id,
                   metadata={"motivo": grant.motivo, "recurso_tipo": grant.recurso_tipo,
@@ -622,7 +658,7 @@ def global_search(q: str | None = Query(None, max_length=100),
             "detalle": f"/admin/companies/{user.company_id}",
         })
 
-    return {
+    respuesta = {
         "permisos": SEARCH_PERMISSIONS,
         # Compatibilidad: total cuenta los elementos devueltos, no todas las coincidencias.
         "total": len(resultados), "items": resultados,
@@ -630,6 +666,21 @@ def global_search(q: str | None = Query(None, max_length=100),
         "hay_mas": any(len(filas) > limite for filas in
                        (empresas, contratos, trabajadores, equipos, usuarios)),
     }
+    for categoria, grant in concesiones.items():
+        if grant is not None:
+            actividad.log(
+                db, grant.company_id, "visualizacion", "admin_acceso",
+                "Concesión excepcional utilizada en búsqueda ADMIN",
+                user_id=admin.id, entidad_tipo="concesion_acceso",
+                entidad_id=grant.id,
+                metadata={"recurso_tipo": categoria,
+                          "recurso_id": str(grant.recurso_id)
+                          if grant.recurso_id else None,
+                          "motivo": grant.motivo},
+            )
+    if any(grant is not None for grant in concesiones.values()):
+        db.commit()
+    return respuesta
 
 
 @router.get("/search/catalogos")
@@ -1094,6 +1145,18 @@ def detalle_company(
                                    Alerta.resuelta_at.is_(None)),
         "cumplimiento_pct": out["cumplimiento_pct"],
     }
+    if company_in_scope and grant is not None:
+        actividad.log(
+            db, c.id, "visualizacion", "admin_acceso",
+            "Concesión excepcional utilizada para consultar usuarios de una empresa",
+            user_id=admin.id, entidad_tipo="concesion_acceso",
+            entidad_id=grant.id,
+            metadata={"recurso_tipo": "usuario",
+                      "recurso_id": str(grant.recurso_id)
+                      if grant.recurso_id else None,
+                      "motivo": grant.motivo},
+        )
+        db.commit()
     return out
 
 

@@ -86,12 +86,11 @@ def autorizar_categoria_informacion(
     db: Session,
 ) -> AdminAccessGrant | None:
     """Autoriza categorías ordinarias y exige concesión para información sensible."""
-    if categoria not in {
-        "empresa", "contrato", "trabajador", "equipo", "usuario",
-    }:
+    if categoria not in {"empresa", "contrato", "trabajador", "equipo",
+                         "usuario", "documento"}:
         raise err(400, "CATEGORIA_INVALIDA", "Categoría de información no reconocida")
 
-    if categoria not in {"trabajador", "usuario"}:
+    if categoria not in {"trabajador", "usuario", "documento"}:
         return None
     if grant_id is None:
         raise err(403, "PERMISO_INFORMACION_REQUERIDO",
@@ -99,18 +98,54 @@ def autorizar_categoria_informacion(
 
     grant = db.get(AdminAccessGrant, grant_id)
     recurso = grant.recurso_tipo if grant else ""
+    recursos_por_categoria = {
+        "trabajador": {"trabajador", "personal"},
+        "usuario": {"usuario"},
+        "documento": {"documento"},
+    }
     ahora = datetime.now(timezone.utc)
     if (
         not grant
         or grant.admin_user_id != user.id
         or grant.revoked_at is not None
         or grant.expires_at <= ahora
-        or recurso not in {categoria, "personal"}
-        or recurso == "personal" and categoria != "trabajador"
+        or recurso not in recursos_por_categoria[categoria]
     ):
         raise err(403, "PERMISO_INFORMACION_INVALIDO",
                   "La concesión no autoriza esta categoría o ya no está vigente")
     return grant
+
+
+def validar_alcance_concesion(
+    grant: AdminAccessGrant,
+    company_id: uuid.UUID,
+    recurso_id: uuid.UUID | None = None,
+) -> AdminAccessGrant:
+    """Limita una concesión sensible a su empresa o recurso autorizado."""
+    if grant.company_id is None and grant.recurso_id is None:
+        raise err(403, "PERMISO_INFORMACION_INVALIDO",
+                  "La concesión debe estar limitada a una empresa o recurso")
+    if grant.company_id is not None and grant.company_id != company_id:
+        raise err(403, "PERMISO_INFORMACION_INVALIDO",
+                  "La concesión no autoriza esta empresa")
+    if grant.recurso_id is not None and grant.recurso_id != recurso_id:
+        raise err(403, "PERMISO_INFORMACION_INVALIDO",
+                  "La concesión no autoriza este recurso")
+    return grant
+
+
+def autorizar_concesion_acotada(
+    categoria: str,
+    grant_id: uuid.UUID | None,
+    user: User,
+    db: Session,
+    company_id: uuid.UUID,
+    recurso_id: uuid.UUID | None = None,
+) -> AdminAccessGrant | None:
+    if user.role != "admin":
+        return None
+    grant = autorizar_categoria_informacion(categoria, grant_id, user, db)
+    return validar_alcance_concesion(grant, company_id, recurso_id)
 
 
 def require_sensitive_admin(

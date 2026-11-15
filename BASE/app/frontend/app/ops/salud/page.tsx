@@ -250,7 +250,7 @@ export default function SaludClientesPage() {
       </Card>
       <Card>
         <CardHead titulo="Uso y adopción" sub="Actividad de cuentas, sesiones y uso de la plataforma"
-          info="DAU y WAU cuentan usuarios distintos con eventos registrados hoy y durante los últimos siete días. Sesiones vigentes se cuentan por refresh tokens válidos. La duración es una estimación basada en sesiones; revisiones IA cuentan procesos de revisión, no documentos únicos. Las variaciones mensuales son cambios absolutos." />
+          info="DAU y WAU cuentan usuarios distintos con eventos registrados hoy y durante los últimos siete días. Sesiones vigentes se cuentan por refresh tokens válidos. Revisiones IA cuentan procesos de revisión, no documentos únicos. Las variaciones mensuales son cambios absolutos." />
         <Estado cargando={stats.cargando || usoUsuarios.cargando}
           error={stats.error ?? usoUsuarios.error}
           reintentar={() => { stats.recargar(); usoUsuarios.recargar(); }}>
@@ -260,7 +260,6 @@ export default function SaludClientesPage() {
             <SaaSValue label="Sesiones vigentes" value={stats.data.sesiones.vigentes} />
             <SaaSValue label="DAU" value={stats.data.sesiones.usuarios_activos_diarios} />
             <SaaSValue label="WAU" value={stats.data.sesiones.usuarios_activos_semanales} />
-            <SaaSValue label="Duración promedio (estimada)" value={`${stats.data.sesiones.duracion_promedio_minutos_30d} min`} />
             <SaaSValue label="Crecimiento usuarios / mes" value={usoUsuarios.data.usuarios?.variacion_mes?.abs ?? "-"} />
             <SaaSValue label="Altas / bajas este mes" value={usoUsuarios.data.clientes ? `${usoUsuarios.data.clientes.altas_mes} / ${usoUsuarios.data.clientes.bajas_mes}` : "-"} />
             <SaaSValue label="Revisiones IA procesadas" value={stats.data.documentos_procesados.total} />

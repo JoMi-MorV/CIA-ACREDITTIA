@@ -28,7 +28,7 @@ import logging
 import uuid
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Header, Query
 from pydantic import BaseModel
 from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
@@ -36,8 +36,9 @@ from sqlalchemy.orm import Session, joinedload
 
 from ..config import TIPOS_EQUIPO
 from ..database import get_db
-from ..deps import (Page, aplicar_orden, contrato_scope, err, get_company_id,
-                    get_current_user, paginacion, require_contrato, sobre)
+from ..deps import (Page, aplicar_orden, autorizar_concesion_acotada,
+                    contrato_scope, err, get_company_id, get_current_user,
+                    paginacion, require_contrato, sobre)
 from ..models import Cargo, Contrato, Documento, LicenciaInterna, Sujeto, User
 from ..security import validar_rut
 from ..services import actividad
@@ -55,6 +56,21 @@ ORDEN_SUJETOS = {"nombre", "rut", "patente", "estado", "cargo", "tipo_equipo",
                  "marca", "anio", "created_at", "updated_at"}
 
 TIPO_POR_RUTA = {"personal": "trabajador", "equipos": "equipo"}
+
+
+def _auditar_uso_concesion(db: Session, company_id: uuid.UUID, user: User,
+                           grant, recurso_tipo: str,
+                           recurso_id: uuid.UUID | None = None) -> None:
+    if grant is None:
+        return
+    actividad.log(
+        db, company_id, "visualizacion", "admin_acceso",
+        "Concesión excepcional utilizada para consultar información sensible",
+        user_id=user.id, entidad_tipo="concesion_acceso", entidad_id=grant.id,
+        metadata={"recurso_tipo": recurso_tipo,
+                  "recurso_id": str(recurso_id) if recurso_id else None,
+                  "motivo": grant.motivo},
+    )
 
 
 # ============================================================================
@@ -276,14 +292,22 @@ def listar_personal(contrato_id: uuid.UUID | None = Query(None),
                     p: Page = Depends(paginacion),
                     db: Session = Depends(get_db),
                     cid: uuid.UUID = Depends(get_company_id),
-                    user: User = Depends(get_current_user)):
+                    user: User = Depends(get_current_user),
+                    access_grant: uuid.UUID | None = Header(
+                        default=None, alias="X-Access-Grant")):
     """Dotación de personal de la empresa."""
     if contrato_id:
         require_contrato(contrato_id, user)
-    return listar_sujetos(db, cid, "trabajador", p, scope=contrato_scope(user),
-                          contrato_id=contrato_id, estado=estado,
-                          faena_id=faena_id, cargo_id=cargo_id, cargo=cargo,
-                          es_conductor=es_conductor)
+    grant = autorizar_concesion_acotada(
+        "trabajador", access_grant, user, db, cid)
+    respuesta = listar_sujetos(
+        db, cid, "trabajador", p, scope=contrato_scope(user),
+        contrato_id=contrato_id, estado=estado, faena_id=faena_id,
+        cargo_id=cargo_id, cargo=cargo, es_conductor=es_conductor)
+    _auditar_uso_concesion(db, cid, user, grant, "trabajador")
+    if grant is not None:
+        db.commit()
+    return respuesta
 
 
 @router.post("/personal", status_code=201)
@@ -341,16 +365,34 @@ def crear_trabajador(body: TrabajadorIn, db: Session = Depends(get_db),
 @router.get("/personal/{sid}")
 def detalle_trabajador(sid: uuid.UUID, db: Session = Depends(get_db),
                        cid: uuid.UUID = Depends(get_company_id),
-                       user: User = Depends(get_current_user)):
-    return _out(db, _get_sujeto(db, cid, sid, "trabajador", user), con_docs=True)
+                       user: User = Depends(get_current_user),
+                       access_grant: uuid.UUID | None = Header(
+                           default=None, alias="X-Access-Grant")):
+    sujeto = _get_sujeto(db, cid, sid, "trabajador", user)
+    grant = autorizar_concesion_acotada(
+        "trabajador", access_grant, user, db, cid, sujeto.id)
+    respuesta = _out(db, sujeto, con_docs=True)
+    _auditar_uso_concesion(db, cid, user, grant, "trabajador", sujeto.id)
+    if grant is not None:
+        db.commit()
+    return respuesta
 
 
 @router.get("/personal/{sid}/documentos")
 def docs_trabajador(sid: uuid.UUID, db: Session = Depends(get_db),
                     cid: uuid.UUID = Depends(get_company_id),
-                    user: User = Depends(get_current_user)):
+                    user: User = Depends(get_current_user),
+                    access_grant: uuid.UUID | None = Header(
+                        default=None, alias="X-Access-Grant")):
     """Checklist del trabajador (el detalle del sujeto ya lo embebe)."""
-    return checklist_out(db, _get_sujeto(db, cid, sid, "trabajador", user))
+    sujeto = _get_sujeto(db, cid, sid, "trabajador", user)
+    grant = autorizar_concesion_acotada(
+        "trabajador", access_grant, user, db, cid, sujeto.id)
+    respuesta = checklist_out(db, sujeto)
+    _auditar_uso_concesion(db, cid, user, grant, "trabajador", sujeto.id)
+    if grant is not None:
+        db.commit()
+    return respuesta
 
 
 @router.patch("/personal/{sid}")
@@ -455,16 +497,38 @@ def crear_equipo(body: EquipoIn, db: Session = Depends(get_db),
 @router.get("/equipos/{sid}")
 def detalle_equipo(sid: uuid.UUID, db: Session = Depends(get_db),
                    cid: uuid.UUID = Depends(get_company_id),
-                   user: User = Depends(get_current_user)):
-    return _out(db, _get_sujeto(db, cid, sid, "equipo", user), con_docs=True)
+                   user: User = Depends(get_current_user),
+                   access_grant: uuid.UUID | None = Header(
+                       default=None, alias="X-Access-Grant")):
+    from .documentos import (_auditar_uso_concesion_documento,
+                             _autorizar_lectura_admin)
+
+    sujeto = _get_sujeto(db, cid, sid, "equipo", user)
+    grant = _autorizar_lectura_admin(db, user, cid, access_grant)
+    respuesta = _out(db, sujeto, con_docs=True)
+    _auditar_uso_concesion_documento(db, cid, user, grant)
+    if grant is not None:
+        db.commit()
+    return respuesta
 
 
 @router.get("/equipos/{sid}/documentos")
 def docs_equipo(sid: uuid.UUID, db: Session = Depends(get_db),
                 cid: uuid.UUID = Depends(get_company_id),
-                user: User = Depends(get_current_user)):
+                user: User = Depends(get_current_user),
+                access_grant: uuid.UUID | None = Header(
+                    default=None, alias="X-Access-Grant")):
     """Checklist del equipo (el detalle del sujeto ya lo embebe)."""
-    return checklist_out(db, _get_sujeto(db, cid, sid, "equipo", user))
+    from .documentos import (_auditar_uso_concesion_documento,
+                             _autorizar_lectura_admin)
+
+    sujeto = _get_sujeto(db, cid, sid, "equipo", user)
+    grant = _autorizar_lectura_admin(db, user, cid, access_grant)
+    respuesta = checklist_out(db, sujeto)
+    _auditar_uso_concesion_documento(db, cid, user, grant)
+    if grant is not None:
+        db.commit()
+    return respuesta
 
 
 @router.patch("/equipos/{sid}")

@@ -33,6 +33,23 @@ def _ruta_local(url: str) -> str:
     return url[len("http://test"):]
 
 
+def _concesion_documentos(app_cliente, admin, empresa, recurso_id=None):
+    cuerpo = {
+        "admin_user_id": admin["user_id"],
+        "company_id": empresa["company_id"],
+        "recurso_tipo": "documento",
+        "motivo": "Revisión autorizada de documentos",
+        "horas": 1,
+    }
+    if recurso_id:
+        cuerpo["recurso_id"] = recurso_id
+    response = app_cliente.post(
+        f"{API}/admin/access-grants", headers=admin["headers"], json=cuerpo)
+    assert response.status_code == 201, response.text
+    return {**admin["headers"], "X-Company-Id": empresa["company_id"],
+            "X-Access-Grant": response.json()["id"]}
+
+
 @pytest.fixture
 def documento(app_cliente, empresa_a, contrato_a) -> dict:
     return _doc_de_contrato(app_cliente, empresa_a, contrato_a)
@@ -242,6 +259,46 @@ def test_revision_de_otra_empresa_no_es_consultable(app_cliente, empresa_a,
 # ============================================================================
 # 3. Descarga por URL firmada
 # ============================================================================
+def test_admin_listado_documental_exige_concesion_de_empresa(
+        app_cliente, admin, empresa_a, documento):
+    ruta = f"{API}/documentos"
+    headers = {**admin["headers"], "X-Company-Id": empresa_a["company_id"]}
+    denegada = app_cliente.get(ruta, headers=headers)
+    assert denegada.status_code == 403
+    assert denegada.json()["error"]["code"] == "PERMISO_INFORMACION_REQUERIDO"
+
+    autorizada = app_cliente.get(
+        ruta, headers=_concesion_documentos(app_cliente, admin, empresa_a))
+    assert autorizada.status_code == 200, autorizada.text
+    assert any(item["id"] == documento["id"]
+               for item in autorizada.json()["items"])
+
+
+def test_admin_debe_tener_concesion_acotada_para_leer_documentos(
+        app_cliente, admin, empresa_a, documento):
+    ruta = f"{API}/documentos/{documento['id']}"
+    headers = {**admin["headers"], "X-Company-Id": empresa_a["company_id"]}
+    denegada = app_cliente.get(ruta, headers=headers)
+    assert denegada.status_code == 403
+    assert denegada.json()["error"]["code"] == "PERMISO_INFORMACION_REQUERIDO"
+
+    autorizada = app_cliente.get(
+        ruta, headers=_concesion_documentos(
+            app_cliente, admin, empresa_a, documento["id"]))
+    assert autorizada.status_code == 200, autorizada.text
+    assert autorizada.json()["id"] == documento["id"]
+
+
+def test_admin_concesion_de_documentos_no_cruza_empresa(
+        app_cliente, admin, empresa_a, empresa_b, documento):
+    headers = _concesion_documentos(app_cliente, admin, empresa_b)
+    headers["X-Company-Id"] = empresa_a["company_id"]
+    response = app_cliente.get(
+        f"{API}/documentos/{documento['id']}", headers=headers)
+    assert response.status_code == 403
+    assert response.json()["error"]["code"] == "PERMISO_INFORMACION_INVALIDO"
+
+
 def test_download_url_firmada_funciona(app_cliente, empresa_a, admin, documento):
     salida = subir_archivo(app_cliente, empresa_a, documento["id"],
                            filename="certificado.pdf", contenido=CONTENIDO)
@@ -269,6 +326,26 @@ def test_download_url_firmada_funciona(app_cliente, empresa_a, admin, documento)
     assert r.content == CONTENIDO
     assert 'filename="certificado.pdf"' in r.headers["content-disposition"]
     assert r.headers["cache-control"] == "no-store"
+
+
+def test_admin_descarga_documento_solo_con_concesion_vigente(
+        app_cliente, empresa_a, admin, documento):
+    salida = subir_archivo(app_cliente, empresa_a, documento["id"],
+                           filename="certificado.pdf", contenido=CONTENIDO)
+    fid = salida["archivo"]["id"]
+    ruta = f"{API}/documentos/{documento['id']}/archivos/{fid}/download-url"
+    headers = {**admin["headers"], "X-Company-Id": empresa_a["company_id"]}
+    sin_concesion = app_cliente.get(
+        ruta, headers=headers,
+        params={"motivo": "Descarga de documento autorizado"})
+    assert sin_concesion.status_code == 403
+
+    autorizada = app_cliente.get(
+        ruta, headers=_concesion_documentos(
+            app_cliente, admin, empresa_a, documento["id"]),
+        params={"motivo": "Descarga de documento autorizado"})
+    assert autorizada.status_code == 200, autorizada.text
+    assert autorizada.json()["filename"] == "certificado.pdf"
 
 
 def test_firma_manipulada_da_403(app_cliente, empresa_a, documento):

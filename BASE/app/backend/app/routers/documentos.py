@@ -29,7 +29,7 @@ import os
 import uuid
 from datetime import date, datetime, timezone
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Header, Query
 from pydantic import BaseModel
 from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
@@ -37,9 +37,11 @@ from sqlalchemy.orm import Session, joinedload
 
 from ..config import ALLOWED_EXTENSIONS, settings
 from ..database import get_db
-from ..deps import (Page, aplicar_orden, contrato_scope, err, get_company_id,
-                    get_current_user, paginacion, require_contrato, sobre)
-from ..models import Contrato, Documento, DocumentoArchivo, IaReview, Sujeto, User
+from ..deps import (Page, aplicar_orden, autorizar_concesion_acotada,
+                    contrato_scope, err, get_company_id, get_current_user,
+                    paginacion, require_contrato, sobre)
+from ..models import (AdminAccessGrant, Contrato, Documento, DocumentoArchivo,
+                      IaReview, Sujeto, User)
 from ..services import actividad
 from ..services.checklist import calc_estado_doc, vencimiento_por_plantilla
 from ..services.jobs import enqueue
@@ -166,6 +168,47 @@ def _get_archivo(db: Session, cid: uuid.UUID, d: Documento,
     return a
 
 
+def _autorizar_lectura_admin(
+    db: Session,
+    user: User,
+    company_id: uuid.UUID,
+    grant_id: uuid.UUID | None,
+    documento_id: uuid.UUID | None = None,
+) -> AdminAccessGrant | None:
+    if user.role != "admin":
+        return None
+    categoria = "documento"
+    recurso_id = documento_id
+    if documento_id is not None:
+        documento = db.get(Documento, documento_id)
+        sujeto = db.get(Sujeto, documento.sujeto_id) if (
+            documento and documento.sujeto_id) else None
+        if sujeto and sujeto.tipo == "trabajador":
+            categoria = "trabajador"
+            recurso_id = sujeto.id
+    return autorizar_concesion_acotada(
+        categoria, grant_id, user, db, company_id, recurso_id)
+
+
+def _auditar_uso_concesion_documento(
+    db: Session,
+    company_id: uuid.UUID,
+    user: User,
+    grant,
+    documento_id: uuid.UUID | None = None,
+) -> None:
+    if grant is None:
+        return
+    actividad.log(
+        db, company_id, "visualizacion", "admin_acceso",
+        "Concesión excepcional utilizada para consultar documentos",
+        user_id=user.id, entidad_tipo="concesion_acceso", entidad_id=grant.id,
+        metadata={"recurso_tipo": "documento",
+                  "recurso_id": str(documento_id) if documento_id else None,
+                  "motivo": grant.motivo},
+    )
+
+
 def _valida_extension(filename: str) -> str:
     ext = os.path.splitext(filename or "")[1].lower()
     if ext not in ALLOWED_EXTENSIONS:
@@ -193,7 +236,9 @@ def listar(sujeto_id: uuid.UUID | None = Query(None),
            p: Page = Depends(paginacion),
            db: Session = Depends(get_db),
            cid: uuid.UUID = Depends(get_company_id),
-           user: User = Depends(get_current_user)):
+           user: User = Depends(get_current_user),
+           access_grant: uuid.UUID | None = Header(
+               default=None, alias="X-Access-Grant")):
     """Todos los documentos de la empresa, con su dueño resuelto.
 
     Es el listado que necesitan el dashboard, el calendario y los reportes: sin
@@ -214,6 +259,8 @@ def listar(sujeto_id: uuid.UUID | None = Query(None),
                   "'vence_antes' no puede ser anterior a 'vence_despues'")
     if contrato_id:
         require_contrato(contrato_id, user)
+    grant = _autorizar_lectura_admin(
+        db, user, cid, access_grant)
 
     q = (select(Documento, Sujeto, Contrato)
          .select_from(Documento)
@@ -250,14 +297,25 @@ def listar(sujeto_id: uuid.UUID | None = Query(None),
     from .reportes import _archivos_por_documento      # conteo en una sola query
     conteos = _archivos_por_documento(db, cid, [f[0].id for f in filas])
     items = [_fila_out(f[0], f[1], f[2], conteos.get(f[0].id, 0)) for f in filas]
+    _auditar_uso_concesion_documento(db, cid, user, grant)
+    if grant is not None:
+        db.commit()
     return sobre(items, total, p)
 
 
 @router.get("/{doc_id}")
 def detalle(doc_id: uuid.UUID, db: Session = Depends(get_db),
             cid: uuid.UUID = Depends(get_company_id),
-            user: User = Depends(get_current_user)):
-    return doc_out(_get_doc(db, cid, doc_id, user))
+            user: User = Depends(get_current_user),
+            access_grant: uuid.UUID | None = Header(
+                default=None, alias="X-Access-Grant")):
+    documento = _get_doc(db, cid, doc_id, user)
+    grant = _autorizar_lectura_admin(db, user, cid, access_grant, documento.id)
+    respuesta = doc_out(documento)
+    _auditar_uso_concesion_documento(db, cid, user, grant, documento.id)
+    if grant is not None:
+        db.commit()
+    return respuesta
 
 
 @router.patch("/{doc_id}")
@@ -448,7 +506,9 @@ def download_url(doc_id: uuid.UUID, archivo_id: uuid.UUID,
                  motivo: str = Query(..., min_length=12, max_length=240),
                  db: Session = Depends(get_db),
                  cid: uuid.UUID = Depends(get_company_id),
-                 user: User = Depends(get_current_user)):
+                 user: User = Depends(get_current_user),
+                 access_grant: uuid.UUID | None = Header(
+                     default=None, alias="X-Access-Grant")):
     """Emite una SAS de lectura de corta vida para descargar el archivo.
 
     Sustituye a la descarga por streaming: el contenido no pasa por la API, así
@@ -457,6 +517,7 @@ def download_url(doc_id: uuid.UUID, archivo_id: uuid.UUID,
     """
     d = _get_doc(db, cid, doc_id, user)
     a = _get_archivo(db, cid, d, archivo_id)
+    grant = _autorizar_lectura_admin(db, user, cid, access_grant, d.id)
     motivo = motivo.strip()
     if len(motivo) < 12:
         raise err(400, "MOTIVO_REQUERIDO",
@@ -465,7 +526,9 @@ def download_url(doc_id: uuid.UUID, archivo_id: uuid.UUID,
     actividad.log(db, cid, "visualizacion", "documentos",
                   f"Descarga de archivo '{a.filename}' del documento '{d.titulo}'",
                   user_id=user.id, entidad_tipo="documento", entidad_id=d.id,
-                  metadata={"motivo_acceso": motivo, "archivo_id": str(a.id)})
+                  metadata={"motivo_acceso": motivo, "archivo_id": str(a.id),
+                            "concesion_id": str(grant.id) if grant else None,
+                            "motivo_concesion": grant.motivo if grant else None})
     db.commit()
     return {
         "download_url": dl.download_url,

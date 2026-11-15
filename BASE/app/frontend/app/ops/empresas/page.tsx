@@ -15,6 +15,7 @@ export default function EmpresasAdminPage() {
   const [detalle, setDetalle] = useState<EmpresaDetalle | null>(null);
   const [empresaExpandida, setEmpresaExpandida] = useState<string | null>(null);
   const [cargandoDetalle, setCargandoDetalle] = useState<string | null>(null);
+  const [autorizandoEmpresa, setAutorizandoEmpresa] = useState<string | null>(null);
   const solicitudDetalle = useRef(0);
 
   const cargar = useCallback(() => {
@@ -54,6 +55,65 @@ export default function EmpresasAdminPage() {
     sessionStorage.setItem("impersonar", company.id);
     sessionStorage.setItem("impersonar_nombre", company.nombre);
     router.push("/dashboard");
+  };
+  const autorizarYVerComoEmpresa = async (company: Empresa) => {
+    const admin = Api.currentUser();
+    if (!admin || admin.role !== "admin") {
+      setError("Se requiere una sesión ADMIN para autorizar este acceso.");
+      return;
+    }
+    const motivo = await dialog.prompt({
+      title: "Autorizar lectura temporal",
+      message: `Se habilitará durante una hora la lectura de personal y documentos de ${company.nombre}. La concesión quedará auditada y no autoriza modificaciones.`,
+      inputLabel: "Motivo de acceso (mínimo 12 caracteres)",
+      minLength: 12,
+    });
+    if (!motivo) return;
+
+    setError("");
+    setAviso("");
+    setAutorizandoEmpresa(company.id);
+    const grantsCreadas: string[] = [];
+    try {
+      const personal = await Api.admin.crearConcesionLectura({
+        admin_user_id: admin.id,
+        company_id: company.id,
+        recurso_tipo: "personal",
+        motivo,
+        horas: 1,
+      });
+      grantsCreadas.push(personal.id);
+      const documentos = await Api.admin.crearConcesionLectura({
+        admin_user_id: admin.id,
+        company_id: company.id,
+        recurso_tipo: "documento",
+        motivo,
+        horas: 1,
+      });
+      grantsCreadas.push(documentos.id);
+      Api.guardarConcesionesLecturaAdmin(
+        company.id, personal.id, documentos.id);
+      impersonar(company);
+    } catch (e) {
+      const erroresReversion: string[] = [];
+      for (const grantId of grantsCreadas.reverse()) {
+        try {
+          await Api.admin.revocarConcesionLectura(grantId);
+        } catch (errorReversion) {
+          if (Api.esApiError(errorReversion) && errorReversion.status === 404) {
+            continue;
+          }
+          erroresReversion.push(
+            `${grantId}: ${Api.mensajeError(errorReversion)}`);
+        }
+      }
+      const mensaje = Api.mensajeError(e);
+      setError(erroresReversion.length
+        ? `${mensaje} No se pudo revertir una concesión parcial: ${erroresReversion.join("; ")}`
+        : mensaje);
+    } finally {
+      setAutorizandoEmpresa(null);
+    }
   };
   if (!companies) return error ? <p className="text-sm text-red-600">{error}</p> : <Spinner />;
   const pendientes = companies.filter((company) => company.status === "pending");
@@ -128,7 +188,14 @@ export default function EmpresasAdminPage() {
               onClick={() => void alternarDetalle(company)}>
               {empresaExpandida === company.id ? "Ocultar detalle" : "Detalle"}
             </button>
-              {company.status === "approved" && <button className="ops-btn ops-btn-ghost text-xs" onClick={() => impersonar(company)}>Ver como empresa</button>}
+              {company.status === "approved" && <button
+                className="ops-btn ops-btn-ghost text-xs"
+                disabled={autorizandoEmpresa !== null}
+                onClick={() => void autorizarYVerComoEmpresa(company)}>
+                {autorizandoEmpresa === company.id
+                  ? "Autorizando…"
+                  : "Autorizar lectura y ver (1 h)"}
+              </button>}
               {company.es_demo && <button className="ops-btn ops-btn-ghost text-xs" onClick={async () => {
                 if (!await dialog.confirm({
                   title: "Reiniciar empresa demo",

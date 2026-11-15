@@ -1,7 +1,7 @@
 # Resumen de requisitos ADMIN
 
 **Corte ADMIN:** 14 de noviembre de 2026  
-**Base documental:** SRS versión 0.86, GAP, `VALIDACION_ACTUAL.md` y el [cronograma de cierre de 2 semanas](CRONOGRAMA_CIERRE_PRODUCCION.md).
+**Base documental:** SRS versión 0.90, GAP, `VALIDACION_ACTUAL.md` y el [cronograma de cierre de 2 semanas](CRONOGRAMA_CIERRE_PRODUCCION.md).
 **Propósito:** resumir el estado técnico de las ocho prioridades ADMIN, distinguir lo implementado de lo validado y proponer criterios concretos para revisar su cierre.
 
 Este documento es una guía de revisión, no una aceptación contractual ni una certificación de producción. Los estados reflejan los requisitos y la evidencia descritos en el [SRS](SRS.md) y en [VALIDACION_ACTUAL.md](VALIDACION_ACTUAL.md). `IV` significa implementado y validado dentro del alcance probado; `ISV`, implementado sin validación completa; `PAR`, parcial; `COR`, requiere corrección; y `PEN`, pendiente. Los porcentajes estimados del SRS no equivalen a porcentaje de cumplimiento validado.
@@ -17,9 +17,15 @@ exportación. El corte del 12-11-2026 reevalúa RF-CLI-01 a 80% y RF-SAL-03 a
 95%, con pruebas focalizadas de autenticación/esquema y operaciones/esquema,
 respectivamente, y build frontend aprobado. El 14-11-2026 RF-DAS-01 queda en 100% (IV) con universo documental unificado,
 salida N/A para denominador cero, 2 pruebas focalizadas aprobadas, build
-frontend y revisión visual confirmada por el usuario. El promedio de las ocho
-prioridades ADMIN es **79,2% (79% redondeado)** y la cobertura media de los 37
-requisitos SRS es **79,1% (79% redondeado)**; RNF-REC-01 alcanza 100% para su
+frontend y revisión visual confirmada por el usuario. El 14-11-2026 RF-SEG-02 subió de 55% a 90% tras integrar las concesiones en la API y añadir
+el botón ADMIN de autoconcesión por empresa; 88 pruebas focalizadas y el build
+frontend pasaron. El usuario confirmó el recorrido UI/API completo y que queda
+auditado, por lo que RF-SEG-02 sube a 95%; revisar otras lecturas sensibles y
+las credenciales del despliegue sigue pendiente. El promedio de las ocho
+prioridades ADMIN es **81,0% (81% redondeado)** y la cobertura media de los 37
+requisitos SRS es **81,4% (81% redondeado)**; RNF-SEG-01 alcanza IV/100% según
+la confirmación de roles, denegaciones y secretos en el entorno destino.
+RNF-REC-01 alcanza 100% para su
 ciclo funcional local.
 Ninguna cifra mide preparación productiva.
 
@@ -66,24 +72,24 @@ producción.
 | 1 | Dashboard global | **90%** | **RF-DAS-01 IV (100%); RF-DAS-02 PAR (80%)** | RF-DAS-01 validado con universos y estados de documentos alineados, N/A sin denominador, pruebas y revisión visual confirmada. RF-DAS-02 aún requiere sus series de adopción. |
 | 2 | Gestión global de empresas | **90%** | **IV en alcance verificado; rechazo/casos límite pendientes** — RF-EMP-01/02 | Tabla «Empresas (cuentas)» con industria y estado de cuenta; detalle de perfiles y responsables por contrato. Flujo normal de registro/aprobación verificado; falta validar rechazo y transiciones repetidas. |
 | 3 | Buscador global | **100%** | **RF-BUS-01 IV (100%); RF-BUS-02 IV/P0 (100%)** | Autorización por categoría, detalle directo y exportación ZIP con concesiones y alcance validados por pruebas focalizadas. El listado administrativo independiente de usuarios queda en RF-USU. |
-| 4 | Métricas SaaS | **60% estimado, no recalculado** | **PAR** — RF-MET-01/03 pendientes; RF-MET-02 implementado y probado | La telemetría real de RF-MET-02 ya aparece en Salud, separada de la estimación de transición. El porcentaje de la prioridad no se recalcula porque los otros requisitos y su ponderación siguen pendientes; revisiones de IA no equivale necesariamente a documentos únicos. |
+| 4 | Métricas SaaS | **60% estimado, no recalculado** | **PAR** — RF-MET-01/03 pendientes; RF-MET-02 implementado y probado | Salud muestra el tiempo activo medido de RF-MET-02; la duración estimada por sesión se retiró de la interfaz. El porcentaje de la prioridad no se recalcula porque los otros requisitos y su ponderación siguen pendientes; revisiones de IA no equivale necesariamente a documentos únicos. |
 | 5 | Alertas y salud de clientes | **83,3%** | **Mixto:** RF-SAL-01 **PAR**; RF-SAL-02 **ISV**; RF-SAL-03 **ISV** | Promedio de RF-SAL-01 (75%), RF-SAL-02 (80%) y RF-SAL-03 (95%). Seguimiento de procesos validado en pruebas focalizadas; continúan pendientes recuperación distribuida real, validar riesgos de clientes y totales/paginación. |
 | 6 | Usuarios, roles y permisos | **70%** | **PAR** — RF-USU-01/02 | El listado ADMIN pagina usuarios y los cambios de alcance invalidan sesiones. El portal permite convertir `company` en `contract_admin` si queda otro `company` activo; siguen pendientes invitación/aceptación de cuentas existentes, historial completo de acceso y validación integral. El porcentaje es el estimado histórico del 13-10. |
 | 7 | Auditoría y trazabilidad | **73,3%** | **PAR** — RF-AUD-01/02/03 | RF-AUD-01 está al 90%; el usuario confirmó revisión y registro de las mutaciones acordadas. Queda comprobar valores anterior/nuevo para permisos/estados y pausa de procesos. RF-AUD-02 registra autenticación, cierre y rotación. RF-AUD-03 conserva pendientes de integridad, retención y autorización/exportación. |
-| 8 | Seguridad y aislamiento | **67%** | **PAR** — RF-SEG-01/02/03, RNF-SEG-01 | Hay autorización, RLS y concesiones excepcionales temporales. Falta integrarlas en operaciones sensibles, validar credenciales reales y cerrar alcance contractual. |
+| 8 | Seguridad y aislamiento | **81,3%** | **PAR** — RF-SEG-01/02/03; RNF-SEG-01 **IV (100%)** | RNF-SEG-01 queda validado en el entorno destino por confirmación del usuario: roles separados, RLS efectivo con roles reales, denegaciones entre empresas/contratos y secretos externos; se cumple la condición de DEC-10 para RLS contractual. Las pruebas focalizadas actuales pasaron 76/76. RF-SEG-02 está al 95%; quedan lecturas sensibles y controles de los requisitos RF-SEG-01/02/03. Compose local de desarrollo conserva rol elevado. |
 
 ### Estimación global del corte
 
-**Avance funcional ADMIN estimado: 79,2% (79% redondeado)**. Incluye la
+**Avance funcional ADMIN estimado: 81,0% (81% redondeado)**. Incluye la
 actualización de RF-BUS-01 y RF-BUS-02 al 100%, RF-SEG-03 al 65% y los
 avances documentados de salud, auditoría, privacidad, respaldos e integraciones. No hay
 ponderaciones acordadas por criticidad o esfuerzo. No es porcentaje de pruebas
 aprobadas, aceptación contractual ni preparación para producción.
 
 La cobertura estimada actual de los 37 requisitos (29 funcionales y 8 no funcionales)
-es **79,1% (79% redondeado)** (`2928 / 37`). La suma anterior publicada
+es **81,4% (81% redondeado)** (`3013 / 37`). La suma anterior publicada
 (`2888`) no coincidía con los valores de las 37 fichas; la suma previa vigente
-era 2918 (78,9%) antes del cierre de RF-DAS-01. Este es el porcentaje de avance de código más
+era 2958 (79,9%) antes del botón de autoconcesión. Este es el porcentaje de avance de código más
 amplio que se puede reportar con el inventario actual del SRS; no incluye una
 ponderación aprobada por esfuerzo ni convierte criterios pendientes en
 completados. No se asigna un porcentaje de «listo para producción con datos
@@ -177,7 +183,7 @@ presentarse como estimación vigente.
 
 - Hay indicadores de clientes activos, usuarios habilitados, DAU/WAU, actividad, revisiones de IA y series comerciales.
 - Se cuentan sesiones vigentes usando refresh tokens.
-- RF-MET-02 ya mide minutos activos por usuario único mediante heartbeat de sesión autenticada, pestaña visible e interacción reciente; pausa tras cinco minutos inactivo. La métrica anterior derivada de eventos/tokens continúa aparte y etiquetada como estimación durante la transición.
+- RF-MET-02 ya mide minutos activos por usuario único mediante heartbeat de sesión autenticada, pestaña visible e interacción reciente; pausa tras cinco minutos inactivo. La duración promedio estimada por sesión ya no se muestra en la interfaz.
 - Hay documentos procesados y series mensuales, pero debe conservarse la distinción entre revisiones/intentos y documentos únicos.
 - Salud de clientes presenta uso/adopción, usuarios por plan e industria y la clasificación de clientes sin usuarios, sin actividad o con baja actividad; sus riesgos se pueden desplegar por categoría.
 - La conversión UF tiene un caso mensual probado, pero la respuesta aún requiere identificar fecha/fuente de UF y completar cobertura de períodos/monedas.
@@ -210,7 +216,7 @@ que la prioridad Métricas SaaS sigue PAR y su 60% histórico no se recalcula.
 
 1. Aprobar un diccionario de métricas: nombre, definición, fuente, ventana temporal, unidad y universo.
 2. Diferenciar “cuentas habilitadas”, “usuarios con actividad”, DAU/WAU y “sesiones vigentes”; no usarlos como equivalentes.
-3. Mantener el tiempo medido separado de la estimación anterior; conservar la etiqueta “estimado” solo durante la transición.
+3. Usar el tiempo activo medido como única métrica de duración visible; no presentar la duración estimada por sesión como sustituto.
 4. Definir si documentos procesados cuenta revisiones, resultados completados o documentos únicos; mostrar estados fallidos/en proceso por separado cuando corresponda.
 5. Validar que Salud presente clientes de baja actividad con umbral, ventana temporal y casos sin usuarios/sin actividad.
 6. Identificar fecha y fuente del valor UF; probar períodos mensual/anual, monedas admitidas, suscripción ausente y acceso denegado.
@@ -296,15 +302,15 @@ que la prioridad Métricas SaaS sigue PAR y su 60% histórico no se recalcula.
 
 ## 8. Seguridad y aislamiento de datos
 
-**Estado:** PAR — RF-SEG-01/02/03 y RNF-SEG-01.
+**Estado:** PAR — RF-SEG-01/02/03; RNF-SEG-01 IV/100%.
 
 **Lo que hace hoy**
 
 - Hay filtros de autorización en la aplicación, dependencias y políticas RLS definidas.
-- Algunas pruebas de aislamiento pasan, pero la configuración Compose revisada utiliza superusuario PostgreSQL, por lo que no demuestra que RLS proteja efectivamente a la aplicación.
+- Las pruebas focalizadas incluyen aislamiento. El usuario confirmó en el entorno destino roles separados y denegaciones; la configuración Compose de desarrollo aún usa superusuario PostgreSQL y no prueba ese entorno.
 - El alcance contractual se comprueba principalmente en la API; no se identificó política RLS contractual independiente en los scripts revisados.
 - ADMIN conserva privilegio global; no hay flujo completo de acceso excepcional temporal/limitado a documentos sensibles.
-- Existen guardas de configuración de producción y respuesta minimizada en áreas revisadas; despliegue, roles y secretos productivos aún requieren validación.
+- RNF-SEG-01 está validado para el entorno destino; quedan pendientes otros controles de despliegue, aislamiento y secretos incluidos en RF-SEG-01/02/03.
 - Emisión de URL documental requiere motivo y controles de pertenencia, pero la auditoría de toda lectura sensible/exportación sigue parcial.
 
 **Sugerencias y criterios a considerar**
@@ -317,7 +323,7 @@ que la prioridad Métricas SaaS sigue PAR y su 60% histórico no se recalcula.
 6. Revisar dashboards, logs, respuestas, reportes y exportaciones para retirar RUT, documentos y PII que no sean necesarios.
 7. Validar secretos, recuperación de cuenta, semillas demo y migraciones en configuración de producción aislada.
 
-**Para considerar el punto validado:** pruebas negativas multiempresa/contrato en API, mínimo privilegio demostrado con roles reales y políticas RLS vigentes verificadas; si se adopta RLS contractual, añadir pruebas SQL directas y validación del contexto en workers, ADMIN, agregados y conexiones reutilizadas. También se requieren accesos sensibles/exportaciones controlados y auditados, y revisión de privacidad aprobada.
+**Criterio RNF-SEG-01:** el usuario confirmó roles de mínimo privilegio separados, RLS efectivo bajo roles reales, denegaciones multiempresa/contrato en el entorno destino, secretos fuera de código/configuración pública, y cumplimiento de la condición DEC-10 (RLS contractual no adoptado o validado con pruebas SQL directas). Este RNF queda IV/100%; los pendientes de acceso sensible, auditoría y revisión de privacidad corresponden a otros requisitos.
 
 ## Orden sugerido de revisión
 

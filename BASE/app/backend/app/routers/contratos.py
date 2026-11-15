@@ -19,7 +19,7 @@ import logging
 import uuid
 from datetime import date, datetime, timezone
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Header, Query
 from pydantic import BaseModel
 from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
@@ -27,8 +27,9 @@ from sqlalchemy.orm import Session
 
 from ..config import settings
 from ..database import get_db
-from ..deps import (Page, aplicar_orden, contrato_scope, err, get_company_id,
-                    get_current_user, paginacion, require_contrato, sobre)
+from ..deps import (Page, aplicar_orden, autorizar_concesion_acotada,
+                    contrato_scope, err, get_company_id, get_current_user,
+                    paginacion, require_contrato, sobre)
 from ..models import (
     Actividad, Alerta, Contrato, Documento, Faena, IaReview,
     Sujeto, User,
@@ -387,11 +388,15 @@ def eliminar_contrato(contrato_id: uuid.UUID):
 def docs_empresa(contrato_id: uuid.UUID, p: Page = Depends(paginacion),
                  db: Session = Depends(get_db),
                  cid: uuid.UUID = Depends(get_company_id),
-                 user: User = Depends(get_current_user)):
+                 user: User = Depends(get_current_user),
+                 access_grant: uuid.UUID | None = Header(
+                     default=None, alias="X-Access-Grant")):
     """Checklist de ámbito empresa del contrato (los que cuelgan del contrato)."""
     from .documentos import doc_out
 
     c = _get_contrato(db, cid, contrato_id, user)
+    grant = autorizar_concesion_acotada(
+        "documento", access_grant, user, db, cid)
     q = select(Documento).where(Documento.company_id == cid,
                                 Documento.contrato_id == c.id)
     if p.search:
@@ -399,7 +404,18 @@ def docs_empresa(contrato_id: uuid.UUID, p: Page = Depends(paginacion),
     total = db.scalar(select(func.count()).select_from(q.subquery())) or 0
     filas = list(db.scalars(q.order_by(Documento.titulo)
                             .offset(p.offset).limit(p.page_size)))
-    return sobre([doc_out(d) for d in filas], total, p)
+    respuesta = sobre([doc_out(d) for d in filas], total, p)
+    if grant is not None:
+        actividad.log(
+            db, cid, "visualizacion", "admin_acceso",
+            "Concesión excepcional utilizada para consultar documentos del contrato",
+            user_id=user.id, entidad_tipo="concesion_acceso",
+            entidad_id=grant.id,
+            metadata={"recurso_tipo": "documento",
+                      "recurso_id": str(c.id), "motivo": grant.motivo},
+        )
+        db.commit()
+    return respuesta
 
 
 @router.get("/{contrato_id}/personal")

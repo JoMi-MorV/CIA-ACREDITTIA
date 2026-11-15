@@ -21,6 +21,8 @@ export default function Sidebar() {
   const path = usePathname();
   const router = useRouter();
   const [noLeidas, setNoLeidas] = useState(0);
+  const [revocandoAcceso, setRevocandoAcceso] = useState(false);
+  const [errorAcceso, setErrorAcceso] = useState("");
   const user = typeof window !== "undefined" ? Api.currentUser() : null;
   const esAdmin = user?.role === "admin";
   const empresaImpersonada = typeof window !== "undefined" ? sessionStorage.getItem("impersonar") : null;
@@ -41,6 +43,29 @@ export default function Sidebar() {
     sessionStorage.clear();
     router.push("/login");
   };
+  const revocarAccesoYVolver = async () => {
+    setErrorAcceso("");
+    setRevocandoAcceso(true);
+    try {
+      for (const grantId of Api.concesionesLecturaAdmin()) {
+        try {
+          await Api.admin.revocarConcesionLectura(grantId);
+        } catch (e) {
+          if (Api.esApiError(e) && e.status === 404) continue;
+          throw e;
+        }
+      }
+      Api.limpiarConcesionesLecturaAdmin();
+      sessionStorage.removeItem("impersonar");
+      sessionStorage.removeItem("impersonar_nombre");
+      router.push("/admin/dashboard");
+    } catch (e) {
+      setErrorAcceso(
+        `No se pudieron revocar todas las concesiones: ${Api.mensajeError(e)}`);
+    } finally {
+      setRevocandoAcceso(false);
+    }
+  };
 
   // Para un contract_admin el rótulo útil es su contrato, no la empresa.
   const subtitulo = esAdmin ? "Administración"
@@ -53,13 +78,13 @@ export default function Sidebar() {
         <div className="hidden text-[11px] text-white/55 md:block">{subtitulo}</div>
       </div>
       {esAdmin && viendoEmpresa && (
-        <div className="absolute left-2 top-16 z-50 flex items-center gap-2 rounded-md bg-amber-600 px-3 py-2 text-xs font-semibold text-white shadow md:static md:mx-3 md:mb-2 md:shadow-none">
-          Viendo como {impersonando ?? "empresa"}
-          <button className="ml-2 underline" onClick={() => {
-            sessionStorage.removeItem("impersonar");
-            sessionStorage.removeItem("impersonar_nombre");
-            router.push("/admin/dashboard");
-          }}>Volver a consola interna</button>
+        <div className="absolute left-2 top-16 z-50 flex flex-wrap items-center gap-2 rounded-md bg-amber-600 px-3 py-2 text-xs font-semibold text-white shadow md:static md:mx-3 md:mb-2 md:shadow-none">
+          <span>Viendo como {impersonando ?? "empresa"} · lectura temporal 1 h</span>
+          <button className="ml-2 underline" disabled={revocandoAcceso}
+            onClick={() => void revocarAccesoYVolver()}>
+            {revocandoAcceso ? "Revocando…" : "Revocar y volver"}
+          </button>
+          {errorAcceso && <span className="w-full font-normal" role="alert">{errorAcceso}</span>}
         </div>
       )}
       <nav className="ml-auto flex max-w-[calc(100vw-145px)] gap-1 overflow-x-auto px-2 md:ml-0 md:max-w-none md:flex-1 md:flex-col md:gap-1 md:overflow-visible md:px-0">

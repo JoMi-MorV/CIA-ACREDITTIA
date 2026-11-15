@@ -70,6 +70,36 @@ export function mensajeError(e: unknown, porDefecto = "Error inesperado"): strin
 const CLAVE_TOKEN = "acredittia_token";
 const CLAVE_REFRESH = "acredittia_refresh";
 const CLAVE_USER = "acredittia_user";
+const CLAVE_CONCESION_EMPRESA = "admin_read_grant_company";
+const CLAVE_CONCESION_PERSONAL = "admin_read_grant_personal";
+const CLAVE_CONCESION_DOCUMENTO = "admin_read_grant_documento";
+
+export type AlcanceConcesionLectura = "personal" | "documento";
+
+export function guardarConcesionesLecturaAdmin(
+  companyId: string,
+  personalGrantId: string,
+  documentGrantId: string,
+) {
+  sessionStorage.setItem(CLAVE_CONCESION_EMPRESA, companyId);
+  sessionStorage.setItem(CLAVE_CONCESION_PERSONAL, personalGrantId);
+  sessionStorage.setItem(CLAVE_CONCESION_DOCUMENTO, documentGrantId);
+}
+
+export function concesionesLecturaAdmin(): string[] {
+  if (typeof window === "undefined") return [];
+  return [
+    sessionStorage.getItem(CLAVE_CONCESION_PERSONAL),
+    sessionStorage.getItem(CLAVE_CONCESION_DOCUMENTO),
+  ].filter((id): id is string => Boolean(id));
+}
+
+export function limpiarConcesionesLecturaAdmin() {
+  if (typeof window === "undefined") return;
+  sessionStorage.removeItem(CLAVE_CONCESION_EMPRESA);
+  sessionStorage.removeItem(CLAVE_CONCESION_PERSONAL);
+  sessionStorage.removeItem(CLAVE_CONCESION_DOCUMENTO);
+}
 
 function token(): string | null {
   if (typeof window === "undefined") return null;
@@ -151,7 +181,34 @@ export type Opciones = {
   method?: "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
   body?: unknown;
   query?: Query;
+  accessGrantScope?: AlcanceConcesionLectura;
 };
+
+function concesionLectura(
+  path: string,
+  method: string,
+  companyId: string | null,
+  alcance?: AlcanceConcesionLectura,
+): string | null {
+  if (typeof window === "undefined" || method !== "GET" || !companyId
+      || sessionStorage.getItem(CLAVE_CONCESION_EMPRESA) !== companyId) {
+    return null;
+  }
+  const categoria = alcance
+    ?? (path === "/personal" || path.startsWith("/personal/")
+      ? "personal"
+      : path === "/documentos" || path.startsWith("/documentos/")
+        || /^\/contratos\/[^/]+\/documentos(?:\/|$)/.test(path)
+        ? "documento"
+        : undefined);
+  if (categoria === "personal") {
+    return sessionStorage.getItem(CLAVE_CONCESION_PERSONAL);
+  }
+  if (categoria === "documento") {
+    return sessionStorage.getItem(CLAVE_CONCESION_DOCUMENTO);
+  }
+  return null;
+}
 
 /** Quita las claves `undefined` de un cuerpo de PATCH. */
 function limpiar(body: unknown): Record<string, unknown> {
@@ -192,6 +249,9 @@ export async function api<T = any>(
   const companyId = typeof window !== "undefined"
     ? sessionStorage.getItem("impersonar") : null;
   if (companyId) headers["X-Company-Id"] = companyId;
+  const accessGrant = concesionLectura(
+    path, method, companyId, opts.accessGrantScope);
+  if (accessGrant) headers["X-Access-Grant"] = accessGrant;
 
   let res: Response;
   try {
@@ -432,10 +492,11 @@ function esperar(ms: number): Promise<void> {
 // §6.2 — Descarga por URL firmada (el endpoint /descarga ya no existe)
 // ============================================================================
 export function urlDescarga(docId: string, archivoId: string,
-                            motivo: string): Promise<DownloadUrl> {
+                            motivo: string,
+                            accessGrantScope: AlcanceConcesionLectura = "documento"): Promise<DownloadUrl> {
   return api<DownloadUrl>(
     `/documentos/${docId}/archivos/${archivoId}/download-url`,
-    { query: { motivo } });
+    { query: { motivo }, accessGrantScope });
 }
 
 /**
@@ -458,12 +519,13 @@ export function abrirDescarga(url: string, filename?: string) {
 
 /** Pide la URL firmada del archivo y la abre. */
 export async function descargarArchivo(docId: string, archivoId: string,
-                                       motivo: string) {
+                                       motivo: string,
+                                       accessGrantScope: AlcanceConcesionLectura = "documento") {
   const detalle = motivo.trim();
   if (detalle.length < 12) {
     throw new ApiError("MOTIVO_REQUERIDO",
       "El motivo de descarga debe tener al menos 12 caracteres", 400);
   }
-  const dl = await urlDescarga(docId, archivoId, detalle);
+  const dl = await urlDescarga(docId, archivoId, detalle, accessGrantScope);
   abrirDescarga(dl.download_url, dl.filename);
 }

@@ -27,6 +27,7 @@ export default function LoginPage() {
       const r = await Api.auth.login(f.email, f.password);
       sessionStorage.removeItem("impersonar");
       sessionStorage.removeItem("impersonar_nombre");
+      Api.limpiarConcesionesLecturaAdmin();
       Api.setSession(r.access_token, r.refresh_token, r.user);
       router.push(r.user.role === "admin" ? "/admin/dashboard" : "/dashboard");
     } catch (err) {

@@ -101,6 +101,19 @@ export const admin = {
 
   empresa: (id: string) => api<EmpresaDetalle>(`/admin/companies/${id}`),
 
+  crearConcesionLectura: (body: {
+    admin_user_id: string;
+    company_id: string;
+    recurso_tipo: "personal" | "documento";
+    motivo: string;
+    horas: 1;
+  }) => api<{ id: string; expires_at: string }>(
+    "/admin/access-grants", { body }),
+
+  revocarConcesionLectura: (grantId: string) =>
+    api<{ ok: boolean }>(`/admin/access-grants/${grantId}/revoke`,
+      { method: "POST", body: {} }),
+
   aprobar: (id: string) =>
     api<Empresa>(`/admin/companies/${id}/approve`, { method: "POST", body: {} }),
 

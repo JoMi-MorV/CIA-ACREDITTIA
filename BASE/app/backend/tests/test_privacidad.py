@@ -107,7 +107,8 @@ def test_consulta_de_auditoria_usuarios_deja_traza(
     assert traza["resultados"] == len(respuesta.json()["items"])
 
 
-def test_exportacion_redacta_actividad_historica(app_cliente, admin, motor_admin):
+def test_exportacion_redacta_actividad_historica(
+        app_cliente, admin, empresa_a, motor_admin):
     from sqlalchemy import text
 
     marcador = "test_export_privacidad"
@@ -116,10 +117,11 @@ def test_exportacion_redacta_actividad_historica(app_cliente, admin, motor_admin
             INSERT INTO actividad
                 (company_id, user_id, tipo, modulo, descripcion, metadata)
             VALUES
-                (NULL, NULL, 'visualizacion', :modulo,
+                (CAST(:company_id AS uuid), NULL, 'visualizacion', :modulo,
                  'Correo persona@example.cl RUT 12.345.678-5 token=secreto123',
                  CAST(:metadata AS jsonb))
         """), {
+            "company_id": empresa_a["company_id"],
             "modulo": marcador,
             "metadata": json.dumps({"password": "no-exportar"}),
         })
@@ -129,6 +131,7 @@ def test_exportacion_redacta_actividad_historica(app_cliente, admin, motor_admin
         headers=admin["headers"],
         json={
             "admin_user_id": admin["user_id"],
+            "company_id": empresa_a["company_id"],
             "recurso_tipo": "usuario",
             "motivo": "Validar exportación de actividad",
             "horas": 1,

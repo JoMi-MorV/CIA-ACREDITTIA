@@ -157,7 +157,11 @@ export default function SubjectDetail({ tipo, id }: { tipo: "personal" | "equipo
       minLength: 12,
     });
     if (!motivo) return;
-    try { await Api.descargarArchivo(doc.id, a.id, motivo); }
+    try {
+      await Api.descargarArchivo(
+        doc.id, a.id, motivo,
+        tipo === "personal" ? "personal" : "documento");
+    }
     catch (e) { setError(Api.mensajeError(e)); }
   };
 

@@ -435,6 +435,64 @@ def test_busqueda_rechaza_concesion_ajena_expirada_revocada_y_de_otra_categoria(
     assert usuario.json()["error"]["code"] == "PERMISO_INFORMACION_INVALIDO"
 
 
+def test_concesion_sensible_requiere_alcance_empresa_o_recurso(
+        app_cliente, admin):
+    respuesta = app_cliente.post(
+        f"{API}/admin/access-grants", headers=admin["headers"],
+        json={
+            "admin_user_id": admin["user_id"],
+            "recurso_tipo": "usuario",
+            "motivo": "Validar alcance obligatorio",
+            "horas": 1,
+        })
+    assert respuesta.status_code == 422
+    assert respuesta.json()["error"]["code"] == "ALCANCE_REQUERIDO"
+
+
+def test_admin_lectura_personal_requiere_concesion_acotada(
+        app_cliente, admin, empresa_a, empresa_b, contrato_a):
+    creado = app_cliente.post(
+        f"{API}/personal", headers=empresa_a["headers"], json={
+            "contrato_id": contrato_a["id"],
+            "nombre": "Lectura Concesionada",
+            "rut": rut_valido(876543),
+        })
+    assert creado.status_code == 201, creado.text
+    sujeto_id = creado.json()["id"]
+    ruta_lista = f"{API}/personal"
+    ruta_detalle = f"{API}/personal/{sujeto_id}"
+    headers = {**admin["headers"], "X-Company-Id": empresa_a["company_id"]}
+
+    sin_concesion = app_cliente.get(ruta_lista, headers=headers)
+    assert sin_concesion.status_code == 403
+    assert sin_concesion.json()["error"]["code"] == "PERMISO_INFORMACION_REQUERIDO"
+
+    concesion_empresa = concesion_sensible(
+        app_cliente, admin, "personal", empresa_a)
+    headers_empresa = {**concesion_empresa,
+                       "X-Company-Id": empresa_a["company_id"]}
+    listado = app_cliente.get(ruta_lista, headers=headers_empresa)
+    assert listado.status_code == 200, listado.text
+
+    sin_concesion_detalle = app_cliente.get(ruta_detalle, headers=headers)
+    assert sin_concesion_detalle.status_code == 403
+    concesion_recurso = concesion_sensible(
+        app_cliente, admin, "personal", empresa_a, sujeto_id)
+    autorizado = app_cliente.get(
+        ruta_detalle,
+        headers={**concesion_recurso, "X-Company-Id": empresa_a["company_id"]})
+    assert autorizado.status_code == 200, autorizado.text
+    assert autorizado.json()["id"] == sujeto_id
+
+    concesion_ajena = concesion_sensible(
+        app_cliente, admin, "personal", empresa_b)
+    cruzada = app_cliente.get(
+        ruta_detalle,
+        headers={**concesion_ajena, "X-Company-Id": empresa_a["company_id"]})
+    assert cruzada.status_code == 403
+    assert cruzada.json()["error"]["code"] == "PERMISO_INFORMACION_INVALIDO"
+
+
 def test_detalle_empresa_redacta_usuarios_y_aplica_alcance_de_concesion(
         app_cliente, admin, empresa_a, empresa_b):
     ruta = f"{API}/admin/companies/{empresa_a['company_id']}"
@@ -488,15 +546,20 @@ def test_busqueda_informa_recorte_por_categoria(
             conexion.execute(text(f"UPDATE {tabla} SET nombre = :nombre WHERE id = :id"),
                              {"nombre": f"RecorteBusqueda {numero}", "id": identificador})
     for limite in (1, 2, 25):
-        headers = (concesion_sensible(app_cliente, admin, "usuario")
+        headers = (concesion_sensible(app_cliente, admin, "usuario", empresa_a)
                    if categoria == "usuario" else admin["headers"])
         respuesta = app_cliente.get(f"{API}/admin/search", headers=headers,
                                      params={"q": "RecorteBusqueda", "limite": limite,
                                              "tipo": categoria})
         assert respuesta.status_code == 200, respuesta.text
         datos = respuesta.json()
-        assert datos["hay_mas"] is (limite == 1)
         assert datos["limite_por_categoria"] == limite
-        assert datos["total"] == min(limite, 2)
-        assert [item["id"] for item in datos["items"]] == ids[:limite]
+        if categoria == "usuario":
+            assert datos["hay_mas"] is False
+            assert datos["total"] == 1
+            assert [item["id"] for item in datos["items"]] == ids[:1]
+        else:
+            assert datos["hay_mas"] is (limite == 1 and categoria != "usuario")
+            assert datos["total"] == min(limite, 2)
+            assert [item["id"] for item in datos["items"]] == ids[:limite]
         assert all(item["tipo"] == categoria for item in datos["items"])

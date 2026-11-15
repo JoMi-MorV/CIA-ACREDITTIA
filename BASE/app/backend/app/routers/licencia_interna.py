@@ -26,14 +26,15 @@ import logging
 import uuid
 from datetime import date, datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Header
 from pydantic import BaseModel
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from ..config import UMBRAL_PORVENC_DIAS
 from ..database import get_db
-from ..deps import err, get_company_id, get_current_user
+from ..deps import (autorizar_concesion_acotada, err, get_company_id,
+                    get_current_user)
 from ..models import Documento, DocumentoArchivo, LicenciaInterna, Sujeto, User
 from ..services import actividad
 from ..services.checklist import instanciar_docs, requiere_emsipor
@@ -179,7 +180,9 @@ def _sincronizar(db: Session, s: Sujeto, lim: LicenciaInterna) -> None:
 @router.get("")
 def detalle(sid: uuid.UUID, db: Session = Depends(get_db),
             cid: uuid.UUID = Depends(get_company_id),
-            user: User = Depends(get_current_user)):
+            user: User = Depends(get_current_user),
+            access_grant: uuid.UUID | None = Header(
+                default=None, alias="X-Access-Grant")):
     """Licencia interna del trabajador y checklist de los nueve documentos EMSIPOR.
 
     Los estados derivados se recalculan al leer: los documentos pudieron cambiar
@@ -187,8 +190,19 @@ def detalle(sid: uuid.UUID, db: Session = Depends(get_db),
     expediente, y devolver un `emsipor_estado` obsoleto sería peor que escribirlo.
     """
     s = _get_conductor(db, cid, sid, user)
+    grant = autorizar_concesion_acotada(
+        "trabajador", access_grant, user, db, cid, s.id)
     lim = _asegurar_licencia(db, s)
     _sincronizar(db, s, lim)
+    if grant is not None:
+        actividad.log(
+            db, cid, "visualizacion", "admin_acceso",
+            "Concesión excepcional utilizada para consultar licencia y documentos",
+            user_id=user.id, entidad_tipo="concesion_acceso",
+            entidad_id=grant.id,
+            metadata={"recurso_tipo": "trabajador",
+                      "recurso_id": str(s.id), "motivo": grant.motivo},
+        )
     db.commit()
     return _out(db, s, lim)
 

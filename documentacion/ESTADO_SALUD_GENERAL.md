@@ -16,10 +16,20 @@ RF-DAS-01 pasa de 90% a 100% tras definir los universos de sus KPI, alinear los
 conteos documentales con el universo de acreditación y representar la ausencia
 de datos evaluables como “N/A”. La prueba focalizada pasó 2/2, el build
 frontend compiló y validó tipos y el usuario confirmó la revisión visual. El
-avance estimado de las 37 fichas queda en 2.928/37 = **79,1%**; las ocho
-prioridades ADMIN promedian **79,2%**, y P1 84,7%, P0 72,2%, P2 69,2%.
-RF-DAS-01 queda IV/100% en su alcance funcional. El estado de producción sigue
-**NO-GO**.
+avance tras ese cambio era 2.928/37 = 79,1%. Posteriormente, RF-SEG-02 subió de
+55% a 90% tras integrar el botón ADMIN de autoconcesión de lectura temporal.
+Las suites focalizadas de documentos, búsqueda ADMIN, respaldos y privacidad
+pasaron 88/88 y el build frontend pasó. El usuario confirmó el recorrido
+completo de RF-SEG-02, su correcto funcionamiento y auditoría, lo que eleva
+el requisito a 95%. Las cifras actuales
+El usuario confirmó además RNF-SEG-01 en el entorno destino: roles separados,
+RLS efectivo con roles reales, denegaciones entre empresas/contratos, secretos
+externos y cumplimiento de DEC-10. Queda IV/100%. Las cifras actuales son
+3.013/37 = **81,4%** para las
+37 fichas y **81,0%** para las ocho prioridades ADMIN; P0 81,7%, P1 84,7% y
+P2 69,2%. RF-DAS-01 queda IV/100%; RF-SEG-02 sigue PAR/95% y quedan
+pendientes otras lecturas sensibles. El
+estado de producción sigue **NO-GO** por las brechas indicadas en la tabla.
 
 ### Actualización de avance — 12 de noviembre de 2026
 
@@ -42,13 +52,14 @@ y continuidad. El detalle y los límites de evidencia están en
 | Backend | 🟢 Verde | Evidencia funcional sólida y pruebas relevantes aprobadas. |
 | Frontend | 🟡 Amarillo | Build funcional; sin embargo, persisten dependencias con vulnerabilidades reportadas. |
 | Docker / composición | 🟢 Verde | Validación de configuración y ejecución en entorno local consistente. |
-| Seguridad técnica | 🟡 Amarillo | Hay guardas de RLS, JWT y producción; falta validación real en entorno objetivo. |
+| Seguridad técnica | 🟡 Amarillo | RNF-SEG-01 queda IV/100% por confirmación en el entorno destino; continúan pendientes otros controles de RF-SEG-01/02/03 y preparación productiva. |
 | Privacidad / RNF-PRV-01 | 🔴 Rojo / P0 | `ops_retencion` está activo y el usuario reporta ejecución local `ok` el 10-11-2026 00:18:52 (0 filas podadas); faltan Log Analytics, revisión histórica documentada y aprobación de producción. |
 | Auditoría administrativa / RF-AUD-01 | 🟡 Parcial, 90% / P0 | 71 pruebas de `test_ops.py` y `test_contratos.py` pasaron; el usuario confirmó las mutaciones acordadas registradas. Pendiente único: comprobar valores anterior/nuevo para permisos/estados y pausa de procesos cuando corresponda. |
 | Buscador global | 🟢 RF-BUS-01 y RF-BUS-02 cerrados (IV, 100%) | 83 pruebas focalizadas validan autorización por categoría, concesiones (titular, vigencia, revocación y alcance), ficha directa y exportación ZIP limitada; build frontend aprobado. El listado administrativo independiente de usuarios continúa bajo RF-USU. No se realizó recorrido manual de navegador. |
+| Seguridad y aislamiento de datos | 🟡 Parcial; RNF-SEG-01 IV/100%, RF-SEG-02 al 95% | 76 pruebas focalizadas de roles, configuración, tenants y esquema pasaron. El usuario confirmó roles separados, RLS efectivo con roles reales, denegaciones y secretos externos en el entorno destino, además del recorrido de concesión temporal auditado. Falta revisar algunas lecturas sensibles y cerrar los requisitos RF-SEG-01/02/03; Compose de desarrollo conserva rol elevado. |
 | Ajustes de negocio ADMIN | 🟢 Implementado | UF/vigencia/fuente, CAC, margen bruto y objetivo de churn son persistentes; solo ADMIN puede modificarlos, motivo obligatorio y auditoría con antes/después. Migración 17; suites focalizadas 86 aprobadas y build frontend correcto. La fuente UF es manual. |
 | Recuperación y continuidad | 🔴 Rojo | Faltan pruebas de restauración real y objetivos RPO/RTO certificados. |
-| Documentación y arquitectura | 🟡 Amarillo | Buena cobertura documental; SRS v0.86 refleja el recálculo actual, aunque persisten rutas heredadas, decisiones pendientes y verificaciones de consistencia por completar. |
+| Documentación y arquitectura | 🟡 Amarillo | Buena cobertura documental; SRS v0.92 refleja el recálculo actual, aunque persisten rutas heredadas, decisiones pendientes y verificaciones de consistencia por completar. |
 | Producción con datos reales | 🔴 No GO | Bloqueado por seguridad, continuidad, controles de privacidad y validación operativa. |
 
 ## 1. Alcance y método de auditoría
