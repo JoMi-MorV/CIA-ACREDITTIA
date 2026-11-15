@@ -26,7 +26,8 @@ from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, Header, Query
 from pydantic import BaseModel, Field
-from sqlalchemy import String, and_, cast, delete, func, or_, select, text, update
+from sqlalchemy import (String, and_, cast, delete, func, literal, or_, select,
+                        text, union_all, update)
 from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.orm import Session
 
@@ -286,6 +287,11 @@ def _get_template(db: Session, tid: uuid.UUID) -> RequisitoTemplate:
 
 def _cuenta(db: Session, modelo, *filtros) -> int:
     return db.scalar(select(func.count()).select_from(modelo).where(*filtros)) or 0
+
+
+def _conteo_escalar(modelo, *filtros):
+    return (select(func.count()).select_from(modelo)
+            .where(*filtros).scalar_subquery())
 
 
 def _meses_atras(n: int) -> list[date]:
@@ -1560,74 +1566,220 @@ def stats(db: Session = Depends(get_db)):
     documentos y la domina la empresa más grande; se devuelven las dos porque
     responden preguntas distintas.
     """
-    total = _cuenta(db, Company)
-    pend = _cuenta(db, Company, Company.status == "pending")
-    aprob = _cuenta(db, Company, Company.status == "approved")
-    rech = _cuenta(db, Company, Company.status == "rejected")
+    conteo_empresas = db.execute(select(
+        func.count(Company.id).label("total"),
+        func.count(Company.id).filter(
+            Company.status == "pending").label("pendientes"),
+        func.count(Company.id).filter(
+            Company.status == "approved").label("aprobadas"),
+        func.count(Company.id).filter(
+            Company.status == "rejected").label("rechazadas"),
+    )).one()
+    total = int(conteo_empresas.total)
+    pend = int(conteo_empresas.pendientes)
+    aprob = int(conteo_empresas.aprobadas)
+    rech = int(conteo_empresas.rechazadas)
 
-    # Todos los indicadores de documentos del dashboard comparten este universo.
-    filtros_documentos = (
-        Documento.obligatorio.is_(True),
-        Documento.es_emsipor.is_(False),
-        Company.status == "approved",
-    )
-    filas = db.execute(
-        select(Documento.company_id,
-               func.count().label("total"),
-               func.count().filter(Documento.estado_calc == "ok").label("ok"))
-        .select_from(Documento)
+    filtro_requerido = and_(Documento.obligatorio.is_(True),
+                            Documento.es_emsipor.is_(False))
+    filas_documentales = db.execute(select(
+        Company.id.label("company_id"),
+        Company.nombre.label("company_name"),
+        Documento.contrato_id,
+        Contrato.nombre.label("contrato_name"),
+        func.count(Documento.id).filter(
+            filtro_requerido).label("requeridos"),
+        func.count(Documento.id).filter(and_(
+            filtro_requerido, Documento.estado_calc == "ok")).label("ok"),
+        func.count(Documento.id).filter(and_(
+            filtro_requerido, Documento.estado_calc == "falta")).label("falta"),
+        func.count(Documento.id).filter(and_(
+            filtro_requerido, Documento.estado_calc == "porvenc")).label("porvenc"),
+        func.count(Documento.id).filter(and_(
+            filtro_requerido, Documento.estado_calc == "venc")).label("venc"),
+        func.count(Documento.id).filter(
+            Documento.estado_calc == "venc").label("vencidos_empresa"),
+        func.count(Documento.id).filter(
+            Documento.estado_calc.in_(("falta", "venc"))
+        ).label("pendientes_contrato"),
+    ).select_from(Documento)
         .join(Company, Company.id == Documento.company_id)
-        .where(*filtros_documentos)
-        .group_by(Documento.company_id)).all()
-    pcts = [round(100 * int(f.ok) / int(f.total)) for f in filas if int(f.total)]
-    docs_total = sum(int(f.total) for f in filas)
-    docs_ok = sum(int(f.ok) for f in filas)
+        .outerjoin(Contrato, Contrato.id == Documento.contrato_id)
+        .where(Company.status == "approved")
+        .group_by(Company.id, Company.nombre, Documento.contrato_id,
+                  Contrato.nombre)).all()
+
+    documentos_por_empresa: dict[uuid.UUID, dict] = {}
+    vencidos_por_empresa_total: dict[uuid.UUID, dict] = {}
+    contratos_con_pendientes = []
+    estados_documentos = {"ok": 0, "falta": 0, "porvenc": 0, "venc": 0}
+    for fila in filas_documentales:
+        requeridos = int(fila.requeridos)
+        ok = int(fila.ok)
+        metricas_empresa = documentos_por_empresa.setdefault(
+            fila.company_id, {
+                "nombre": fila.company_name, "documentos": 0, "ok": 0,
+            })
+        metricas_empresa["documentos"] += requeridos
+        metricas_empresa["ok"] += ok
+        estados_documentos["ok"] += ok
+        estados_documentos["falta"] += int(fila.falta)
+        estados_documentos["porvenc"] += int(fila.porvenc)
+        estados_documentos["venc"] += int(fila.venc)
+
+        vencidos = int(fila.vencidos_empresa)
+        if vencidos:
+            total_empresa = vencidos_por_empresa_total.setdefault(
+                fila.company_id, {
+                    "company_id": str(fila.company_id),
+                    "empresa": fila.company_name,
+                    "documentos_vencidos": 0,
+                })
+            total_empresa["documentos_vencidos"] += vencidos
+
+        pendientes_contrato = int(fila.pendientes_contrato)
+        if fila.contrato_id and pendientes_contrato >= 3:
+            contratos_con_pendientes.append({
+                "contrato_id": str(fila.contrato_id),
+                "contrato": fila.contrato_name,
+                "company_id": str(fila.company_id),
+                "empresa": fila.company_name,
+                "documentos_pendientes": pendientes_contrato,
+            })
+
+    pcts = []
+    baja_acreditacion = []
+    for company_id, metricas in documentos_por_empresa.items():
+        total_empresa = metricas["documentos"]
+        ok_empresa = metricas["ok"]
+        if not total_empresa:
+            continue
+        pct = round(100 * ok_empresa / total_empresa)
+        pcts.append(pct)
+        if ok_empresa * 100 < total_empresa * 70:
+            baja_acreditacion.append({
+                "company_id": str(company_id),
+                "empresa": metricas["nombre"],
+                "documentos": total_empresa,
+                "documentos_ok": ok_empresa,
+                "acreditacion_pct": pct,
+            })
+    baja_acreditacion.sort(key=lambda f: (
+        f["acreditacion_pct"], f["empresa"]))
+    contratos_con_pendientes.sort(
+        key=lambda f: f["documentos_pendientes"], reverse=True)
+    contratos_con_pendientes = contratos_con_pendientes[:25]
+    vencidos_por_empresa = sorted(
+        vencidos_por_empresa_total.values(),
+        key=lambda f: f["documentos_vencidos"], reverse=True)
+    docs_total = sum(estados_documentos.values())
+    docs_ok = estados_documentos["ok"]
+    documentos = {
+        "total": docs_total,
+        "ok": docs_ok,
+        "pendientes": estados_documentos["falta"],
+        "por_vencer": estados_documentos["porvenc"],
+        "vencidos": estados_documentos["venc"],
+    }
 
     sujetos = _sujetos_por_tipo(db)
 
-    # El dashboard distingue falta de vencimiento y usa el mismo universo
-    # aprobado del porcentaje de acreditación.
-    estados_documentos = dict(db.execute(
-        select(Documento.estado_calc, func.count())
-        .select_from(Documento)
-        .join(Company, Company.id == Documento.company_id)
-        .where(*filtros_documentos)
-        .group_by(Documento.estado_calc)).all())
-    documentos = {
-        "total": sum(int(v) for v in estados_documentos.values()),
-        "ok": int(estados_documentos.get("ok", 0)),
-        "pendientes": int(estados_documentos.get("falta", 0)),
-        "por_vencer": int(estados_documentos.get("porvenc", 0)),
-        "vencidos": int(estados_documentos.get("venc", 0)),
-    }
-
-    usuarios_total = _cuenta(db, User, User.role != "admin")
-    usuarios_activos = _cuenta(db, User, User.role != "admin",
-                               User.activo.is_(True))
+    conteo_usuarios = db.execute(select(
+        func.count(User.id).filter(User.role != "admin").label("total"),
+        func.count(User.id).filter(
+            User.role != "admin", User.activo.is_(True)).label("activos"),
+    )).one()
+    usuarios_total = int(conteo_usuarios.total)
+    usuarios_activos = int(conteo_usuarios.activos)
     clientes_activos = db.scalar(
         select(func.count(func.distinct(Suscripcion.company_id)))
         .join(Company, Company.id == Suscripcion.company_id)
         .where(Company.status == "approved",
                Suscripcion.estado.in_(("activa", "trial")))) or 0
 
-    # Actividad global: además del total, se entrega desglose y serie mensual
-    # para que el dashboard no dependa de una tabla de actividad paginada.
-    actividad_por_modulo = dict(db.execute(
-        select(Actividad.modulo, func.count())
-        .group_by(Actividad.modulo).order_by(func.count().desc())).all())
-    actividad_por_tipo = dict(db.execute(
-        select(Actividad.tipo, func.count())
-        .group_by(Actividad.tipo).order_by(func.count().desc())).all())
+    # Actividad global: el desglose y las series comparten un viaje a la BD.
+    ahora = datetime.now(timezone.utc)
     inicio_actividad = datetime.now(timezone.utc) - timedelta(days=30)
-    actividad_30d = _cuenta(db, Actividad, Actividad.created_at >= inicio_actividad)
-    actividad_mensual_filas = db.execute(
-        select(func.date_trunc("month", Actividad.created_at).label("mes"),
-               func.count().label("total"))
-        .where(Actividad.created_at >= datetime.combine(
-            _meses_atras(12)[0], datetime.min.time(), tzinfo=timezone.utc))
-        .group_by("mes").order_by("mes")).all()
-    actividad_mensual = {f.mes.strftime("%Y-%m"): int(f.total)
-                         for f in actividad_mensual_filas}
+    inicio_dau = datetime.combine(
+        date.today(), datetime.min.time(), tzinfo=timezone.utc)
+    inicio_serie = datetime.combine(
+        _meses_atras(12)[0], datetime.min.time(), tzinfo=timezone.utc)
+    actividad_detallada = db.execute(union_all(
+        select(
+            literal("modulo").label("categoria"),
+            cast(Actividad.modulo, String).label("clave"),
+            func.count().label("total"),
+        ).group_by(Actividad.modulo),
+        select(
+            literal("tipo").label("categoria"),
+            cast(Actividad.tipo, String).label("clave"),
+            func.count().label("total"),
+        ).group_by(Actividad.tipo),
+        select(
+            literal("mes").label("categoria"),
+            func.to_char(func.date_trunc("month", Actividad.created_at),
+                         "YYYY-MM").label("clave"),
+            func.count().label("total"),
+        ).where(Actividad.created_at >= inicio_serie)
+         .group_by("clave"),
+        select(
+            literal("dia").label("categoria"),
+            func.to_char(func.date(Actividad.created_at),
+                         "YYYY-MM-DD").label("clave"),
+            func.count(func.distinct(Actividad.user_id)).label("total"),
+        ).where(Actividad.user_id.is_not(None),
+                Actividad.created_at >= ahora - timedelta(days=30))
+         .group_by("clave"),
+        select(
+            literal("semana").label("categoria"),
+            func.to_char(func.date_trunc("week", Actividad.created_at),
+                         "YYYY-MM-DD").label("clave"),
+            func.count(func.distinct(Actividad.user_id)).label("total"),
+        ).where(Actividad.user_id.is_not(None),
+                Actividad.created_at >= ahora - timedelta(weeks=12))
+         .group_by("clave"),
+    )).all()
+    actividad_por_modulo = {}
+    actividad_por_tipo = {}
+    actividad_mensual = {}
+    dau_filas = []
+    wau_filas = []
+    for fila in actividad_detallada:
+        if fila.categoria == "modulo":
+            actividad_por_modulo[fila.clave] = int(fila.total)
+        elif fila.categoria == "tipo":
+            actividad_por_tipo[fila.clave] = int(fila.total)
+        elif fila.categoria == "mes":
+            actividad_mensual[fila.clave] = int(fila.total)
+        elif fila.categoria == "dia":
+            dau_filas.append({"dia": fila.clave, "usuarios": int(fila.total)})
+        elif fila.categoria == "semana":
+            wau_filas.append({"semana": fila.clave,
+                              "usuarios": int(fila.total)})
+    actividad_por_modulo = dict(sorted(
+        actividad_por_modulo.items(), key=lambda fila: fila[1], reverse=True))
+    actividad_por_tipo = dict(sorted(
+        actividad_por_tipo.items(), key=lambda fila: fila[1], reverse=True))
+    dau_filas.sort(key=lambda fila: fila["dia"])
+    wau_filas.sort(key=lambda fila: fila["semana"])
+    actividad_global = db.execute(select(
+        func.count(Actividad.id).label("total"),
+        func.count(Actividad.id).filter(
+            Actividad.created_at >= inicio_actividad).label("ultimos_30_dias"),
+        func.count(func.distinct(Actividad.user_id)).filter(and_(
+            Actividad.user_id.is_not(None),
+            Actividad.created_at >= inicio_actividad,
+        )).label("usuarios_30d"),
+        func.count(func.distinct(Actividad.user_id)).filter(and_(
+            Actividad.user_id.is_not(None),
+            Actividad.created_at >= inicio_dau,
+        )).label("dau"),
+        func.count(func.distinct(Actividad.user_id)).filter(and_(
+            Actividad.user_id.is_not(None),
+            Actividad.created_at >= ahora - timedelta(days=7),
+        )).label("wau"),
+    )).one()
+    actividad_30d = int(actividad_global.ultimos_30_dias)
     actividad_evolucion = [
         {"mes": mes.strftime("%Y-%m"), "eventos": actividad_mensual.get(
             mes.strftime("%Y-%m"), 0)} for mes in _meses_atras(12)]
@@ -1666,14 +1818,7 @@ def stats(db: Session = Depends(get_db)):
 
     # No existe una columna de duración de sesión. Se informa el dato real de
     # sesiones vigentes y una estimación de uso basada en eventos por usuario.
-    ahora = datetime.now(timezone.utc)
-    sesiones_vigentes = _cuenta(db, RefreshToken,
-                                RefreshToken.revoked_at.is_(None),
-                                RefreshToken.expires_at > ahora)
-    usuarios_con_actividad = db.scalar(
-        select(func.count(func.distinct(Actividad.user_id))).where(
-            Actividad.user_id.is_not(None),
-            Actividad.created_at >= inicio_actividad)) or 0
+    usuarios_con_actividad = int(actividad_global.usuarios_30d)
     rangos_uso = select(
         Actividad.user_id,
         func.extract("epoch", func.max(Actividad.created_at)
@@ -1692,33 +1837,32 @@ def stats(db: Session = Depends(get_db)):
 
     # DAU y WAU se calculan sobre usuarios con eventos reales, no sobre
     # cuentas habilitadas: así la métrica representa uso y no solo capacidad.
-    inicio_dau = datetime.combine(date.today(), datetime.min.time(), tzinfo=timezone.utc)
-    usuarios_activos_diarios = db.scalar(select(
-        func.count(func.distinct(Actividad.user_id))).where(
-            Actividad.user_id.is_not(None), Actividad.created_at >= inicio_dau)) or 0
-    usuarios_activos_semanales = db.scalar(select(
-        func.count(func.distinct(Actividad.user_id))).where(
-            Actividad.user_id.is_not(None),
-            Actividad.created_at >= ahora - timedelta(days=7))) or 0
-    dau_filas = db.execute(select(
-        func.date(Actividad.created_at).label("dia"),
-        func.count(func.distinct(Actividad.user_id)).label("usuarios"),
-    ).where(Actividad.user_id.is_not(None),
-            Actividad.created_at >= ahora - timedelta(days=30))
-        .group_by("dia").order_by("dia")).all()
-    wau_filas = db.execute(select(
-        func.date_trunc("week", Actividad.created_at).label("semana"),
-        func.count(func.distinct(Actividad.user_id)).label("usuarios"),
-    ).where(Actividad.user_id.is_not(None),
-            Actividad.created_at >= ahora - timedelta(weeks=12))
-        .group_by("semana").order_by("semana")).all()
-
-    procesados = db.execute(select(
-        func.count().label("total"),
-        func.count().filter(IaReview.status == "done").label("completados"),
-        func.count().filter(IaReview.status == "processing").label("en_proceso"),
-        func.count().filter(IaReview.status == "queued").label("pendientes"),
-        func.count().filter(IaReview.status == "failed").label("fallidos"),
+    usuarios_activos_diarios = int(actividad_global.dau)
+    usuarios_activos_semanales = int(actividad_global.wau)
+    conteos_globales = db.execute(select(
+        _conteo_escalar(Contrato, Contrato.ciclo_estado == "activo")
+        .label("contratos_total"),
+        _conteo_escalar(
+            Contrato, Contrato.ciclo_estado.in_(("desactivado", "finalizado"))
+        ).label("contratos_historicos"),
+        _conteo_escalar(Faena).label("faenas_total"),
+        _conteo_escalar(Faena, Faena.activa.is_(True)).label("faenas_activas"),
+        _conteo_escalar(
+            RequisitoTemplate, RequisitoTemplate.activo.is_(True)
+        ).label("plantillas_activas"),
+        _conteo_escalar(
+            RefreshToken, RefreshToken.revoked_at.is_(None),
+            RefreshToken.expires_at > ahora,
+        ).label("sesiones_vigentes"),
+        _conteo_escalar(IaReview).label("procesados_total"),
+        _conteo_escalar(IaReview, IaReview.status == "done")
+        .label("procesados_completados"),
+        _conteo_escalar(IaReview, IaReview.status == "processing")
+        .label("procesados_en_proceso"),
+        _conteo_escalar(IaReview, IaReview.status == "queued")
+        .label("procesados_pendientes"),
+        _conteo_escalar(IaReview, IaReview.status == "failed")
+        .label("procesados_fallidos"),
     )).one()
 
     # La serie comercial usa snapshots existentes; no se inventa MRR cuando no
@@ -1729,52 +1873,6 @@ def stats(db: Session = Depends(get_db)):
     mrr_evolucion = [{"mes": f.mes.strftime("%Y-%m"), "mrr": float(f.mrr_clp),
                       "clientes_activos": f.clientes_activos}
                      for f in mrr_filas]
-
-    empresas_baja_acreditacion = db.execute(
-        select(Company.id, Company.nombre,
-               func.count().label("documentos"),
-               func.count().filter(Documento.estado_calc == "ok").label("ok"))
-        .join(Documento, Documento.company_id == Company.id)
-        .where(Company.status == "approved", Documento.obligatorio.is_(True),
-               Documento.es_emsipor.is_(False))
-        .group_by(Company.id, Company.nombre)).all()
-    baja_acreditacion = [{
-        "company_id": str(f.id), "empresa": f.nombre,
-        "documentos": int(f.documentos), "documentos_ok": int(f.ok),
-        "acreditacion_pct": round(100 * int(f.ok) / int(f.documentos)),
-    } for f in empresas_baja_acreditacion
-        if int(f.documentos) and int(f.ok) * 100 < int(f.documentos) * 70]
-    baja_acreditacion.sort(key=lambda f: (f["acreditacion_pct"], f["empresa"]))
-
-    contratos_pendientes = db.execute(
-        select(Contrato.id, Contrato.nombre, Contrato.company_id,
-               Company.nombre.label("empresa"),
-               func.count().filter(Documento.estado_calc.in_(("falta", "venc")))
-               .label("pendientes"))
-        .join(Company, Company.id == Contrato.company_id)
-        .outerjoin(Documento, Documento.contrato_id == Contrato.id)
-        .where(Company.status == "approved")
-        .group_by(Contrato.id, Contrato.nombre, Contrato.company_id,
-                  Company.nombre)
-        .having(func.count().filter(Documento.estado_calc.in_(("falta", "venc"))) >= 3)
-        .order_by(func.count().filter(Documento.estado_calc.in_(("falta", "venc"))).desc())
-        .limit(25)).all()
-    contratos_con_pendientes = [{
-        "contrato_id": str(f.id), "contrato": f.nombre,
-        "company_id": str(f.company_id), "empresa": f.empresa,
-        "documentos_pendientes": int(f.pendientes),
-    } for f in contratos_pendientes]
-
-    vencidos_filas = db.execute(
-        select(Company.id, Company.nombre, func.count().label("vencidos"))
-        .join(Documento, Documento.company_id == Company.id)
-        .where(Company.status == "approved", Documento.estado_calc == "venc")
-        .group_by(Company.id, Company.nombre)
-        .order_by(func.count().desc())).all()
-    vencidos_por_empresa = [{
-        "company_id": str(f.id), "empresa": f.nombre,
-        "documentos_vencidos": int(f.vencidos),
-    } for f in vencidos_filas]
 
     morosos_filas = db.execute(
         select(Company.id, Company.nombre, Plan.nombre.label("plan"))
@@ -1846,15 +1944,11 @@ def stats(db: Session = Depends(get_db)):
         },
         "empresas_total": total, "pendientes": pend, "aprobadas": aprob,
         "rechazadas": rech,
-        "contratos_total": _cuenta(db, Contrato,
-                                   Contrato.ciclo_estado == "activo"),
-        "contratos_historicos": _cuenta(
-            db, Contrato,
-            Contrato.ciclo_estado.in_(("desactivado", "finalizado"))),
-        "faenas_total": _cuenta(db, Faena),
-        "faenas_activas": _cuenta(db, Faena, Faena.activa.is_(True)),
-        "plantillas_activas": _cuenta(db, RequisitoTemplate,
-                                      RequisitoTemplate.activo.is_(True)),
+        "contratos_total": int(conteos_globales.contratos_total),
+        "contratos_historicos": int(conteos_globales.contratos_historicos),
+        "faenas_total": int(conteos_globales.faenas_total),
+        "faenas_activas": int(conteos_globales.faenas_activas),
+        "plantillas_activas": int(conteos_globales.plantillas_activas),
         "personal": sujetos["trabajador"],
         "equipos": sujetos["equipo"],
         # Se conserva por compatibilidad con la versión anterior del endpoint.
@@ -1869,7 +1963,7 @@ def stats(db: Session = Depends(get_db)):
                                     if docs_total else None),
         "empresas_medidas": len(pcts),
         "actividad_global": {
-            "total": _cuenta(db, Actividad),
+            "total": int(actividad_global.total),
             "ultimos_30_dias": actividad_30d,
             "por_modulo": actividad_por_modulo,
             "por_tipo": actividad_por_tipo,
@@ -1878,7 +1972,7 @@ def stats(db: Session = Depends(get_db)):
             "clientes_baja_actividad": clientes_baja_actividad,
         },
         "sesiones": {
-            "vigentes": sesiones_vigentes,
+            "vigentes": int(conteos_globales.sesiones_vigentes),
             "usuarios_con_actividad_30d": usuarios_con_actividad,
             "tiempo_uso_promedio_minutos_30d": round(float(uso), 1) if uso else 0,
             "tiempo_uso_es_estimado": True,
@@ -1889,17 +1983,15 @@ def stats(db: Session = Depends(get_db)):
             "duracion_es_estimada": True,
             "usuarios_activos_diarios": int(usuarios_activos_diarios),
             "usuarios_activos_semanales": int(usuarios_activos_semanales),
-            "evolucion_dau": [{"dia": f.dia.isoformat(), "usuarios": int(f.usuarios)}
-                              for f in dau_filas],
-            "evolucion_wau": [{"semana": f.semana.date().isoformat(), "usuarios": int(f.usuarios)}
-                              for f in wau_filas],
+            "evolucion_dau": dau_filas,
+            "evolucion_wau": wau_filas,
         },
         "documentos_procesados": {
-            "total": int(procesados.total),
-            "completados": int(procesados.completados),
-            "en_proceso": int(procesados.en_proceso),
-            "pendientes": int(procesados.pendientes),
-            "fallidos": int(procesados.fallidos),
+            "total": int(conteos_globales.procesados_total),
+            "completados": int(conteos_globales.procesados_completados),
+            "en_proceso": int(conteos_globales.procesados_en_proceso),
+            "pendientes": int(conteos_globales.procesados_pendientes),
+            "fallidos": int(conteos_globales.procesados_fallidos),
             "unidad": "revisiones_ia",
             "documentos_unicos": None,
         },

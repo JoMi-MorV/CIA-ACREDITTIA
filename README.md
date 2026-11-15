@@ -4,9 +4,10 @@
 
 Actualizado al 15-11-2026.
 
-- Avance estimado vigente: **81,4%** para las 37 fichas SRS (`3013 / 37`).
+- Avance estimado vigente: **83,7%** para las 37 fichas SRS (`3098 / 37`).
   El promedio de las ocho prioridades ADMIN es **81,0%**; P0/P1/P2: 81,7%,
-  84,7% y 69,2%.
+  84,7% y 83,3%. El corte anterior de `3013 / 37` no coincidía con la suma
+  de las estimaciones vigentes y se corrigió.
 - RF-DAS-01 queda **IV/100%**: universos acordados, conteos documentales
   alineados, salida “N/A” sin datos evaluables, pruebas/build aprobados y
   revisión visual confirmada por el usuario.
@@ -16,13 +17,16 @@ Actualizado al 15-11-2026.
 - RF-SEG-02 queda en **95%**: el usuario confirmó el recorrido de concesión
   temporal, lectura de personal/documentos, revocación y auditoría. Restan
   revisar otras lecturas sensibles y controles relacionados.
+- RNF-PER-01 queda **IV/100% para la carga local sintética acordada**: siete
+  rutas, 100 solicitudes por ruta, concurrencia máxima 10, p95 entre 252,0 y
+  729,5 ms y cero errores HTTP. No es SLA ni certificación de producción;
+  resultados y límites en [Validación actual](documentacion/VALIDACION_ACTUAL.md).
 - Las suites focalizadas de roles/configuración/tenants/esquema pasaron
   **76/76**; las de documentos/búsqueda/backups/privacidad, **88/88**. El build
   frontend pasó. No se ejecutó una suite backend completa en este corte.
 - RF-CLI-01 está en 80% por el cambio seguro de correo; RF-SAL-03, en 95% por
   el progreso medible y la actualización automática de procesos. La entrega
   SMTP se probó con dobles; no se verificó un servidor SMTP real.
-- La suma anterior (`2888 / 37`) no coincidía con las fichas y se corrigió.
 - En la auditoría de dependencias reportada el 04-11, `npm audit --omit=dev`
   encontró **1 vulnerabilidad crítica y 2 altas** en Next.js/PostCSS/source-map-js;
   confirmar el estado actual con una nueva ejecución de auditoría.
@@ -735,19 +739,21 @@ abren ahora el Dashboard global.
 
 ## Cambios a la fecha — 15-11-2026
 
-El documento funcional vigente es el [SRS v0.92](documentacion/SRS.md). Esta
+El documento funcional vigente es el [SRS v0.93](documentacion/SRS.md). Esta
 sección resume los cambios relevantes y el estado conocido a la fecha; no
 sustituye los criterios, pendientes ni evidencias detallados en el SRS y la
 [validación actual](documentacion/VALIDACION_ACTUAL.md).
 
-**Resumen del corte:** el promedio de las 37 fichas es **81,4%** y el de las
-ocho prioridades ADMIN, **81,0%**. RF-DAS-01 queda IV/100%; RNF-SEG-01 queda
-IV/100% en el entorno destino tras confirmar roles separados, RLS efectivo,
-denegaciones, secretos externos y la condición DEC-10; RF-SEG-02 queda PAR/95%
-tras confirmar el recorrido de concesión y su auditoría. Las suites focalizadas
-de seguridad (76/76) y acceso sensible (88/88) pasaron. Otros controles de
-seguridad, privacidad/retención, auditoría, SMTP real, recuperación y
-continuidad siguen pendientes; producción permanece **NO-GO**.
+**Resumen del corte:** la suma de las 37 fichas es **83,7% (3098/37)** y el
+promedio de las ocho prioridades ADMIN, **81,0%**; P0/P1/P2: 81,7%, 84,7% y
+83,3%. RF-DAS-01 queda IV/100%; RNF-SEG-01, IV/100% en el entorno destino; y
+RF-SEG-02, PAR/95% tras confirmar el recorrido de concesión y su auditoría.
+RNF-PER-01 queda IV/100% para la carga local sintética acordada: siete rutas
+cumplieron p95 ≤ 800 ms y cero errores, con p95 máximo de 729,5 ms. Esta prueba
+no es SLA ni certificación de producción. Las suites focalizadas de seguridad
+(76/76) y acceso sensible (88/88) pasaron. Otros controles de seguridad,
+privacidad/retención, auditoría, SMTP real, recuperación y continuidad siguen
+pendientes; producción permanece **NO-GO**.
 
 ### Funcionalidad y cambios recientes
 

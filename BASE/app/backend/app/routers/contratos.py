@@ -23,7 +23,7 @@ from fastapi import APIRouter, Depends, Header, Query
 from pydantic import BaseModel
 from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from ..config import settings
 from ..database import get_db
@@ -94,6 +94,86 @@ def _get_contrato(db: Session, cid: uuid.UUID, contrato_id: uuid.UUID,
     return c
 
 
+def _stats_lote(db: Session, contratos: list[Contrato]) -> dict[uuid.UUID, dict]:
+    if not contratos:
+        return {}
+
+    ids = [c.id for c in contratos]
+    company_id = contratos[0].company_id
+
+    docs_por_contrato = {
+        row.contrato_id: row
+        for row in db.execute(
+            select(
+                Documento.contrato_id,
+                func.count(Documento.id).label("total"),
+                func.count(Documento.id).filter(
+                    Documento.obligatorio.is_(True)).label("obligatorios"),
+                func.count(Documento.id).filter(
+                    Documento.obligatorio.is_(True),
+                    Documento.estado_calc == "ok").label("ok"),
+            ).where(
+                Documento.company_id == company_id,
+                Documento.contrato_id.in_(ids),
+            ).group_by(Documento.contrato_id)
+        )
+    }
+
+    sujetos_por_contrato: dict[uuid.UUID, dict[str, tuple[int, int]]] = {}
+    for row in db.execute(
+        select(
+            Sujeto.contrato_id,
+            Sujeto.tipo,
+            func.count(Sujeto.id).label("total"),
+            func.count(Sujeto.id).filter(
+                Sujeto.estado == "ok").label("ok"),
+        ).where(
+            Sujeto.company_id == company_id,
+            Sujeto.contrato_id.in_(ids),
+            Sujeto.estado != "baja",
+            Sujeto.tipo.in_(("trabajador", "equipo")),
+        ).group_by(Sujeto.contrato_id, Sujeto.tipo)
+    ):
+        sujetos_por_contrato.setdefault(row.contrato_id, {})[
+            row.tipo] = (int(row.total), int(row.ok))
+
+    alertas_por_contrato = dict(db.execute(
+        select(Alerta.contrato_id, func.count(Alerta.id))
+        .where(
+            Alerta.company_id == company_id,
+            Alerta.contrato_id.in_(ids),
+            Alerta.resuelta_at.is_(None),
+        ).group_by(Alerta.contrato_id)
+    ).all())
+
+    resultado = {}
+    for contrato in contratos:
+        docs = docs_por_contrato.get(contrato.id)
+        docs_total = int(docs.total) if docs else 0
+        docs_obligatorios = int(docs.obligatorios) if docs else 0
+        docs_ok = int(docs.ok) if docs else 0
+        sujetos = sujetos_por_contrato.get(contrato.id, {})
+        p_tot, p_ok = sujetos.get("trabajador", (0, 0))
+        e_tot, e_ok = sujetos.get("equipo", (0, 0))
+
+        partes = []
+        if docs_obligatorios:
+            partes.append(docs_ok / docs_obligatorios)
+        if p_tot:
+            partes.append(p_ok / p_tot)
+        if e_tot:
+            partes.append(e_ok / e_tot)
+        pct = round(100 * sum(partes) / len(partes)) if partes else 0
+        resultado[contrato.id] = {
+            "cumplimiento_pct": pct,
+            "personal": {"total": p_tot, "acreditados": p_ok},
+            "equipos": {"total": e_tot, "acreditados": e_ok},
+            "docs_empresa": {"total": docs_total, "ok": docs_ok},
+            "alertas_activas": int(alertas_por_contrato.get(contrato.id, 0)),
+        }
+    return resultado
+
+
 def _stats(db: Session, c: Contrato) -> dict:
     """Cumplimiento del contrato: media de los tres frentes que lo componen.
 
@@ -101,43 +181,11 @@ def _stats(db: Session, c: Contrato) -> dict:
     y los frentes vacíos no cuentan: un contrato sin equipos no debe quedar al
     66 % por no tener flota. Lo reutilizan `dashboard.py` y `reportes.py`.
     """
-    def contar(tipo: str, estado: str | None = None) -> int:
-        q = select(func.count()).select_from(Sujeto).where(
-            Sujeto.company_id == c.company_id,
-            Sujeto.contrato_id == c.id, Sujeto.tipo == tipo,
-            Sujeto.estado != "baja")
-        if estado:
-            q = q.where(Sujeto.estado == estado)
-        return db.scalar(q) or 0
-
-    docs_emp = list(db.scalars(select(Documento).where(
-        Documento.company_id == c.company_id, Documento.contrato_id == c.id)))
-    oblig = [d for d in docs_emp if d.obligatorio]
-    ok_emp = sum(1 for d in oblig if d.estado_calc == "ok")
-    alertas = db.scalar(select(func.count()).select_from(Alerta).where(
-        Alerta.company_id == c.company_id, Alerta.contrato_id == c.id,
-        Alerta.resuelta_at.is_(None))) or 0
-
-    p_tot, p_ok = contar("trabajador"), contar("trabajador", "ok")
-    e_tot, e_ok = contar("equipo"), contar("equipo", "ok")
-    partes = []
-    if oblig:
-        partes.append(ok_emp / len(oblig))
-    if p_tot:
-        partes.append(p_ok / p_tot)
-    if e_tot:
-        partes.append(e_ok / e_tot)
-    pct = round(100 * sum(partes) / len(partes)) if partes else 0
-    return {
-        "cumplimiento_pct": pct,
-        "personal": {"total": p_tot, "acreditados": p_ok},
-        "equipos": {"total": e_tot, "acreditados": e_ok},
-        "docs_empresa": {"total": len(docs_emp), "ok": ok_emp},
-        "alertas_activas": alertas,
-    }
+    return _stats_lote(db, [c])[c.id]
 
 
-def _out(db: Session, c: Contrato, con_stats: bool = True) -> dict:
+def _out(db: Session, c: Contrato, con_stats: bool = True,
+         stats: dict | None = None) -> dict:
     f = c.faena
     d = {
         "id": str(c.id), "nombre": c.nombre, "codigo": c.codigo,
@@ -155,7 +203,7 @@ def _out(db: Session, c: Contrato, con_stats: bool = True) -> dict:
                   "grupo": f.grupo, "region": f.region, "color": f.color},
     }
     if con_stats:
-        d["stats"] = _stats(db, c)
+        d["stats"] = stats if stats is not None else _stats(db, c)
     return d
 
 
@@ -174,7 +222,8 @@ def listar(faena_id: uuid.UUID | None = Query(None),
     if estado and estado not in ESTADOS:
         raise err(400, "ESTADO_INVALIDO",
                   f"Estado debe ser uno de: {', '.join(ESTADOS)}")
-    q = select(Contrato).where(Contrato.company_id == cid)
+    q = select(Contrato).options(selectinload(Contrato.faena)).where(
+        Contrato.company_id == cid)
     if ciclo_estado == "historico":
         q = q.where(Contrato.ciclo_estado.in_(("desactivado", "finalizado")))
     else:
@@ -192,7 +241,10 @@ def listar(faena_id: uuid.UUID | None = Query(None),
     total = db.scalar(select(func.count()).select_from(q.subquery())) or 0
     q = aplicar_orden(q, Contrato, p.sort, ORDEN_CONTRATOS, "-created_at")
     filas = list(db.scalars(q.offset(p.offset).limit(p.page_size)))
-    return sobre([_out(db, c) for c in filas], total, p)
+    stats_por_contrato = _stats_lote(db, filas)
+    return sobre([
+        _out(db, c, stats=stats_por_contrato[c.id]) for c in filas
+    ], total, p)
 
 
 @router.post("", status_code=201)

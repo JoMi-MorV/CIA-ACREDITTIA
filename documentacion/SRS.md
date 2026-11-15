@@ -1,6 +1,6 @@
 # SRS — Acredittia
 
-Especificación de requisitos de software · versión 0.92 · 14-11-2026
+Especificación de requisitos de software · versión 0.93 · 15-11-2026
 
 **Estado documental:** validado con pruebas focalizadas en PostgreSQL temporal y ejecución local distribuida de Celery; permanecen pendientes criterios funcionales, de seguridad y aceptación integral. DEC-08 queda acordada como política interna funcional; esto no constituye aprobación legal ni certificación de producción.
 
@@ -31,6 +31,8 @@ Especificación de requisitos de software · versión 0.92 · 14-11-2026
 > **Confirmación RF-SEG-02 — 14-11-2026 (versión 0.91):** el usuario confirmó que revisó el recorrido completo de autorización, acceso a personal/documentos y retorno, que funciona correctamente y queda auditado. RF-SEG-02 sube de 90% a **95%** y permanece PAR mientras se completa la revisión de otras lecturas sensibles y se validan credenciales/permisos del despliegue real. El alcance confirmado sigue siendo el de la concesión: no agrega escrituras ni bloquea permisos ADMIN ordinarios independientes. El promedio de las ocho prioridades ADMIN se recalcula a **80,5%**, la cobertura estimada de las 37 fichas a **80,2%** y P0 a **76,7%**; el listado global `/admin/users` continúa bajo RF-USU.
 
 > **Cierre RNF-SEG-01 — 14-11-2026 (versión 0.92):** el usuario confirmó que en el entorno destino están separados y validados los roles de migración/API/worker; RLS está activo y fue comprobado con los roles reales de API/worker; las denegaciones entre empresas/contratos fueron probadas; y los secretos se gestionan fuera del código/configuración pública. También confirmó la condición de DEC-10: no se adoptó RLS contractual o, si se adoptó, pasaron sus pruebas SQL directas. La suite focalizada `test_db_runtime_role.py`, `test_config_seguridad.py`, `test_tenants.py` y `test_esquema.py` pasó **76/76**, con un warning no bloqueante de Starlette/httpx. RNF-SEG-01 queda **IV (100%)** para ese entorno. Compose local de desarrollo conserva el rol elevado y no forma parte de esa validación. La suma de los 37 requisitos es **3.013/37 (81,4%)**, P0 **81,7%**, la prioridad Seguridad **81,3%** y el promedio de ocho prioridades ADMIN **81,0%**. Esto no cierra RF-SEG-01/02/03 ni cambia el NO-GO general de producción.
+
+> **Cierre RNF-PER-01 — 15-11-2026 (versión 0.93):** con el volumen sintético acordado (30 empresas, 66 contratos, 400 sujetos, 6.340 documentos y 97 usuarios), se ejecutaron 100 solicitudes por ruta y concurrencia máxima 10. Las siete rutas medidas obtuvieron p95 de 252,0–729,5 ms y cero errores HTTP; las pruebas focalizadas relacionadas pasaron **6/6**. Se redujeron consultas por fila en contratos y se agruparon consultas de KPI/actividad en `/admin/stats`. El máximo puntual de esa ruta fue 856,0 ms; el criterio acordado aplica al p95, no al máximo. RNF-PER-01 queda **IV (100%)** para el criterio de carga local acordado. No es SLA ni certificación de producción. La suma recalculada directamente desde las 37 fichas es **3.098/37 (83,7%)**; P0 81,7%, P1 84,7% y P2 83,3%. Este cálculo corrige el total 3.013/37 del corte anterior, que no coincidía con las estimaciones vigentes de las fichas. El promedio de ocho prioridades ADMIN permanece en 81,0%. La validación no cambia el NO-GO general de producción.
 
 > **Implementación RF-MET-02 — versión 0.87:** se agregó telemetría autenticada con sesión lógica, agregados diarios y ventanas `America/Santiago`; la estimación anterior permanece separada. Pasaron 28 pruebas focalizadas de telemetría, retención, autenticación, privacidad y migración, y el build de producción frontend. La implementación funcional queda al 100%; la revisión visual de la nueva tarjeta en Salud de clientes queda pendiente de confirmación del usuario.
 
@@ -849,16 +851,16 @@ Esta sección requiere profundización posterior. Las fuentes principales son EV
 
 **RNF-PER-01 — Rendimiento**
 
-- **Estado técnico:** PAR.
+- **Estado técnico:** IV para la carga local sintética acordada.
 - **Prioridad:** P2.
-- **Avance estimado:** 55 % (reevaluado el 04-11-2026).
-- **Fundamento del avance:** Existe telemetría API en proceso/Redis, umbral p95 configurable de 800 ms y pruebas focalizadas. Se añadió una línea base HTTP concurrente con percentiles por ruta; falta población representativa y medición aprobada.
+- **Avance estimado:** 100 % para el criterio de carga local (reevaluado el 15-11-2026).
+- **Fundamento del avance:** Se acordaron 10 solicitudes concurrentes, 100 por ruta, datos sintéticos representativos, p95 ≤ 800 ms y cero errores HTTP. Las siete rutas medidas cumplieron; la mayor p95 fue 729,5 ms.
 - **Comportamiento esperado:** Listados paginados, totales coherentes y tiempos medidos con volumen representativo.
-- **Estado actual:** Configuración y medición automatizable disponibles; objetivos de concurrencia y volumen representativo siguen pendientes de aprobación.
-- **Pendientes / mejoras:** Ejecutar escenarios representativos con datos controlados, revisar consultas lentas identificadas y automatizar la regresión.
-- **Ejecución de línea base:** `python scripts/performance_baseline.py --base-url http://localhost:8000 --paths "/health,/api/v1/dashboard" --requests 100 --concurrency 10`.
-- **Validación:** Parcial: telemetría y pruebas de umbral aprobadas; falta acreditación mediante carga representativa.
-- **Criterio de aceptación:** Listados paginados, totales coherentes y tiempos medidos con volumen representativo. Revisar consultas por fila y listas truncadas. Objetivo de latencia/concurrencia pendiente DEC-07; no se declara SLA sin medición.
+- **Estado actual:** En el entorno local Compose con semilla sintética (30 empresas, 66 contratos, 400 sujetos, 6.340 documentos y 97 usuarios), siete rutas recibieron 100 solicitudes cada una con concurrencia máxima 10. Todas respondieron HTTP 200, sin errores, y con p95 ≤ 800 ms. Los resultados detallados están en `VALIDACION_ACTUAL.md`.
+- **Pendientes / mejoras:** Sin pendientes para el criterio local acordado. La prueba no acredita rendimiento en producción ni define SLA.
+- **Ejecución:** `python scripts/performance_baseline.py --base-url http://127.0.0.1:8000/api/v1 --paths "<rutas del escenario>" --requests 100 --concurrency 10 --token "<token válido>" --p95-limit-ms 800`.
+- **Validación:** Aprobada para el escenario acordado; seis pruebas focalizadas relacionadas y la carga HTTP de las siete rutas pasaron.
+- **Criterio de aceptación:** En el conjunto de rutas acordado y con datos sintéticos representativos, 100 solicitudes por ruta a concurrencia máxima 10, p95 ≤ 800 ms y cero respuestas HTTP de error. No equivale a SLA, prueba productiva ni aceptación integral del sistema.
 
 **RNF-OPE-01 — Operación observable**
 
@@ -1046,7 +1048,7 @@ Para conservar un 100% con observaciones, registrar: número de actividad, alcan
 
 ## 13. Cuadro de resumen del estado general del proyecto
 
-**Corte de estados funcionales generales: 14-11-2026; línea base inicial del 29-09-2026.** Los estados siguientes resumen evidencia y pendientes, no aceptación contractual. «Operativo» se limita a los recorridos comprobados; no significa listo para producción. Tras incorporar RF-DAS-01 al 100%, RF-CLI-01 al 80%, RF-SAL-03 al 95%, RF-SEG-02 al 95% y RNF-SEG-01 al 100%, la suma de cobertura de las 37 fichas es 81,4% (81% redondeado; 3013/37). El promedio de las ocho prioridades ADMIN es 81,0% (81% redondeado). Los promedios P0/P1/P2 son 81,7%, 84,7% y 69,2%, respectivamente, recalculados desde sus fichas. Estas cifras no miden esfuerzo ni aceptación integral; DEC-08, DEC-10, la revisión de lecturas sensibles restantes y la preparación productiva siguen bloqueando producción.
+**Corte de estados funcionales generales: 15-11-2026; línea base inicial del 29-09-2026.** Los estados siguientes resumen evidencia y pendientes, no aceptación contractual. «Operativo» se limita a los recorridos comprobados; no significa listo para producción. Tras incorporar RF-DAS-01 al 100%, RF-CLI-01 al 80%, RF-SAL-03 al 95%, RF-SEG-02 al 95%, RNF-SEG-01 y RNF-PER-01 al 100%, la suma recalculada desde las 37 fichas es **83,7% (3.098/37)**. El promedio de las ocho prioridades ADMIN es 81,0% (81% redondeado). Los promedios P0/P1/P2 son 81,7%, 84,7% y **83,3%**, respectivamente, recalculados desde sus fichas. La suma anterior 3.013/37 no coincidía con las estimaciones individuales vigentes y se corrige en este corte. Estas cifras no miden esfuerzo ni aceptación integral; DEC-08, DEC-10, la revisión de lecturas sensibles restantes y la preparación productiva siguen bloqueando producción.
 
 | Área | Estado general | Qué se reconoce como realizado | Observación / pendiente principal | Seguimiento |
 |---|---|---|---|---|
@@ -1065,7 +1067,8 @@ Para conservar un 100% con observaciones, registrar: número de actividad, alcan
 | Portal de empresa | Implementado en parte y con validación focalizada | Reportes, programación, cuentas, contratos y operaciones relacionadas cuentan con suites focalizadas; el build frontend pasó. El scheduling distribuido de reportes también se verificó en Compose. | Invitaciones/activación de cuentas, recorridos visuales y aceptación integral siguen pendientes. No implica nueva obligación de reconstrucción del portal. | RF-CLI-01 a RF-CLI-09; PT-08; VALIDACION_ACTUAL.md. |
 | Datos demo para verificación | Seed ampliado en código; no aplicado a la base local | Prueba del seed idempotente en PostgreSQL temporal: mínimo 30 empresas demo con contratos, trabajadores, equipos, documentos, alertas y eventos; unicidad, idempotencia y LTV/CAC positivo comprobados. | El entorno local del usuario no fue poblado. Aplicarlo requiere habilitación explícita del seed fuera de producción y reinicio; datos sintéticos, no evidencia de uso real. | RNF-VAL-01; EV-09; VALIDACION_ACTUAL.md. |
 | Pruebas y calidad | Regresión focalizada aprobada; aceptación integral pendiente | Suite completa previa 399/399 (14-10); suites focalizadas actuales 124/124 en PostgreSQL temporal; build frontend y Compose válidos. | No sumar ejecuciones superpuestas ni presentarlas como suite completa. Extensiones reales, automatización limpia y cobertura de fallo/recuperación siguen pendientes. | RNF-VAL-01; PT-01/02/09; VALIDACION_ACTUAL.md. |
-| Documentación y alcance | Actualizada con corte de avance del 14-11 | SRS v0.92 y documentación relacionada reflejan RF-DAS-01 IV/100%, RF-SEG-02 PAR/95% y RNF-SEG-01 IV/100%, además de los avances anteriores. | Aceptación integral del sistema y bloqueadores de producción siguen pendientes. | DEC-01 a DEC-14; PT-01 a PT-09. |
+| Rendimiento | RNF-PER-01 IV/100% para la carga local acordada | Siete rutas, 100 solicitudes por ruta, concurrencia máxima 10, p95 ≤ 729,5 ms y cero errores. | No constituye SLA ni certificación de producción. | RNF-PER-01; VALIDACION_ACTUAL.md. |
+| Documentación y alcance | Actualizada con corte de avance del 15-11 | SRS v0.93 y documentación relacionada reflejan RNF-PER-01 IV/100% para el escenario local, además de RF-DAS-01 IV/100%, RF-SEG-02 PAR/95% y RNF-SEG-01 IV/100%. | Aceptación integral del sistema y bloqueadores de producción siguen pendientes. | DEC-01 a DEC-14; PT-01 a PT-09. |
 | Entrega productiva y aceptación final | Pendiente de validar | Base local funcional disponible. | Seguridad, regresión completa, recuperación y aceptación del cliente todavía no acreditadas. | RNF-REC-01, RNF-VAL-01; PT-09 y actividad 107. |
 
 **Avance del des informado:** 26,73% real acumulado en la actividad 37. Se conserva como dato de gestión suministrado; no se interpreta como porcentaje de requisitos validados. No se modifica el 100% declarado de las actividades iniciales ni se asigna avance a celdas vacías. Las correcciones pendientes siguen abiertas en el SRS y en el plan de trabajo. La suite backend completa aprobada el 01-10-2026 acredita la regresión ejecutada, no sustituye criterios de aceptación, despliegue productivo ni aceptación del cliente.

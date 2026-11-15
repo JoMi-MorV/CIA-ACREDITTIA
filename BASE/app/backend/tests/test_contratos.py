@@ -18,13 +18,14 @@ import uuid
 from datetime import date, timedelta
 
 import pytest
+from sqlalchemy import event
 
-from app.database import worker_session
+from app.database import engine, worker_session
 from app.models import ContratoRequisito, RequisitoTemplate
 from app.services.checklist import normalizar
 
-from tests.conftest import (API, crear_contract_admin, patente_valida,
-                            rut_valido)
+from tests.conftest import (API, crear_contract_admin, crear_contrato,
+                            patente_valida, rut_valido)
 
 PLATAFORMAS_PELAMBRES = {"SIGA", "DIRECTIC", "SGES", "Academia MLP", "EMSIPOR"}
 
@@ -733,3 +734,36 @@ def test_stats_del_contrato(app_cliente, empresa_a, contrato_a,
     assert stats["docs_empresa"]["total"] > 0
     assert stats["cumplimiento_pct"] == 0
     assert stats["alertas_activas"] == 0
+
+
+@pytest.mark.parametrize("ruta", [f"{API}/contratos",
+                                  f"{API}/dashboard/cumplimiento-contratos"])
+def test_listados_de_contratos_no_consultan_estadisticas_por_fila(
+        app_cliente, empresa_a, contrato_a, contrato_con_dotacion, ruta):
+    crear_contrato(
+        app_cliente, empresa_a, contrato_a["faena_id"],
+        nombre="Contrato adicional para prueba", codigo="PERF-REG-02")
+    sentencias = []
+
+    def contar_consulta(conn, cursor, statement, parameters, context, executemany):
+        sentencias.append(statement)
+
+    event.listen(engine, "before_cursor_execute", contar_consulta)
+    try:
+        una_fila = app_cliente.get(
+            f"{ruta}?page_size=1", headers=empresa_a["headers"])
+        consultas_una_fila = len(sentencias)
+        sentencias.clear()
+        varias_filas = app_cliente.get(
+            f"{ruta}?page_size=50", headers=empresa_a["headers"])
+        consultas_varias_filas = len(sentencias)
+    finally:
+        event.remove(engine, "before_cursor_execute", contar_consulta)
+
+    assert una_fila.status_code == 200, una_fila.text
+    assert varias_filas.status_code == 200, varias_filas.text
+    assert varias_filas.json()["total"] >= 2
+    assert len(varias_filas.json()["items"]) > 1
+    assert all("stats" in item or "cumplimiento_pct" in item
+               for item in varias_filas.json()["items"])
+    assert consultas_varias_filas == consultas_una_fila

@@ -17,7 +17,7 @@ from datetime import date, timedelta
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, or_, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from ..database import get_db
 from ..deps import (Page, contrato_scope, err, get_company_id, get_current_user,
@@ -120,7 +120,7 @@ def cumplimiento(p: Page = Depends(paginacion), db: Session = Depends(get_db),
                  cid: uuid.UUID = Depends(get_company_id),
                  user: User = Depends(get_current_user)):
     """Cumplimiento contrato a contrato, con el mismo cálculo que su ficha."""
-    from .contratos import _stats
+    from .contratos import _stats_lote
 
     scope = contrato_scope(user)
     q = select(Contrato).where(Contrato.company_id == cid,
@@ -130,12 +130,14 @@ def cumplimiento(p: Page = Depends(paginacion), db: Session = Depends(get_db),
     if p.search:
         q = q.where(Contrato.nombre.ilike(f"%{p.search}%"))
     total = db.scalar(select(func.count()).select_from(q.subquery())) or 0
-    filas = list(db.scalars(q.order_by(Contrato.nombre)
+    filas = list(db.scalars(q.options(selectinload(Contrato.faena))
+                            .order_by(Contrato.nombre)
                             .offset(p.offset).limit(p.page_size)))
+    stats_por_contrato = _stats_lote(db, filas)
     items = [{
         "id": str(c.id), "nombre": c.nombre, "codigo": c.codigo,
         "faena": c.faena.nombre, "faena_id": str(c.faena_id),
-        "estado": c.estado, **_stats(db, c),
+        "estado": c.estado, **stats_por_contrato[c.id],
     } for c in filas]
     return sobre(items, total, p)
 

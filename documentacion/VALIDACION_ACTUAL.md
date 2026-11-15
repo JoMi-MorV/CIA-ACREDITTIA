@@ -1,4 +1,4 @@
-# Validación funcional — actualizado al 14 de noviembre de 2026
+# Validación funcional — actualizado al 15 de noviembre de 2026
 
 ## RF-DAS-01 — universos del resumen global — 14 de noviembre de 2026
 
@@ -51,6 +51,16 @@ y RNF-SEG-01 IV/100%. Continúan pendientes otras lecturas sensibles y brechas
 de producción; no cambia el NO-GO general. La suite focalizada de roles,
 configuración, tenants y esquema pasó **76/76**, con un warning no bloqueante
 de Starlette/httpx.
+
+## Recálculo tras el cierre de RNF-PER-01 — 15 de noviembre de 2026
+
+RNF-PER-01 pasa de 55% a **100% (IV)** para el escenario local sintético
+acordado. Al sumar las estimaciones actualmente escritas en las 37 fichas, el
+resultado es **3.098/37 = 83,7%**; P0 81,7% (735/9), P1 84,7% (1863/22) y P2
+83,3% (500/6). El total anterior 3.013/37 no coincidía con las estimaciones
+vigentes y se corrige en este corte. El promedio de ocho prioridades ADMIN
+permanece en 81,0%. Estas cifras son estimaciones de cobertura, no aceptación
+integral; producción sigue en NO-GO.
 
 Se actualizaron únicamente los requisitos directamente afectados: RF-CLI-01
 de 75% a 80% por el flujo de cambio seguro de correo y RF-SAL-03 de 90% a 95%
@@ -355,18 +365,39 @@ Evidencia ejecutada:
 RF-BUS-02 permanece parcial hasta aplicar esta matriz de permisos a vistas de
 detalle, exportaciones y operaciones sensibles asociadas.
 
-## RNF-PER-01 — rendimiento — 4 de noviembre de 2026
+## RNF-PER-01 — rendimiento — 15 de noviembre de 2026
 
-Se añadió `scripts/performance_baseline.py`, un ejecutor concurrente que mide
-latencia media, p95, máximo, errores y códigos HTTP por ruta. El límite p95
-predeterminado coincide con `ops_umbral_p95_ms = 800`.
+Se ejecutó `scripts/performance_baseline.py` contra la API local aislada en
+`http://127.0.0.1:8000/api/v1`, con 100 solicitudes por ruta, concurrencia
+máxima 10, autenticación válida y límite p95 de 800 ms. Los datos sintéticos
+representaban 30 empresas, 66 contratos, 400 sujetos, 6.340 documentos y
+97 usuarios. Se optimizaron los agregados por página de contratos, y se
+agruparon los conteos de KPI y las series de actividad de `/admin/stats`.
 
-Evidencia ejecutada:
-- `tests/test_performance_baseline.py`: **2 aprobadas, 0 fallidas**.
-- Prueba focalizada del umbral API en `tests/test_ops.py`: **1 aprobada, 0 fallidas**.
+| Ruta | Solicitudes | p95 (ms) | Máximo (ms) | Respuestas | Errores HTTP |
+|---|---:|---:|---:|---:|---:|
+| `/admin/clientes?page_size=50` | 100 | 252,0 | 263,3 | 100 × 200 | 0 |
+| `/admin/stats` | 100 | 729,5 | 856,0 | 100 × 200 | 0 |
+| `/contratos?page_size=50` | 100 | 366,7 | 438,3 | 100 × 200 | 0 |
+| `/dashboard/cumplimiento-contratos?page_size=50` | 100 | 306,4 | 353,7 | 100 × 200 | 0 |
+| `/dashboard/kpis` | 100 | 417,1 | 444,7 | 100 × 200 | 0 |
+| `/dashboard/actividad?page_size=50` | 100 | 333,4 | 386,0 | 100 × 200 | 0 |
+| `/dashboard/proximos-vencimientos?page_size=50` | 100 | 443,3 | 506,8 | 100 × 200 | 0 |
 
-RNF-PER-01 permanece parcial: la línea base automatizada no sustituye una
-medición con población, concurrencia y escenarios representativos aprobados.
+Evidencia ejecutada desde `BASE/app/backend`:
+
+- Pruebas focalizadas de operaciones, estadísticas de contratos y listados:
+  **6 aprobadas, 0 fallidas**.
+- La ejecución presenta un warning no bloqueante de compatibilidad
+  `starlette.testclient` + `httpx`.
+- Las siete rutas cumplieron p95 ≤ 800 ms y cero errores; `/admin/stats` fue la
+  ruta más lenta, con p95 729,5 ms.
+- `/admin/stats` tuvo un máximo puntual de 856,0 ms. El límite acordado aplica
+  al p95; el máximo no fue un criterio de rechazo.
+
+RNF-PER-01 queda **IV/100% para el escenario local acordado**. Esta medición usa
+datos sintéticos y una pila de desarrollo aislada; no es un SLA, una prueba de
+producción ni aceptación integral del sistema.
 
 ## RF-SEG-02 — mínimo privilegio y acceso excepcional — 14 de noviembre de 2026
 
