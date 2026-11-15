@@ -2,35 +2,41 @@
 
 ## Estado actual verificado
 
-Actualizado al 14-11-2026.
+Actualizado al 15-11-2026.
 
-- Avance estimado vigente: **79,1%** para las 37 fichas SRS, calculado como
-  `2928 / 37`. El promedio de las ocho prioridades ADMIN es **79,2%**.
-- RF-DAS-01 queda **IV/100%**: universos acordados, conteos de documentos
+- Avance estimado vigente: **81,4%** para las 37 fichas SRS (`3013 / 37`).
+  El promedio de las ocho prioridades ADMIN es **81,0%**; P0/P1/P2: 81,7%,
+  84,7% y 69,2%.
+- RF-DAS-01 queda **IV/100%**: universos acordados, conteos documentales
   alineados, salida “N/A” sin datos evaluables, pruebas/build aprobados y
   revisión visual confirmada por el usuario.
-- RF-DAS-01: **2 pruebas focalizadas aprobadas** y build frontend correcto.
-- RF-CLI-01 se reevalúa en 80% por el cambio seguro de correo; RF-SAL-03, en
-  95% por el progreso medible y la actualización automática de procesos.
-- Validación focalizada del cambio de correo: **56 pruebas aprobadas** en
-  autenticación y esquema. Seguimiento de procesos: **54 pruebas aprobadas**
-  en operaciones y esquema. El build frontend pasó para ambos cambios.
-  La entrega SMTP se probó con dobles; no se verificó un servidor SMTP real.
-- La suma anterior publicada (`2888 / 37`) no coincidía con los porcentajes
-  individuales del SRS; quedó corregida a `2928 / 37`. P0/P1/P2 promedian
-  72,2% / 84,7% / 69,2%, recalculados desde sus fichas.
+- RNF-SEG-01 queda **IV/100% para el entorno destino**, tras la confirmación
+  del usuario de roles separados, RLS efectivo con roles reales, denegaciones
+  entre empresas/contratos, secretos externos y cumplimiento de DEC-10.
+- RF-SEG-02 queda en **95%**: el usuario confirmó el recorrido de concesión
+  temporal, lectura de personal/documentos, revocación y auditoría. Restan
+  revisar otras lecturas sensibles y controles relacionados.
+- Las suites focalizadas de roles/configuración/tenants/esquema pasaron
+  **76/76**; las de documentos/búsqueda/backups/privacidad, **88/88**. El build
+  frontend pasó. No se ejecutó una suite backend completa en este corte.
+- RF-CLI-01 está en 80% por el cambio seguro de correo; RF-SAL-03, en 95% por
+  el progreso medible y la actualización automática de procesos. La entrega
+  SMTP se probó con dobles; no se verificó un servidor SMTP real.
+- La suma anterior (`2888 / 37`) no coincidía con las fichas y se corrigió.
 - En la auditoría de dependencias reportada el 04-11, `npm audit --omit=dev`
   encontró **1 vulnerabilidad crítica y 2 altas** en Next.js/PostCSS/source-map-js;
   confirmar el estado actual con una nueva ejecución de auditoría.
 - Respaldos: ciclo funcional local 100% acreditado (crear, descargar `.acb`,
   eliminar, importar, verificar y restaurar). Faltan RPO/RTO aprobados y
   recuperación ante pérdida total del entorno.
-- Producción con datos reales: **NO-GO** por dependencias, controles de
-  privacidad/retención pendientes, roles reales, infraestructura y recuperación.
+- Producción con datos reales: **NO-GO** por privacidad/retención, otros
+  controles de seguridad y auditoría, dependencias, infraestructura y
+  recuperación pendientes. RNF-SEG-01 está validado en el entorno destino;
+  el Compose local de desarrollo conserva un rol elevado.
 
 Estos porcentajes son estimaciones de cobertura de código/evidencia, no
 mediciones de esfuerzo, cumplimiento contractual ni preparación certificada
-para producción. No se ejecutó una suite backend completa en este corte.
+para producción.
 
 Documentos vigentes:
 
@@ -86,7 +92,7 @@ Bash
 cd BASE/app
 docker compose up --build
 
-### Actualización de esquema 19
+### Actualización de esquema 20
 
 Las migraciones `09_indices_consola.sql` y `10_version_sesion.sql` crean índices
 administrativos y añaden `users.auth_version`. `11_ciclo_vida_contratos.sql`
@@ -122,7 +128,7 @@ Conserva identidad, rol y alcance. Revocar o cambiar el estado activo desde ADMI
 invalida los JWT anteriores y los refresh tokens; el usuario debe iniciar sesión
 nuevamente. Reactivar no aprueba una solicitud pendiente/rechazada. Instalar esquema
 11 fue el requisito de la versión que introdujo esta función; para el código
-actual, seguir la sección de esquema 19 anterior. Las cuentas que ya estaban
+actual, seguir la sección de esquema 20 anterior. Las cuentas que ya estaban
 revocadas también invalidan sus sesiones antiguas al reactivarse.
 
 
@@ -486,26 +492,26 @@ sesiones y documentos procesados.
 Los cambios necesarios se incorporaron en el contrato existente de
 `GET /api/v1/admin/stats`, sin crear un endpoint SaaS paralelo:
 
-- Se agregó el indicador heredado de **duración promedio estimada de sesiones**
-    de los últimos 30 días, calculado desde la vida de los refresh tokens
-    registrados. No es la telemetría real ni la métrica principal acordada en
-    DEC-05.
+- Se agregó originalmente un indicador heredado de **duración promedio
+    estimada de sesiones** desde la vida de refresh tokens. Después se retiró
+    de la interfaz para no confundirlo con tiempo activo medido; el campo
+    antiguo se conserva en la API solo por compatibilidad.
 - Se agregaron los **usuarios activos diarios (DAU)** y **semanales (WAU)**,
     calculados sobre usuarios que registraron eventos reales de actividad.
 - Se agregaron las series históricas de DAU de 30 días y WAU de 12 semanas
     para permitir evolución y comparación temporal.
-- Se mantuvieron las métricas ya existentes de sesiones vigentes, tiempo de
-    uso estimado, documentos procesados, MRR, churn, crecimiento y flujo de
-    altas/bajas.
-- El dashboard `/admin/plataforma` ahora muestra duración de sesión, DAU,
-    WAU y cantidad de sesiones medidas junto con las métricas SaaS existentes.
+- Se mantienen métricas de documentos procesados, MRR, churn, crecimiento y
+    flujo de altas/bajas. DAU/WAU y las series de adopción continúan bajo el
+    alcance de sus requisitos.
+- RF-MET-02 implementa telemetría de tiempo activo medido por usuario; la vista
+    de Salud muestra esa duración como métrica, mientras que la duración
+    estimada por sesión no se presenta en la interfaz.
 
-La duración de sesión y el tiempo de uso se identifican como estimados: el
-modelo actual no registra eventos explícitos de inicio, heartbeat y cierre de
-sesión. La duración usa el ciclo de vida del refresh token y el tiempo de uso
-usa el intervalo entre el primer y último evento por usuario. Para una métrica
-exacta sería necesario añadir telemetría específica de sesiones, pero no se
-duplicó ese sistema dentro del dashboard.
+El campo legado de duración promedio sigue siendo estimado y no se muestra en
+la interfaz. El tiempo activo, en cambio, se mide con sesión autenticada,
+pestaña visible, interacción reciente y señales periódicas; se pausa tras
+cinco minutos sin actividad. La telemetría y su retención cuentan con pruebas
+focalizadas, según el detalle de RF-MET-02 y DEC-05 en el SRS.
 
 #### Alertas y salud de clientes: cumplimiento de la tarea
 
@@ -655,11 +661,12 @@ Brechas que permanecen y no deben considerarse resueltas:
     no puede registrar correctamente inicios de sesión de administradores sin
     empresa. Una auditoría completa de autenticación requiere un registro de
     seguridad global que admita eventos sin tenant.
-- **Accesos de lectura a metadatos/documentos:** el motivo se exige al emitir
-    la URL firmada para descargar el archivo. La consulta de listados o
-    metadatos del documento no tiene todavía un flujo excepcional con motivo;
-    implementarlo para cada lectura requiere clasificar qué recursos son
-    sensibles y evitar generar eventos por cada carga rutinaria de pantalla.
+- **Concesión temporal de lectura ADMIN:** la vista de empresas ofrece
+    “Autorizar lectura y ver (1 h)”, solicita motivo y concede acceso limitado
+    a personal y documentos de una empresa; el usuario confirmó que el
+    recorrido funciona y queda auditado. La concesión no añade escritura ni
+    bloquea permisos ADMIN ordinarios. Siguen pendientes la revisión de otras
+    lecturas sensibles y el listado global de usuarios, que permanece en RF-USU.
 
 La auditoría global oculta PII por defecto, pero las pantallas de gestión de
 cuentas que necesiten identificar un usuario deben incorporar un flujo
@@ -726,22 +733,21 @@ con enlaces previos. Las rutas Ops antiguas de Plataforma, Usuarios e
 Indicadores también redirigen a sus destinos Admin. `/admin` y la entrada Ops
 abren ahora el Dashboard global.
 
-## Cambios a la fecha — 14-11-2026
+## Cambios a la fecha — 15-11-2026
 
-El documento funcional vigente es el [SRS v0.86](documentacion/SRS.md). Esta
+El documento funcional vigente es el [SRS v0.92](documentacion/SRS.md). Esta
 sección resume los cambios relevantes y el estado conocido a la fecha; no
 sustituye los criterios, pendientes ni evidencias detallados en el SRS y la
 [validación actual](documentacion/VALIDACION_ACTUAL.md).
 
-**Resumen del corte:** se actualizó el avance general a **79,1%** y el promedio
-de las prioridades ADMIN a **79,2%**, con cálculo simple desde las fichas del
-SRS. RF-DAS-01 queda en 100% tras alinear los universos y estados documentales,
-agregar el caso “N/A”, aprobar las pruebas focalizadas y el build, y registrar
-la revisión visual confirmada por el usuario. También se mantienen
-los pendientes de SMTP real, recuperación completa de contraseña, trazabilidad
-integral y recuperación distribuida. Estos porcentajes no significan aceptación
-integral ni preparación para producción; el estado continúa **NO-GO** con datos
-reales.
+**Resumen del corte:** el promedio de las 37 fichas es **81,4%** y el de las
+ocho prioridades ADMIN, **81,0%**. RF-DAS-01 queda IV/100%; RNF-SEG-01 queda
+IV/100% en el entorno destino tras confirmar roles separados, RLS efectivo,
+denegaciones, secretos externos y la condición DEC-10; RF-SEG-02 queda PAR/95%
+tras confirmar el recorrido de concesión y su auditoría. Las suites focalizadas
+de seguridad (76/76) y acceso sensible (88/88) pasaron. Otros controles de
+seguridad, privacidad/retención, auditoría, SMTP real, recuperación y
+continuidad siguen pendientes; producción permanece **NO-GO**.
 
 ### Funcionalidad y cambios recientes
 
@@ -774,16 +780,15 @@ reales.
     no el perfil personal. También puede gestionar responsables de contrato en
     el contexto seleccionado. La invitación/aceptación de cuentas existentes
     sigue pendiente.
-- Se acordó incorporar telemetría real del tiempo activo para Métricas SaaS:
-  sesión autenticada, pestaña visible e interacción reciente, con pausa tras
-  cinco minutos sin actividad y heartbeat cada 60 segundos bajo esas
-  condiciones. Se guardará un registro por sesión lógica y agregados diarios por
-  empresa/usuario, no cada ping. Retención identificable: 90 días; agregados no
-  identificables por empresa: hasta 12 meses, conforme a DEC-08.
-  La métrica principal acordada es minutos activos medidos por usuario único con
-  actividad en el período; no se añadirá duración promedio por sesión. El
-  período exacto, tratamiento de sesiones simultáneas e implementación
-  siguen pendientes; la duración actual sigue siendo estimada.
+- RF-MET-02 implementa telemetría real de tiempo activo: sesión autenticada,
+  pestaña visible e interacción reciente, pausa tras cinco minutos inactivo y
+  heartbeat cada 60 segundos bajo esas condiciones. Registra sesiones lógicas
+  y agregados diarios, no cada ping; la retención identificable es de 90 días
+  y la agregada de 12 meses conforme a DEC-08. DEC-05 define los períodos,
+  minutos por usuario único y suma de sesiones simultáneas. Las 28 pruebas
+  focalizadas y el build frontend pasaron; quedan la revisión visual específica
+  y la aplicación de la migración en el entorno destino. La duración promedio
+  estimada por sesión se retiró de la interfaz.
 - **DEC-08 acordada el 09-11-2026 como política interna:** guardar solo
   metadatos de auditoría necesarios, excluir secretos y contenido documental,
   limitar auditoría a ADMIN autorizado y auditar sus consultas. Retención:
@@ -796,15 +801,18 @@ reales.
 - **Bloqueo P0 de producción con datos reales:** verificar que la política
   aplica al entorno/contrato, acreditar retención operativa y documentar el
   tratamiento de históricos en `documentacion/VALIDACION_ACTUAL.md`.
-- DEC-10 exige autorización de acceso por contrato en la API y credenciales
-  PostgreSQL de mínimo privilegio. RLS contractual es una defensa adicional
-  condicionada a propagar el contexto de forma confiable y validar el caso con
-  API, workers, ADMIN y agregados; la decisión no implica que esa capa ya exista.
+- DEC-10 exige autorización por contrato en la API y credenciales PostgreSQL
+  de mínimo privilegio. El usuario confirmó en el entorno destino roles
+  separados, RLS efectivo con roles reales, denegaciones y secretos externos.
+  RLS contractual sigue condicionado a DEC-10: no se adoptó o, si se adoptó,
+  sus pruebas SQL directas fueron validadas. El Compose local de desarrollo
+  sigue usando un rol elevado.
 - DEC-01/02 acuerdan operaciones ADMIN ordinarias y agregadas, acceso sensible
   temporal y auditado, protección del último ADMIN activo, y un buscador de
   cinco categorías que excluye administradores de plataforma y usuarios sin
-  empresa y no muestra documentos en las fichas. Los controles de servidor y
-  su validación permanecen pendientes.
+  empresa y no muestra documentos en las fichas. Los controles de búsqueda y
+  concesión cuentan con validación focalizada; las matrices completas de
+  capacidades y lecturas sensibles restantes siguen pendientes.
 - DEC-03 separa solicitudes registradas (embudo), empresas aprobadas (adopción)
   y clientes activos (empresa aprobada con suscripción activa/trial); también
   distingue cuentas habilitadas de usuarios con actividad. Cada métrica debe
@@ -819,7 +827,9 @@ reales.
   únicos, con período seleccionable de día, últimos 7 días, últimos 30 días o
   mes calendario, en límites inclusivos de días calendario en
   `America/Santiago`. Los minutos de sesiones simultáneas se suman aunque
-  excedan el tiempo de reloj. Implementación y validación siguen pendientes.
+  excedan el tiempo de reloj. La implementación está probada; la revisión
+  visual específica de la tarjeta y la validación del entorno destino siguen
+  pendientes según el SRS.
 - DEC-04 acuerda umbrales iniciales revisables para alertas: acreditación bajo
   70%, al menos 3 documentos requeridos faltantes/vencidos en un contrato y
   30 días sin actividad humana registrada para empresas aprobadas con usuarios
@@ -859,11 +869,11 @@ reales.
   ADMIN; al aprobarlo, la empresa y el usuario inicial quedan aprobados y el
   usuario conserva el rol `company`. La verificación manual cubrió la
   aprobación; rechazo y transiciones repetidas requieren validación separada.
-- El esquema requerido por este corte de API es v19. La migración v9 incorporó
+- El esquema requerido por este corte de API es v20. La migración v9 incorporó
   invalidación de sesiones al cambiar el estado de acceso; la validación de
   seguridad de conexiones de producción no configura por sí sola los roles
-  reales de la base de datos. Las migraciones 18 y 19 añaden confirmación de
-  cambio de correo y progreso persistido de procesos, respectivamente.
+  reales de la base de datos. Las migraciones 18, 19 y 20 añaden confirmación
+  de cambio de correo, progreso de procesos y telemetría de actividad.
 
 ### Validación y límites conocidos
 
@@ -875,9 +885,10 @@ reales.
   de código; no se registró para ese cambio una prueba automatizada ni un
   recorrido visual específico de navegador.
 - El Compose local y su configuración de ngrok son para demostración, no para
-  producción. Antes de un despliegue real se requieren secretos propios,
-  roles separados para API/worker/migraciones, storage y correo reales, y
-  validación integral de aislamiento y permisos. Consultar
+  producción. El usuario confirmó roles separados y RLS efectivo en el entorno
+  destino; el Compose local aún usa superusuario y no prueba ese entorno.
+  Storage/correo reales y la matriz completa de aislamiento y permisos siguen
+  pendientes. Consultar
   [la guía de ngrok](documentacion/LANZAMIENTO_NGROK.md) para una exposición
   temporal.
 - La invitación completa de usuarios por correo, la recuperación productiva de

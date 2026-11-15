@@ -21,10 +21,10 @@ app/
 └── ../modelo_datos/       # esquema, RLS, índices, funciones y migraciones
 ```
 
-El servicio `migrate` aplica los scripts de `../modelo_datos/` antes de iniciar
-la API y los workers. PostgreSQL no ejecuta el esquema desde su inicialización:
-la versión actual del esquema es **12**. La API comprueba la versión requerida
-al arrancar.
+PostgreSQL no ejecuta el esquema desde su inicialización. El servicio `migrate`
+aplica las migraciones versionadas de `../modelo_datos/` antes de iniciar la
+API y los workers. La versión actual del esquema es **20**, y la API comprueba
+la versión requerida al arrancar.
 
 ## Ejecutar en local
 
