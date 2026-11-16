@@ -429,6 +429,20 @@ queda auditado. Falta terminar la revisión de lecturas sensibles restantes y
 validar credenciales/permisos reales del despliegue. Las pruebas locales no
 acreditan el comportamiento de producción.
 
+Actualización 16-11-2026: el usuario confirmó que la concesión desde la vista
+de empresa funciona correctamente y revisó las superficies de personal y
+documentos de empresa. También confirmó la generación manual de reportes ZIP
+globales y limitados a una empresa, con auditoría correcta. La confirmación
+cubre esos recorridos; no enumera todas las lecturas sensibles del sistema ni
+valida credenciales/permisos de producción, por lo que RF-SEG-02 sigue PAR/95%.
+
+La descarga CSV + JSON tiene una autoconcesión
+separada, de tipo `exportacion`, creada para el ADMIN autenticado y limitada a
+una hora. La UI la revoca tras recibir el ZIP. Se puede autorizar alcance global
+o limitado a una empresa; el permiso no se reutiliza como concesión ordinaria
+de lectura. `test_admin_backups.py` pasó **20/20** y `npm run build` pasó. La
+regresión combinada de respaldos, búsqueda y privacidad pasó **59/59**.
+
 ## RF-AUD-02 — auditoría de autenticación — 4 de noviembre de 2026
 
 Se implementó sobre la actividad global la emisión de:
@@ -941,6 +955,36 @@ cifrado, por lo que la programación se mantiene pausada y no se generó un
 respaldo real. `STORAGE_BACKEND=azure` no es compatible con esta primera
 implementación; antes de habilitarla en Azure hace falta un adaptador de
 respaldo de Blob aprobado y validado.
+
+## Autoconcesión para exportar CSV + JSON — 15 de noviembre de 2026
+
+La pantalla `/ops/respaldos` permite elegir todas las empresas o una empresa
+específica para el ZIP CSV + JSON. Al descargar, crea una autoconcesión de tipo
+`exportacion` para el ADMIN autenticado, registra el motivo, envía el
+`X-Access-Grant` en esa petición y solicita la revocación al terminar la
+transferencia al navegador. La concesión expira en una hora como límite de
+seguridad si la revocación falla; la interfaz informa el fallo. El motivo se
+mantiene obligatorio (12–240 caracteres).
+
+El alcance por empresa filtra `companies` y las tablas con `company_id`, e
+incluye solamente los catálogos globales `planes` y `ops_componentes`; omite
+tablas globales de métricas y procesos. El paquete contiene CSV y JSON por
+tabla y `manifest.json`; siguen excluidos credenciales, columnas sensibles y
+archivos/documentos. El PDF ejecutivo no usa esta concesión, permanece global
+y agregado, y el selector de alcance no lo modifica.
+
+Validación ejecutada:
+- `tests/test_admin_backups.py`: **20 aprobadas, 0 fallidas**. Incluye
+  autorización obligatoria, rechazo de concesión ordinaria, revocada y
+  expirada, alcance global/empresa, exclusión de datos de otra empresa,
+  salidas CSV/JSON y columnas sensibles.
+- Regresión combinada `test_admin_backups.py`, `test_admin_busqueda.py` y
+  `test_privacidad.py`: **59 aprobadas, 0 fallidas**.
+- `npm run build`: compilación de producción y comprobación de tipos aprobadas.
+- El usuario confirmó el recorrido manual global y por empresa y la auditoría
+  correcta, así como la concesión en vista de empresa con acceso a personal y
+  documentos. No se realizó una prueba del despliegue productivo; RF-SEG-02
+  conserva su estado PAR/95% por los pendientes restantes.
 
 > **BLOQUEO P0 — PRIVACIDAD ANTES DE PRODUCCIÓN CON DATOS REALES:** DEC-08 quedó acordada como política interna funcional el 09-11-2026. Los controles de aplicación están implementados, pero antes de usar datos reales se requiere evidencia operativa de retención (incluidos logs Azure), revisión documentada de registros históricos y confirmación de aplicabilidad por el responsable de producto/cliente.
 

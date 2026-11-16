@@ -127,14 +127,12 @@ def test_exportacion_redacta_actividad_historica(
         })
 
     grant = app_cliente.post(
-        f"{API}/admin/access-grants",
+        f"{API}/admin/backups/export-grants",
         headers=admin["headers"],
         json={
-            "admin_user_id": admin["user_id"],
+            "alcance": "empresa",
             "company_id": empresa_a["company_id"],
-            "recurso_tipo": "usuario",
             "motivo": "Validar exportación de actividad",
-            "horas": 1,
         },
     )
     assert grant.status_code == 201, grant.text

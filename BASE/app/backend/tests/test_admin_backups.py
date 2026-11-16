@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import csv
 import io
 import json
 import re
@@ -26,6 +27,22 @@ def concesion_usuarios(app_cliente, admin, empresa=None, recurso_id=None):
         cuerpo["recurso_id"] = recurso_id
     respuesta = app_cliente.post(
         f"{API}/admin/access-grants", headers=admin["headers"], json=cuerpo)
+    assert respuesta.status_code == 201, respuesta.text
+    headers = dict(admin["headers"])
+    headers["X-Access-Grant"] = respuesta.json()["id"]
+    return headers
+
+
+def autoconcesion_exportacion(app_cliente, admin, alcance="global", empresa=None):
+    cuerpo = {
+        "alcance": alcance,
+        "motivo": "Validar exportación administrativa",
+    }
+    if empresa:
+        cuerpo["company_id"] = empresa["company_id"]
+    respuesta = app_cliente.post(
+        f"{API}/admin/backups/export-grants",
+        headers=admin["headers"], json=cuerpo)
     assert respuesta.status_code == 201, respuesta.text
     headers = dict(admin["headers"])
     headers["X-Access-Grant"] = respuesta.json()["id"]
@@ -82,7 +99,8 @@ def test_estado_backups_no_expone_configuracion(app_cliente, admin):
 
 
 def test_export_console_zip_excluye_credenciales(app_cliente, admin, empresa_a):
-    headers = concesion_usuarios(app_cliente, admin, empresa_a)
+    headers = autoconcesion_exportacion(
+        app_cliente, admin, alcance="empresa", empresa=empresa_a)
     response = app_cliente.get(
         f"{API}/admin/backups/export?formato=zip"
         "&motivo=Revision%20operacional%20autorizada",
@@ -93,13 +111,15 @@ def test_export_console_zip_excluye_credenciales(app_cliente, admin, empresa_a):
         names = set(archive.namelist())
         assert "manifest.json" in names
         assert "csv/companies.csv" in names
-        assert "json/ops_job_runs.json" in names
+        assert "json/planes.json" in names
         assert "csv/plataforma_credenciales.csv" not in names
         user_data = archive.read("json/users.json").decode("utf-8")
         assert "password_hash" not in user_data
         assert "auth_version" not in user_data
-        assert "error_detalle" not in archive.read(
-            "json/ops_job_runs.json").decode("utf-8")
+        user_csv = list(csv.reader(io.StringIO(
+            archive.read("csv/users.csv").decode("utf-8-sig"))))
+        assert "password_hash" not in user_csv[0]
+        assert "auth_version" not in user_csv[0]
 
 
 def test_export_console_pdf_resumen(app_cliente, admin):
@@ -134,7 +154,8 @@ def test_export_console_requiere_motivo_y_lo_audita(
     assert motivo_largo.json()["error"]["code"] == "MOTIVO_INVALIDO"
 
     motivo = "Revision operacional autorizada"
-    headers = concesion_usuarios(app_cliente, admin, empresa_a)
+    headers = autoconcesion_exportacion(
+        app_cliente, admin, alcance="empresa", empresa=empresa_a)
     response = app_cliente.get(
         f"{API}/admin/backups/export?formato=zip&motivo={motivo.replace(' ', '%20')}",
         headers=headers)
@@ -148,7 +169,7 @@ def test_export_console_requiere_motivo_y_lo_audita(
     assert motivo in audit
 
 
-def test_export_zip_requires_and_respects_user_grant(
+def test_export_zip_requires_and_respects_company_export_grant(
         app_cliente, admin, empresa_a, empresa_b):
     params = {"formato": "zip", "motivo": "Validación de alcance RF-BUS-02"}
     sin_concesion = app_cliente.get(
@@ -156,22 +177,131 @@ def test_export_zip_requires_and_respects_user_grant(
     assert sin_concesion.status_code == 403
     assert sin_concesion.json()["error"]["code"] == "PERMISO_INFORMACION_REQUERIDO"
 
-    headers = concesion_usuarios(app_cliente, admin, empresa_a)
+    headers = autoconcesion_exportacion(
+        app_cliente, admin, alcance="empresa", empresa=empresa_a)
     respuesta = app_cliente.get(
         f"{API}/admin/backups/export", headers=headers, params=params)
     assert respuesta.status_code == 200, respuesta.text
     with ZipFile(io.BytesIO(respuesta.content)) as archive:
+        empresas = json.loads(archive.read("json/companies.json"))
         usuarios = json.loads(archive.read("json/users.json"))
         actividad = json.loads(archive.read("json/actividad.json"))
+        csv_empresas = list(csv.reader(io.StringIO(
+            archive.read("csv/companies.csv").decode("utf-8-sig"))))
         manifiesto = json.loads(archive.read("manifest.json"))
+        nombres = set(archive.namelist())
 
+    assert {empresa["id"] for empresa in empresas} == {empresa_a["company_id"]}
+    assert {fila[0] for fila in csv_empresas[1:]} == {empresa_a["company_id"]}
     ids = {usuario["id"] for usuario in usuarios}
     assert empresa_a["user_id"] in ids
     assert empresa_b["user_id"] not in ids
     assert all(fila["company_id"] == empresa_a["company_id"]
                for fila in actividad)
-    assert manifiesto["alcance_usuarios"] == {
-        "company_id": empresa_a["company_id"], "recurso_id": None}
+    assert "json/metricas_mensuales.json" not in nombres
+    assert "json/ops_job_runs.json" not in nombres
+    assert "json/planes.json" in nombres
+    assert manifiesto["alcance_exportacion"] == {
+        "tipo": "empresa",
+        "company_id": empresa_a["company_id"],
+        "incluye_catalogos_globales": True,
+    }
+
+
+def test_export_zip_global_incluye_todas_las_empresas(
+        app_cliente, admin, empresa_a, empresa_b):
+    headers = autoconcesion_exportacion(app_cliente, admin)
+    respuesta = app_cliente.get(
+        f"{API}/admin/backups/export",
+        headers=headers,
+        params={"formato": "zip", "motivo": "Exportación global aprobada"},
+    )
+    assert respuesta.status_code == 200, respuesta.text
+    with ZipFile(io.BytesIO(respuesta.content)) as archive:
+        empresas = json.loads(archive.read("json/companies.json"))
+        usuarios = json.loads(archive.read("json/users.json"))
+        job_runs = json.loads(archive.read("json/ops_job_runs.json"))
+        manifiesto = json.loads(archive.read("manifest.json"))
+
+    company_ids = {empresa["id"] for empresa in empresas}
+    user_ids = {usuario["id"] for usuario in usuarios}
+    assert {empresa_a["company_id"], empresa_b["company_id"]} <= company_ids
+    assert {empresa_a["user_id"], empresa_b["user_id"]} <= user_ids
+    assert all("error_detalle" not in fila and "celery_task_id" not in fila
+               for fila in job_runs)
+    assert all("password_hash" not in fila and "auth_version" not in fila
+               for fila in usuarios)
+    assert manifiesto["alcance_exportacion"] == {
+        "tipo": "global", "company_id": None,
+        "incluye_catalogos_globales": False,
+    }
+
+
+def test_export_zip_rechaza_concesion_de_usuarios_no_especifica(
+        app_cliente, admin, empresa_a):
+    headers = concesion_usuarios(app_cliente, admin, empresa_a)
+    respuesta = app_cliente.get(
+        f"{API}/admin/backups/export",
+        headers=headers,
+        params={"formato": "zip", "motivo": "Exportación global aprobada"},
+    )
+    assert respuesta.status_code == 403
+    assert respuesta.json()["error"]["code"] == "PERMISO_INFORMACION_INVALIDO"
+
+
+def test_export_zip_rechaza_concesion_revocada(
+        app_cliente, admin, empresa_a):
+    headers = autoconcesion_exportacion(
+        app_cliente, admin, alcance="empresa", empresa=empresa_a)
+    grant_id = headers["X-Access-Grant"]
+    revocada = app_cliente.post(
+        f"{API}/admin/access-grants/{grant_id}/revoke",
+        headers=admin["headers"], json={})
+    assert revocada.status_code == 200, revocada.text
+    respuesta = app_cliente.get(
+        f"{API}/admin/backups/export",
+        headers=headers,
+        params={"formato": "zip", "motivo": "Exportación ya revocada"},
+    )
+    assert respuesta.status_code == 403
+    assert respuesta.json()["error"]["code"] == "PERMISO_INFORMACION_INVALIDO"
+
+
+def test_export_zip_rechaza_concesion_expirada(
+        app_cliente, admin, empresa_a, motor_admin):
+    headers = autoconcesion_exportacion(
+        app_cliente, admin, alcance="empresa", empresa=empresa_a)
+    grant_id = headers["X-Access-Grant"]
+    with motor_admin.begin() as conn:
+        conn.execute(sa.text(
+            "UPDATE admin_access_grants SET expires_at = now() - interval '1 minute' "
+            "WHERE id = :grant_id"), {"grant_id": grant_id})
+
+    respuesta = app_cliente.get(
+        f"{API}/admin/backups/export",
+        headers=headers,
+        params={"formato": "zip", "motivo": "Exportación ya expirada"},
+    )
+    assert respuesta.status_code == 403
+    assert respuesta.json()["error"]["code"] == "PERMISO_INFORMACION_INVALIDO"
+
+
+def test_export_grant_exige_alcance_coherente(app_cliente, admin, empresa_a):
+    base = {"motivo": "Validación de alcance exportación"}
+    global_con_empresa = app_cliente.post(
+        f"{API}/admin/backups/export-grants",
+        headers=admin["headers"],
+        json={**base, "alcance": "global", "company_id": empresa_a["company_id"]},
+    )
+    empresa_sin_id = app_cliente.post(
+        f"{API}/admin/backups/export-grants",
+        headers=admin["headers"],
+        json={**base, "alcance": "empresa"},
+    )
+    assert global_con_empresa.status_code == 422
+    assert global_con_empresa.json()["error"]["code"] == "ALCANCE_INVALIDO"
+    assert empresa_sin_id.status_code == 422
+    assert empresa_sin_id.json()["error"]["code"] == "ALCANCE_REQUERIDO"
 
 
 def test_export_pdf_summary_needs_no_user_grant(app_cliente, admin):

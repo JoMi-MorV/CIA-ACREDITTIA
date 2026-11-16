@@ -84,7 +84,8 @@ export async function opsApi<T = any>(
 }
 
 export async function opsDownload(
-  path: string, reintento = true,
+  path: string, additionalHeaders: Record<string, string> = {},
+  reintento = true,
 ): Promise<{ blob: Blob; filename: string }> {
   if (MOCK) {
     throw new OpsApiError("EXPORTACION_NO_DISPONIBLE",
@@ -93,6 +94,7 @@ export async function opsDownload(
   const headers: Record<string, string> = {};
   const tok = getAccess();
   if (tok) headers["Authorization"] = `Bearer ${tok}`;
+  Object.assign(headers, additionalHeaders);
   let res: Response;
   try {
     res = await fetch(`${BASE}/api/v1/admin${path}`, { headers });
@@ -100,7 +102,9 @@ export async function opsDownload(
     throw new OpsApiError("SIN_CONEXION", "No se pudo contactar con el servidor.", 0);
   }
   if (res.status === 401) {
-    if (reintento && (await refrescar())) return opsDownload(path, false);
+    if (reintento && (await refrescar())) {
+      return opsDownload(path, additionalHeaders, false);
+    }
     if (typeof window !== "undefined") window.location.href = "/login";
     throw new OpsApiError("SESION_EXPIRADA", "La sesión expiró.", 401);
   }

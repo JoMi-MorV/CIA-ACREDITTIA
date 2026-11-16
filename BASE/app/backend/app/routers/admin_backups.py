@@ -4,9 +4,10 @@ from __future__ import annotations
 import os
 import shutil
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import tempfile
 from pathlib import Path
+from typing import Literal
 from starlette.background import BackgroundTask
 from fastapi import APIRouter, Depends, File, Header, Query, Response, UploadFile
 from fastapi.responses import FileResponse
@@ -16,9 +17,8 @@ from sqlalchemy.orm import Session
 
 from ..config import settings
 from ..database import SessionLocal, get_db
-from ..deps import (autorizar_categoria_informacion, err, get_current_user,
-                    require_admin)
-from ..models import AdminAccessGrant, User
+from ..deps import err, get_current_user, require_admin
+from ..models import AdminAccessGrant, Company, User
 from ..models_ops import OpsJob
 from ..services import ops
 from ..services.actividad import minimizar_texto
@@ -36,6 +36,54 @@ class RestoreBody(BaseModel):
 
 class DeleteBody(BaseModel):
     confirmation: str = Field(min_length=1, max_length=80)
+
+
+class ExportGrantIn(BaseModel):
+    alcance: Literal["global", "empresa"]
+    company_id: uuid.UUID | None = None
+    motivo: str = Field(min_length=12, max_length=240)
+
+
+@router.post("/export-grants", status_code=201)
+def crear_concesion_exportacion(
+        body: ExportGrantIn, db: Session = Depends(get_db),
+        user: User = Depends(get_current_user)):
+    motivo = " ".join(body.motivo.split())
+    if len(motivo) < 12:
+        raise err(400, "MOTIVO_REQUERIDO",
+                  "Indique un motivo de al menos 12 caracteres para autorizar")
+    if body.alcance == "global" and body.company_id is not None:
+        raise err(422, "ALCANCE_INVALIDO",
+                  "Una concesión global no puede indicar empresa")
+    if body.alcance == "empresa" and body.company_id is None:
+        raise err(422, "ALCANCE_REQUERIDO",
+                  "Seleccione una empresa para limitar la exportación")
+    if body.company_id is not None and not db.get(Company, body.company_id):
+        raise err(422, "EMPRESA_INVALIDA",
+                  "La empresa de la concesión no existe")
+
+    grant = AdminAccessGrant(
+        admin_user_id=user.id,
+        granted_by=user.id,
+        company_id=body.company_id,
+        recurso_tipo="exportacion",
+        motivo=motivo,
+        expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
+    )
+    db.add(grant)
+    ops.auditar(
+        db, "creacion",
+        f"Autoconcesión temporal de exportación {body.alcance}; "
+        f"empresa: {body.company_id or 'todas'}; motivo: {motivo}",
+        user_id=user.id, entidad_tipo="concesion_acceso",
+        entidad_id=grant.id)
+    db.commit()
+    return {
+        "id": str(grant.id),
+        "alcance": body.alcance,
+        "company_id": str(body.company_id) if body.company_id else None,
+        "expires_at": grant.expires_at.isoformat(),
+    }
 
 
 @router.get("/status")
@@ -201,7 +249,7 @@ def restaurar(backup_id: str, body: RestoreBody,
 def exportar(resp: Response,
              formato: str = Query("zip", pattern="^(zip|pdf)$"),
              motivo: str | None = Query(None),
-             user_grant_id: str | None = Header(default=None, alias="X-Access-Grant"),
+             export_grant_id: str | None = Header(default=None, alias="X-Access-Grant"),
              db: Session = Depends(get_db),
              user: User = Depends(get_current_user)):
     motivo = " ".join((motivo or "").split())
@@ -211,21 +259,32 @@ def exportar(resp: Response,
     if len(motivo) < 12:
         raise err(400, "MOTIVO_REQUERIDO",
                   "Indique un motivo de al menos 12 caracteres para exportar")
-    user_grant: AdminAccessGrant | None = None
+    export_grant: AdminAccessGrant | None = None
     if formato == "zip":
-        if user_grant_id is None:
+        if export_grant_id is None:
             raise err(403, "PERMISO_INFORMACION_REQUERIDO",
-                      "La exportación ZIP requiere concesión vigente de usuarios")
+                      "La exportación ZIP requiere una autoconcesión temporal")
         try:
-            parsed_grant_id = uuid.UUID(user_grant_id)
+            parsed_grant_id = uuid.UUID(export_grant_id)
         except ValueError as exc:
             raise err(403, "PERMISO_INFORMACION_INVALIDO",
                       "La concesión no autoriza esta exportación") from exc
-        user_grant = autorizar_categoria_informacion(
-            "usuario", parsed_grant_id, user, db)
+        export_grant = db.get(AdminAccessGrant, parsed_grant_id)
+        if (
+            not export_grant
+            or export_grant.admin_user_id != user.id
+            or export_grant.recurso_tipo != "exportacion"
+            or export_grant.recurso_id is not None
+            or export_grant.revoked_at is not None
+            or export_grant.expires_at <= datetime.now(timezone.utc)
+            or (export_grant.company_id is not None
+                and not db.get(Company, export_grant.company_id))
+        ):
+            raise err(403, "PERMISO_INFORMACION_INVALIDO",
+                      "La autoconcesión no autoriza esta exportación o ya no está vigente")
     try:
         path, media_type, temporary = create_console_export(
-            db, formato, user_grant=user_grant)
+            db, formato, export_grant=export_grant)
     except (ValueError, OSError) as exc:
         raise err(500, "EXPORTACION_FALLIDA", str(exc)) from exc
     try:

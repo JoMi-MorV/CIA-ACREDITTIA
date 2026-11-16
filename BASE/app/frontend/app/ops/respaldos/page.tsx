@@ -4,6 +4,8 @@ import { ChangeEvent, useCallback, useEffect, useRef, useState } from "react";
 import { Card, Pill } from "@/components/ops/ui";
 import { opsApi, opsDownload, opsUpload } from "@/lib/ops/api";
 import { useI18n } from "@/lib/ops/i18n";
+import * as Api from "@/lib/cliente";
+import type { Empresa } from "@/lib/tipos";
 
 type BackupStatus = {
   configured: boolean;
@@ -47,6 +49,9 @@ export default function RespaldosPage() {
   const [restoreId, setRestoreId] = useState<string | null>(null);
   const [confirmation, setConfirmation] = useState("");
   const [exportMotivo, setExportMotivo] = useState("");
+  const [exportAlcance, setExportAlcance] = useState<"global" | "empresa">("global");
+  const [exportCompanyId, setExportCompanyId] = useState("");
+  const [companies, setCompanies] = useState<Empresa[]>([]);
   const importInput = useRef<HTMLInputElement>(null);
 
   const reload = useCallback(async () => {
@@ -67,17 +72,26 @@ export default function RespaldosPage() {
 
   useEffect(() => { void reload(); }, [reload]);
   useEffect(() => {
+    if (exportAlcance !== "empresa" || companies.length) return;
+    Api.paginarTodo<Empresa>((page, pageSize) =>
+      Api.admin.empresas({ page, page_size: pageSize }))
+      .then(setCompanies)
+      .catch((e) => setError(Api.mensajeError(e)));
+  }, [companies.length, exportAlcance]);
+  useEffect(() => {
     const status = run?.ultima_ejecucion?.status;
     if (status !== "queued" && status !== "running") return;
     const timer = window.setInterval(() => { void reload(); }, 4000);
     return () => window.clearInterval(timer);
   }, [reload, run?.ultima_ejecucion?.status]);
 
-  const descargar = async (path: string) => {
+  const descargar = async (
+    path: string, additionalHeaders: Record<string, string> = {},
+  ) => {
     setBusy(true);
     setError("");
     try {
-      const { blob, filename } = await opsDownload(path);
+      const { blob, filename } = await opsDownload(path, additionalHeaders);
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement("a");
       anchor.href = url;
@@ -88,7 +102,7 @@ export default function RespaldosPage() {
           : filename;
       anchor.download = resolvedFilename;
       anchor.click();
-      URL.revokeObjectURL(url);
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (e) {
       setError(e instanceof Error ? e.message : t("respaldos.error"));
     } finally { setBusy(false); }
@@ -100,8 +114,62 @@ export default function RespaldosPage() {
       setError(t("respaldos.export_motivo_req"));
       return;
     }
+    if (formato === "zip" && exportAlcance === "empresa"
+        && !exportCompanyId) {
+      setError(t("respaldos.export_empresa_requerida"));
+      return;
+    }
     const params = new URLSearchParams({ formato, motivo });
-    await descargar(`/backups/export?${params.toString()}`);
+    setBusy(true);
+    setError("");
+    setMessage("");
+    let grantId: string | null = null;
+    let downloadMessage: string | null = null;
+    try {
+      let headers: Record<string, string> = {};
+      if (formato === "zip") {
+        const grant = await opsApi<{ id: string }>("/backups/export-grants", {
+          method: "POST",
+          body: {
+            alcance: exportAlcance,
+            company_id: exportAlcance === "empresa" ? exportCompanyId : null,
+            motivo,
+          },
+        });
+        grantId = grant.id;
+        headers = { "X-Access-Grant": grant.id };
+      }
+      const { blob, filename } = await opsDownload(
+        `/backups/export?${params.toString()}`, headers);
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = filename;
+      anchor.click();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      downloadMessage = formato === "zip"
+        ? t("respaldos.export_descargado")
+        : t("respaldos.export_pdf_descargado");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t("respaldos.error"));
+    } finally {
+      let concesionRevocada = true;
+      if (grantId) {
+        try {
+          await opsApi(`/access-grants/${grantId}/revoke`, {
+            method: "POST", body: {},
+          });
+        } catch (e) {
+          concesionRevocada = false;
+          const aviso = t("respaldos.export_revocacion_fallida", {
+            error: e instanceof Error ? e.message : t("respaldos.error"),
+          });
+          setError((actual) => actual ? `${actual} ${aviso}` : aviso);
+        }
+      }
+      if (downloadMessage && concesionRevocada) setMessage(downloadMessage);
+      setBusy(false);
+    }
   };
 
   const importar = async (event: ChangeEvent<HTMLInputElement>) => {
@@ -293,6 +361,41 @@ export default function RespaldosPage() {
         <h2 className="ops-title">{t("respaldos.export_titulo")}</h2>
         <p className="ops-sub mt-1">{t("respaldos.export_desc")}</p>
         <label className="mt-3 block text-sm">
+          {t("respaldos.export_alcance")}
+          <select value={exportAlcance}
+            onChange={(event) => {
+              setExportAlcance(event.target.value as "global" | "empresa");
+              setExportCompanyId("");
+            }}
+            className="mt-1 w-full rounded-md border bg-transparent px-3 py-2"
+            style={{ borderColor: "var(--ops-line)" }}>
+            <option value="global">{t("respaldos.export_alcance_global")}</option>
+            <option value="empresa">{t("respaldos.export_alcance_empresa")}</option>
+          </select>
+        </label>
+        {exportAlcance === "empresa" && (
+          <label className="mt-3 block text-sm">
+            {t("respaldos.export_empresa")}
+            <select value={exportCompanyId}
+              onChange={(event) => setExportCompanyId(event.target.value)}
+              className="mt-1 w-full rounded-md border bg-transparent px-3 py-2"
+              style={{ borderColor: "var(--ops-line)" }}>
+              <option value="">{t("respaldos.export_empresa_seleccionar")}</option>
+              {companies.map((company) => (
+                <option key={company.id} value={company.id}>{company.nombre}</option>
+              ))}
+            </select>
+          </label>
+        )}
+        <p className="mt-2 text-xs ops-sub">
+          {exportAlcance === "global"
+            ? t("respaldos.export_alcance_global_desc")
+            : t("respaldos.export_alcance_empresa_desc")}
+        </p>
+        <p className="mt-1 text-xs ops-sub">
+          {t("respaldos.export_alcance_pdf_desc")}
+        </p>
+        <label className="mt-3 block text-sm">
           {t("respaldos.export_motivo")}
           <input value={exportMotivo}
             onChange={(event) => setExportMotivo(event.target.value)}
@@ -302,7 +405,8 @@ export default function RespaldosPage() {
             placeholder={t("respaldos.export_motivo_ph")} />
         </label>
         <div className="mt-3 flex flex-wrap gap-2">
-          <button disabled={busy || exportMotivo.trim().length < 12}
+          <button disabled={busy || exportMotivo.trim().length < 12
+            || (exportAlcance === "empresa" && !exportCompanyId)}
             onClick={() => void exportar("zip")}
             className="rounded-lg px-3 py-2 text-sm font-semibold disabled:opacity-50"
             style={{ background: "var(--ops-accent)", color: "white" }}>

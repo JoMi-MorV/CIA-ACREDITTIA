@@ -42,6 +42,7 @@ _EXCLUDED_COLUMNS = {
     "ops_job_runs": {"error_detalle", "celery_task_id"},
 }
 _SENSITIVE_NAMES = ("password", "token", "secret", "credential", "jwe", "private_key")
+_COMPANY_EXPORT_REFERENCES = {"planes", "ops_componentes"}
 
 
 def _json_value(value):
@@ -70,7 +71,7 @@ def _tables():
 
 def create_console_export(
     db: Session, formato: str,
-    user_grant: AdminAccessGrant | None = None,
+    export_grant: AdminAccessGrant | None = None,
 ) -> tuple[Path, str, tempfile.TemporaryDirectory]:
     """Genera un ZIP CSV+JSON o PDF de resumen; caller elimina el temporal."""
     tmp = tempfile.TemporaryDirectory(prefix="acredittia-admin-export-")
@@ -83,19 +84,27 @@ def create_console_export(
             return path, "application/pdf", tmp
         if formato != "zip":
             raise ValueError("Formato de exportación no soportado")
+        if not export_grant or export_grant.recurso_tipo != "exportacion":
+            raise ValueError("La exportación ZIP requiere una autoconcesión temporal")
 
         zip_path = root / "exportacion-admin.zip"
+        company_id = export_grant.company_id if export_grant else None
         manifest = {
             "generado_at": generated.isoformat(),
             "alcance": "datos visibles de la consola ADMIN; sin archivos documentales, credenciales ni tokens",
-            "alcance_usuarios": ({
-                "company_id": str(user_grant.company_id) if user_grant.company_id else None,
-                "recurso_id": str(user_grant.recurso_id) if user_grant.recurso_id else None,
-            } if user_grant else None),
+            "alcance_exportacion": {
+                "tipo": "empresa" if company_id else "global",
+                "company_id": str(company_id) if company_id else None,
+                "incluye_catalogos_globales": bool(company_id),
+            },
             "contenido": [],
         }
         with ZipFile(zip_path, "w", compression=ZIP_DEFLATED) as package:
             for table, columns in _tables():
+                company_column = table.c.get("company_id")
+                if company_id and table.name != "companies" and company_column is None \
+                        and table.name not in _COMPANY_EXPORT_REFERENCES:
+                    continue
                 csv_path = root / f"{table.name}.csv"
                 json_path = root / f"{table.name}.json"
                 count = 0
@@ -105,21 +114,11 @@ def create_console_export(
                     writer.writerow([column.name for column in columns])
                     json_file.write("[")
                     query = select(*columns).select_from(table)
-                    if table.name == "users":
-                        if user_grant is None:
-                            raise ValueError(
-                                "La exportación ZIP requiere concesión vigente de usuarios")
-                        if user_grant.company_id is not None:
-                            query = query.where(User.company_id == user_grant.company_id)
-                        if user_grant.recurso_id is not None:
-                            query = query.where(User.id == user_grant.recurso_id)
-                    elif table.name == "actividad" and user_grant is not None:
-                        if user_grant.company_id is not None:
-                            query = query.where(
-                                Actividad.company_id == user_grant.company_id)
-                        if user_grant.recurso_id is not None:
-                            query = query.where(
-                                Actividad.user_id == user_grant.recurso_id)
+                    if company_id:
+                        if table.name == "companies":
+                            query = query.where(Company.id == company_id)
+                        elif company_column is not None:
+                            query = query.where(company_column == company_id)
                     for row in db.execute(query).mappings():
                         values = {}
                         for column in columns:

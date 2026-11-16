@@ -2,7 +2,7 @@
 
 ## Estado actual verificado
 
-Actualizado al 15-11-2026.
+Actualizado al 16-11-2026.
 
 - Avance estimado vigente: **83,7%** para las 37 fichas SRS (`3098 / 37`).
   El promedio de las ocho prioridades ADMIN es **81,0%**; P0/P1/P2: 81,7%,
@@ -15,8 +15,10 @@ Actualizado al 15-11-2026.
   del usuario de roles separados, RLS efectivo con roles reales, denegaciones
   entre empresas/contratos, secretos externos y cumplimiento de DEC-10.
 - RF-SEG-02 queda en **95%**: el usuario confirmó el recorrido de concesión
-  temporal, lectura de personal/documentos, revocación y auditoría. Restan
-  revisar otras lecturas sensibles y controles relacionados.
+  temporal desde la vista de empresa y revisó personal/documentos de empresa.
+  También confirmó la exportación CSV + JSON global y por empresa y su auditoría.
+  Falta completar el inventario de otras lecturas sensibles y validar controles
+  del despliegue.
 - RNF-PER-01 queda **IV/100% para la carga local sintética acordada**: siete
   rutas, 100 solicitudes por ruta, concurrencia máxima 10, p95 entre 252,0 y
   729,5 ms y cero errores HTTP. No es SLA ni certificación de producción;
@@ -737,9 +739,9 @@ con enlaces previos. Las rutas Ops antiguas de Plataforma, Usuarios e
 Indicadores también redirigen a sus destinos Admin. `/admin` y la entrada Ops
 abren ahora el Dashboard global.
 
-## Cambios a la fecha — 15-11-2026
+## Cambios a la fecha — 16-11-2026
 
-El documento funcional vigente es el [SRS v0.93](documentacion/SRS.md). Esta
+El documento funcional vigente es el [SRS v0.96](documentacion/SRS.md). Esta
 sección resume los cambios relevantes y el estado conocido a la fecha; no
 sustituye los criterios, pendientes ni evidencias detallados en el SRS y la
 [validación actual](documentacion/VALIDACION_ACTUAL.md).
@@ -747,7 +749,8 @@ sustituye los criterios, pendientes ni evidencias detallados en el SRS y la
 **Resumen del corte:** la suma de las 37 fichas es **83,7% (3098/37)** y el
 promedio de las ocho prioridades ADMIN, **81,0%**; P0/P1/P2: 81,7%, 84,7% y
 83,3%. RF-DAS-01 queda IV/100%; RNF-SEG-01, IV/100% en el entorno destino; y
-RF-SEG-02, PAR/95% tras confirmar el recorrido de concesión y su auditoría.
+RF-SEG-02, PAR/95% tras confirmar el recorrido de concesión y su auditoría,
+incluida la exportación global y por empresa.
 RNF-PER-01 queda IV/100% para la carga local sintética acordada: siete rutas
 cumplieron p95 ≤ 800 ms y cero errores, con p95 máximo de 729,5 ms. Esta prueba
 no es SLA ni certificación de producción. Las suites focalizadas de seguridad
@@ -853,6 +856,15 @@ pendientes; producción permanece **NO-GO**.
   `/archivos/<tipo>/<id>/`, con nombres saneados y ruta referenciada en el CSV.
   Debe excluir secretos y respetar autorización/auditoría por recurso; falta
   validar viabilidad ante volúmenes grandes.
+- **Estado actual de exportación ADMIN:** el ZIP genera CSV y JSON de las tablas
+  administrativas permitidas, más `manifest.json`; no incluye archivos ni
+  documentos y no implementa aún la selección por persona/contrato ni el
+  paquete documental de DEC-11. En `/ops/respaldos` puede elegirse alcance
+  global o una empresa. El ZIP crea una autoconcesión de exportación por una
+  hora, registra el motivo, filtra los datos por empresa cuando corresponde y
+  solicita revocarla al finalizar la descarga. El usuario confirmó manualmente
+  que las exportaciones global y por empresa funcionan y quedan auditadas. El
+  PDF sigue siendo global y agregado. Las pruebas focalizadas y el build pasaron.
 - DEC-12 reemplaza la eliminación ordinaria de contratos por estados separados
   de desactivación temporal y finalización. Ambos se conservan en histórico de
   solo lectura, se excluyen de totales/alertas operacionales y no generan
