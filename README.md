@@ -25,7 +25,9 @@ Actualizado al 16-11-2026.
   resultados y límites en [Validación actual](documentacion/VALIDACION_ACTUAL.md).
 - Las suites focalizadas de roles/configuración/tenants/esquema pasaron
   **76/76**; las de documentos/búsqueda/backups/privacidad, **88/88**. El build
-  frontend pasó. No se ejecutó una suite backend completa en este corte.
+  frontend pasó. El 16-11-2026 se volvió a ejecutar la suite backend completa:
+  **492 aprobadas, 0 fallidas**, con un warning no bloqueante de Starlette/httpx.
+  También pasaron el build frontend y `docker compose config --quiet`.
 - RF-CLI-01 está en 80% por el cambio seguro de correo; RF-SAL-03, en 95% por
   el progreso medible y la actualización automática de procesos. La entrega
   SMTP se probó con dobles; no se verificó un servidor SMTP real.
@@ -54,7 +56,8 @@ Documentos vigentes:
 Evidencia histórica ejecutada el 14-10-2026:
 
 - `cd BASE/app/backend; python -m pytest -q`
-- Resultado de ese corte: **399 pruebas aprobadas, 0 fallidas**
+- Resultado de ese corte (superado por la ejecución completa del 16-11):
+  **399 pruebas aprobadas, 0 fallidas**
 - Warning restante entonces: **1**, de compatibilidad del stack
   `starlette.testclient` + `httpx` (sin impacto funcional)
 

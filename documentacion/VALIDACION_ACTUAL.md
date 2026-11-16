@@ -1,4 +1,20 @@
-# Validación funcional — actualizado al 15 de noviembre de 2026
+# Validación funcional — actualizado al 16 de noviembre de 2026
+
+## Regresión general — 16 de noviembre de 2026
+
+Se ejecutó la suite backend completa desde `BASE/app/backend`:
+
+```powershell
+python -m pytest -q
+```
+
+Resultado: **492 aprobadas, 0 fallidas**, en PostgreSQL temporal; un warning no
+bloqueante de deprecación de `starlette.testclient` con `httpx`. El fixture
+reemplaza `citext` por un dominio de pruebas y neutraliza `pg_trgm` porque esas
+extensiones no están disponibles en su entorno. También pasaron
+`npm run build` desde `BASE/app/frontend` y `docker compose config --quiet`
+desde `BASE/app`. Esto valida la regresión del código y la configuración, no un
+despliegue productivo, ni elimina los pendientes de RNF-VAL-01.
 
 ## RF-DAS-01 — universos del resumen global — 14 de noviembre de 2026
 
