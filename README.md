@@ -53,13 +53,18 @@ Documentos vigentes:
 - [Validación actual](documentacion/VALIDACION_ACTUAL.md)
 - [Requisitos con menor avance](documentacion/REQUISITOS_BAJO_AVANCE.md)
 
-Evidencia histórica ejecutada el 14-10-2026:
+### Historial de regresión backend
 
-- `cd BASE/app/backend; python -m pytest -q`
-- Resultado de ese corte (superado por la ejecución completa del 16-11):
-  **399 pruebas aprobadas, 0 fallidas**
-- Warning restante entonces: **1**, de compatibilidad del stack
-  `starlette.testclient` + `httpx` (sin impacto funcional)
+| Fecha | Ejecución | Resultado | Observaciones |
+|---|---|---|---|
+| 16-11-2026 | Suite completa: `cd BASE/app/backend; python -m pytest -q` | **492 aprobadas, 0 fallidas** | PostgreSQL temporal; 1 warning no bloqueante Starlette/httpx. El fixture sustituye `citext` y neutraliza `pg_trgm`; no es validación productiva. |
+| 14-10-2026 | Suite completa: `cd BASE/app/backend; python -m pytest -q` | **399 aprobadas, 0 fallidas** | 1 warning de compatibilidad Starlette/httpx. Corte histórico, sustituido por la ejecución del 16-11. |
+| 01-10-2026 | Suite completa | **363 aprobadas, 0 fallidas** | PostgreSQL temporal; las pruebas relacionadas de autenticación/registro/perfil fueron 34/34. |
+
+En la ejecución del 16-11 también pasaron `npm run build` en
+`BASE/app/frontend` y `docker compose config --quiet` en `BASE/app`. Estos
+resultados verifican código y configuración; no equivalen a pruebas en
+producción ni cierran RNF-VAL-01.
 
 La producción no queda declarada como cerrada ni lista para go-live con datos
 reales. La política interna DEC-08 quedó acordada el 09-11-2026 y sus controles
@@ -744,7 +749,7 @@ abren ahora el Dashboard global.
 
 ## Cambios a la fecha — 16-11-2026
 
-El documento funcional vigente es el [SRS v0.96](documentacion/SRS.md). Esta
+El documento funcional vigente es el [SRS v0.97](documentacion/SRS.md). Esta
 sección resume los cambios relevantes y el estado conocido a la fecha; no
 sustituye los criterios, pendientes ni evidencias detallados en el SRS y la
 [validación actual](documentacion/VALIDACION_ACTUAL.md).
@@ -757,7 +762,8 @@ incluida la exportación global y por empresa.
 RNF-PER-01 queda IV/100% para la carga local sintética acordada: siete rutas
 cumplieron p95 ≤ 800 ms y cero errores, con p95 máximo de 729,5 ms. Esta prueba
 no es SLA ni certificación de producción. Las suites focalizadas de seguridad
-(76/76) y acceso sensible (88/88) pasaron. Otros controles de seguridad,
+(76/76) y acceso sensible (88/88) pasaron; la suite backend completa más
+reciente pasó 492/492 el 16-11. Otros controles de seguridad,
 privacidad/retención, auditoría, SMTP real, recuperación y continuidad siguen
 pendientes; producción permanece **NO-GO**.
 
@@ -898,9 +904,10 @@ pendientes; producción permanece **NO-GO**.
 
 ### Validación y límites conocidos
 
-- La suite backend completa registró **363 pruebas aprobadas y 0 fallidas** el
-  01-10-2026 en PostgreSQL temporal. Las pruebas de autenticación relacionadas
-  con registro y perfil registraron **34 aprobadas y 0 fallidas**.
+- La primera suite backend completa registrada en este corte obtuvo **363
+  aprobadas y 0 fallidas** el 01-10-2026; cortes posteriores constan en el
+  [historial de regresión](#historial-de-regresion-backend). Las pruebas de
+  autenticación relacionadas con registro y perfil registraron 34/34.
 - El build frontend con la ruta `/perfil` compiló, verificó tipos y generó
   **23 rutas**. La ficha expandible del buscador se documentó mediante revisión
   de código; no se registró para ese cambio una prueba automatizada ni un
