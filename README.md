@@ -2,7 +2,7 @@
 
 ## Estado actual verificado
 
-Actualizado al 16-11-2026.
+Actualizado al 17-11-2026.
 
 - Avance estimado vigente: **83,7%** para las 37 fichas SRS (`3098 / 37`).
   El promedio de las ocho prioridades ADMIN es **81,0%**; P0/P1/P2: 81,7%,
@@ -28,6 +28,11 @@ Actualizado al 16-11-2026.
   frontend pasó. El 16-11-2026 se volvió a ejecutar la suite backend completa:
   **492 aprobadas, 0 fallidas**, con un warning no bloqueante de Starlette/httpx.
   También pasaron el build frontend y `docker compose config --quiet`.
+- El 17-11 se corrigieron hallazgos de auditoría en estados de pago, límites de
+  cuerpos de webhooks/subidas/importación de respaldos y contención de rutas
+  locales. La regresión focalizada posterior pasó **14/14**; la suite completa
+  492/492 del día anterior no se reejecutó. Detalle en
+  [Validación actual](documentacion/VALIDACION_ACTUAL.md).
 - RF-CLI-01 está en 80% por el cambio seguro de correo; RF-SAL-03, en 95% por
   el progreso medible y la actualización automática de procesos. La entrega
   SMTP se probó con dobles; no se verificó un servidor SMTP real.
@@ -747,9 +752,9 @@ con enlaces previos. Las rutas Ops antiguas de Plataforma, Usuarios e
 Indicadores también redirigen a sus destinos Admin. `/admin` y la entrada Ops
 abren ahora el Dashboard global.
 
-## Cambios a la fecha — 16-11-2026
+## Cambios a la fecha — 17-11-2026
 
-El documento funcional vigente es el [SRS v0.97](documentacion/SRS.md). Esta
+El documento funcional vigente es el [SRS v0.98](documentacion/SRS.md). Esta
 sección resume los cambios relevantes y el estado conocido a la fecha; no
 sustituye los criterios, pendientes ni evidencias detallados en el SRS y la
 [validación actual](documentacion/VALIDACION_ACTUAL.md).
@@ -766,6 +771,11 @@ no es SLA ni certificación de producción. Las suites focalizadas de seguridad
 reciente pasó 492/492 el 16-11. Otros controles de seguridad,
 privacidad/retención, auditoría, SMTP real, recuperación y continuidad siguen
 pendientes; producción permanece **NO-GO**.
+
+El 17-11 se corrigieron hallazgos de la auditoría general: clasificación
+fail-closed de pagos, límites de lectura para webhooks y carga de archivos, tope
+en importación multipart y validación de rutas locales. La regresión focalizada
+de estos cambios pasó 14/14; no se repitió la suite completa tras el cambio.
 
 ### Funcionalidad y cambios recientes
 

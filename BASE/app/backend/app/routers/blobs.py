@@ -29,6 +29,7 @@ from fastapi.responses import Response
 
 from ..config import settings
 from ..deps import err
+from ..services.request_body import RequestBodyTooLarge, read_request_body_limited
 from ..services.storage import get_storage, verificar_firma_local
 
 logger = logging.getLogger("acredittia.blobs")
@@ -69,12 +70,13 @@ async def subir(request: Request,
     campos de formulario y sin token. El cuerpo entero es el contenido del blob.
     """
     ruta = _verificar(blob_path, exp, sig, "w")
-    datos = await request.body()
-    if not datos:
-        raise err(400, "ARCHIVO_VACIO", "El cuerpo de la petición está vacío")
-    if len(datos) > MAX_BYTES:
+    try:
+        datos = await read_request_body_limited(request, MAX_BYTES)
+    except RequestBodyTooLarge:
         raise err(400, "ARCHIVO_MUY_GRANDE",
                   f"Máximo {settings.max_upload_mb} MB")
+    if not datos:
+        raise err(400, "ARCHIVO_VACIO", "El cuerpo de la petición está vacío")
     get_storage().save(ruta, datos)
     logger.info("blob subido %s (%s bytes)", ruta, len(datos))
     # 201 con el tamaño real: es lo que el cliente confirmará después en

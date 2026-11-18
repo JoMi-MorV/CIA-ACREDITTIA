@@ -78,12 +78,18 @@ def verificar_firma_local(blob_path: str, exp: int, modo: str, sig: str) -> bool
 
 class LocalStorage(Storage):
     def __init__(self, base_dir: str):
-        self.base = base_dir
-        os.makedirs(base_dir, exist_ok=True)
+        self.base = os.path.realpath(base_dir)
+        os.makedirs(self.base, exist_ok=True)
 
     def _full(self, blob_path: str) -> str:
-        full = os.path.normpath(os.path.join(self.base, blob_path))
-        if not full.startswith(os.path.normpath(self.base)):
+        base = os.path.realpath(self.base)
+        full = os.path.realpath(os.path.join(base, blob_path))
+        try:
+            dentro_de_base = os.path.commonpath((base, full))
+        except ValueError:
+            dentro_de_base = None
+        if (dentro_de_base is None
+                or os.path.normcase(dentro_de_base) != os.path.normcase(base)):
             raise ValueError("Ruta inválida")
         return full
 

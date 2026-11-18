@@ -1,4 +1,30 @@
-# Validación funcional — actualizado al 16 de noviembre de 2026
+# Validación funcional — actualizado al 17 de noviembre de 2026
+
+## Correcciones de auditoría de código — 17 de noviembre de 2026
+
+Se corrigió la conciliación de pagos: los estados se interpretan como tokens
+terminales, no por coincidencia parcial; `unpaid`, estados desconocidos y
+estados contradictorios no actualizan facturas ni suscripciones. Los webhooks
+limitan el cuerpo a 1 MiB. La lectura limitada se hace por streaming, con
+rechazo temprano por `Content-Length` cuando está disponible.
+
+También se limitó por streaming la subida de blobs locales al máximo configurado
+y la solicitud multipart de importación de respaldos al máximo de 2 GiB más
+64 KiB de envoltura. El tamaño del archivo se comprueba antes de copiarlo a un
+segundo temporal. El almacenamiento local valida la contención con rutas reales
+y `commonpath`, evitando aceptar rutas hermanas con un prefijo parecido.
+
+Validación ejecutada desde `BASE/app/backend`:
+
+```powershell
+pytest -q tests/test_request_body.py tests/test_webhooks.py tests/test_storage.py tests/test_admin_backups.py::test_import_respaldo_rechaza_archivo_superior_al_limite tests/test_admin_backups.py::test_import_respaldo_rechaza_content_length_superior_al_limite tests/test_documentos.py::test_el_put_rechaza_cuerpo_mayor_al_limite_sin_guardarlo tests/test_documentos.py::test_flujo_sas_completo
+```
+
+Resultado: **14 aprobadas, 0 fallidas** en PostgreSQL temporal; un warning no
+bloqueante de deprecación de `starlette.testclient` con `httpx`. La suite
+completa 492/492 del 16-11 no se reejecutó después de estos cambios. No hubo
+cambios de frontend, por lo que no se repitió `npm run build`. Esta validación
+focalizada no equivale a pentest ni valida el despliegue productivo.
 
 ## Regresión general — 16 de noviembre de 2026
 

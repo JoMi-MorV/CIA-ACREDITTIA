@@ -180,6 +180,20 @@ def test_el_put_rechaza_un_cuerpo_vacio(app_cliente, empresa_a, documento):
     assert r.json()["error"]["code"] == "ARCHIVO_VACIO"
 
 
+def test_el_put_rechaza_cuerpo_mayor_al_limite_sin_guardarlo(
+        app_cliente, empresa_a, documento, monkeypatch):
+    from app.routers import blobs
+
+    monkeypatch.setattr(blobs, "MAX_BYTES", 4)
+    r = app_cliente.post(f"{API}/documentos/{documento['id']}/upload-url",
+                         headers=empresa_a["headers"], json={"filename": "a.pdf"})
+    sas = r.json()
+    r = app_cliente.put(_ruta_local(sas["upload_url"]), content=b"12345",
+                        headers=sas["headers"])
+    assert r.status_code == 400
+    assert r.json()["error"]["code"] == "ARCHIVO_MUY_GRANDE"
+
+
 # ============================================================================
 # 2. Revisión IA (síncrona con QUEUE_BACKEND=inproc)
 # ============================================================================

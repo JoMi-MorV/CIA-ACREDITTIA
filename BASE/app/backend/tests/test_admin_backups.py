@@ -56,6 +56,37 @@ def test_backups_solo_admin(app_cliente, empresa_a):
     assert response.json()["error"]["code"] == "SOLO_ADMIN"
 
 
+def test_import_respaldo_rechaza_archivo_superior_al_limite(
+        app_cliente, admin, monkeypatch):
+    from app.routers import admin_backups
+
+    monkeypatch.setattr(admin_backups, "MAX_IMPORT_BYTES", 4)
+    monkeypatch.setattr(admin_backups, "MAX_IMPORT_REQUEST_BYTES", 1024)
+    response = app_cliente.post(
+        f"{API}/admin/backups/import",
+        headers=admin["headers"],
+        files={"file": ("sobre-limite.acb", b"12345",
+                        "application/octet-stream")},
+    )
+    assert response.status_code == 413, response.text
+    assert response.json()["error"]["code"] == "RESPALDO_DEMASIADO_GRANDE"
+
+
+def test_import_respaldo_rechaza_content_length_superior_al_limite(
+        app_cliente, admin, monkeypatch):
+    from app.routers import admin_backups
+
+    monkeypatch.setattr(admin_backups, "MAX_IMPORT_REQUEST_BYTES", 1)
+    response = app_cliente.post(
+        f"{API}/admin/backups/import",
+        headers=admin["headers"],
+        files={"file": ("backup.acb", b"1234",
+                        "application/octet-stream")},
+    )
+    assert response.status_code == 413, response.text
+    assert response.json()["error"]["code"] == "RESPALDO_DEMASIADO_GRANDE"
+
+
 def test_restauracion_exige_confirmacion_exacta(app_cliente, admin):
     backup_id = "0123456789abcdef0123456789abcdef"
     response = app_cliente.post(

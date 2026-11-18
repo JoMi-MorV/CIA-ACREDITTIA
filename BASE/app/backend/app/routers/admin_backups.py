@@ -8,12 +8,17 @@ from datetime import datetime, timedelta, timezone
 import tempfile
 from pathlib import Path
 from typing import Literal
-from starlette.background import BackgroundTask
+
 from fastapi import APIRouter, Depends, File, Header, Query, Response, UploadFile
 from fastapi.responses import FileResponse
+from fastapi.routing import APIRoute
 from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.orm import Session
+
+from starlette.background import BackgroundTask
+from starlette.requests import Request
+from starlette.responses import JSONResponse
 
 from ..config import settings
 from ..database import SessionLocal, get_db
@@ -22,11 +27,64 @@ from ..models import AdminAccessGrant, Company, User
 from ..models_ops import OpsJob
 from ..services import ops
 from ..services.actividad import minimizar_texto
-from ..services.backups import (BackupError, backup_configured, backup_path, delete_backup,
-                                import_backup, list_backups, restore_backup, verify_backup)
+from ..services.request_body import RequestBodyTooLarge, limit_request_receive
+from ..services.backups import (
+    MAX_IMPORT_BYTES,
+    BackupError,
+    backup_configured,
+    backup_path,
+    delete_backup,
+    import_backup,
+    list_backups,
+    restore_backup,
+    verify_backup,
+)
 from ..services.console_exports import create_console_export
 
+MAX_IMPORT_REQUEST_BYTES = MAX_IMPORT_BYTES + 64 * 1024
+
+
+class BackupImportLimitRoute(APIRoute):
+    def get_route_handler(self):
+        original_handler = super().get_route_handler()
+        if not self.path.endswith("/import"):
+            return original_handler
+
+        async def handler(request: Request):
+            content_length = request.headers.get("content-length")
+            if content_length:
+                try:
+                    declared_size = int(content_length)
+                except ValueError:
+                    declared_size = None
+                if (declared_size is not None
+                        and declared_size > MAX_IMPORT_REQUEST_BYTES):
+                    return _import_too_large_response()
+
+            limited_request = Request(
+                request.scope,
+                receive=limit_request_receive(
+                    request.receive, MAX_IMPORT_REQUEST_BYTES))
+            try:
+                return await original_handler(limited_request)
+            except RequestBodyTooLarge:
+                return _import_too_large_response()
+
+        return handler
+
+
+def _import_too_large_response() -> JSONResponse:
+    return JSONResponse(
+        status_code=413,
+        content={"error": {
+            "code": "RESPALDO_DEMASIADO_GRANDE",
+            "message": "El respaldo supera el límite de importación de 2 GiB",
+        }},
+    )
+
+
 router = APIRouter(prefix="/admin/backups", tags=["admin"],
+                   route_class=BackupImportLimitRoute,
                    dependencies=[Depends(require_admin)])
 
 
@@ -129,15 +187,29 @@ async def importar_respaldo(file: UploadFile = File(...),
                             user: User = Depends(get_current_user)):
     if not file.filename or not file.filename.lower().endswith(".acb"):
         raise err(422, "FORMATO_RESPALDO_INVALIDO", "Seleccione un archivo .acb cifrado")
+    if file.size is not None and file.size > MAX_IMPORT_BYTES:
+        await file.close()
+        raise err(413, "RESPALDO_DEMASIADO_GRANDE",
+                  "El respaldo supera el límite de importación de 2 GiB")
     with tempfile.NamedTemporaryFile(prefix="acredittia-upload-", suffix=".acb",
                                      delete=False) as uploaded:
         temporary_path = os.path.abspath(uploaded.name)
+        bytes_written = 0
+        too_large = False
         try:
             while chunk := await file.read(1024 * 1024):
+                if bytes_written + len(chunk) > MAX_IMPORT_BYTES:
+                    too_large = True
+                    break
                 uploaded.write(chunk)
+                bytes_written += len(chunk)
         except Exception as exc:
             os.unlink(temporary_path)
             raise err(422, "CARGA_RESPALDO_FALLIDA", "No se pudo recibir el archivo") from exc
+    if too_large:
+        Path(temporary_path).unlink(missing_ok=True)
+        raise err(413, "RESPALDO_DEMASIADO_GRANDE",
+                  "El respaldo supera el límite de importación de 2 GiB")
     try:
         result = import_backup(Path(temporary_path), file.filename)
     except BackupError as exc:

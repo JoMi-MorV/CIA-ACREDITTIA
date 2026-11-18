@@ -4,8 +4,9 @@ Estos endpoints son **públicos pero firmados**. No usan `get_current_user` ni
 `get_company_id`, y eso es correcto: son un canal servidor-a-servidor. Quien
 llama es Meta o la pasarela, no una persona con sesión, así que no hay token de
 usuario que presentar ni empresa en el contexto del request. La autenticación es
-la **firma HMAC-SHA256 del cuerpo exacto** con el secreto compartido; sin firma
-válida no se lee el contenido ni se toca la base.
+la **firma HMAC-SHA256 del cuerpo exacto** con el secreto compartido; el cuerpo
+se lee con límite para verificar la firma, pero sin firma válida no se procesa
+el payload ni se toca la base.
 
 Por eso la sesión se abre con `worker_session(is_admin=True)`: la empresa se
 deduce del contenido del webhook (el `phone_number_id` de WhatsApp, el
@@ -13,13 +14,16 @@ deduce del contenido del webhook (el `phone_number_id` de WhatsApp, el
 antes de saber de quién es la fila. Es el mismo razonamiento que `auth_session()`
 en el login: sin tenant no hay forma de resolver el tenant. El alcance se acota
 de inmediato —una vez identificada la empresa se filtra por su `company_id`— y
-no se acepta ningún `company_id` que venga en el cuerpo.
+no se acepta ningún `company_id` que venga en el cuerpo. El cuerpo se lee con
+un máximo de 1 MiB para verificar HMAC sin permitir cargas ilimitadas.
 
 Tres reglas de comportamiento:
 
 * **La firma se compara con `hmac.compare_digest`**, nunca con `==`.
 * **Sin secreto configurado se responde 503**, no se acepta el webhook. Un
   secreto vacío haría que cualquiera pudiera firmar.
+* **Los estados de pago desconocidos no concilian facturas.** Solo estados
+  reconocidos explícitamente pueden cambiar su estado.
 * **Un error de negocio no es un 5xx.** Con la firma válida se responde 200
   aunque el contenido no aplique: la pasarela y Meta reintentan ante cualquier
   respuesta que no sea 2xx, y un reintento infinito por un evento que nunca va a
@@ -33,6 +37,7 @@ import hashlib
 import hmac
 import json
 import logging
+import re
 from datetime import date, datetime, timezone
 
 from fastapi import APIRouter, Query, Request
@@ -44,11 +49,13 @@ from sqlalchemy.orm import Session
 from ..config import settings
 from ..database import worker_session
 from ..models import Actividad, Factura, Integracion, Suscripcion
+from ..services.request_body import RequestBodyTooLarge, read_request_body_limited
 from .suscripcion import sumar_mes
 
 logger = logging.getLogger("acredittia.webhooks")
 
 router = APIRouter(prefix="/webhooks", tags=["webhooks"])
+MAX_WEBHOOK_BODY_BYTES = 1024 * 1024
 
 # Claves donde cada pasarela suele poner su identificador de transacción. Se
 # aceptan varias porque el nombre cambia entre Transbank (buy_order) y Stripe
@@ -261,7 +268,13 @@ async def whatsapp_entrante(request: Request):
     atribuir a ninguna empresa: los webhooks no deben reintentarse por errores de
     negocio.
     """
-    cuerpo = await request.body()
+    try:
+        cuerpo = await read_request_body_limited(
+            request, MAX_WEBHOOK_BODY_BYTES)
+    except RequestBodyTooLarge:
+        return _respuesta_error(
+            413, "CUERPO_DEMASIADO_GRANDE",
+            "El cuerpo del webhook supera el máximo permitido").respuesta()
     try:
         _exigir_firma("WHATSAPP_TOKEN", settings.whatsapp_token, cuerpo,
                       request.headers.get("X-Hub-Signature-256"))
@@ -301,18 +314,21 @@ def _ref_de_pago(payload: dict) -> str | None:
 
 def _estado_de_pago(payload: dict) -> str:
     """`pagado`, `fallido` o `desconocido` a partir del cuerpo del webhook."""
+    estados: set[str] = set()
     for clave in ("status", "estado", "event", "type", "tipo"):
         valor = payload.get(clave)
         if not isinstance(valor, str):
             continue
         v = valor.strip().lower()
-        if any(f in v for f in ESTADOS_FALLIDOS):
-            return "fallido"
-        if any(p in v for p in ESTADOS_PAGADOS):
-            return "pagado"
-    # Sin estado explícito se asume conciliación: es lo que envía una pasarela
-    # que solo notifica pagos exitosos.
-    return "desconocido"
+        tokens = re.split(r"[^a-z0-9áéíóúñ]+", v)
+        if ("unpaid" in tokens
+                or {"not", "no", "non"}.intersection(tokens)):
+            return "desconocido"
+        if any(f in tokens for f in ESTADOS_FALLIDOS):
+            estados.add("fallido")
+        elif tokens[-1] in ESTADOS_PAGADOS:
+            estados.add("pagado")
+    return estados.pop() if len(estados) == 1 else "desconocido"
 
 
 def _fecha_pago(payload: dict) -> datetime:
@@ -340,6 +356,11 @@ def _conciliar(payload: dict) -> tuple[int, dict]:
                      "motivo": "sin_referencia"}
 
     estado_pago = _estado_de_pago(payload)
+    if estado_pago == "desconocido":
+        logger.warning("webhook de pagos con estado no reconocido (gateway_ref=%s)",
+                       ref)
+        return 200, {"received": True, "conciliado": False,
+                     "motivo": "estado_no_reconocido"}
     # is_admin=True: la factura se localiza por `gateway_ref`, que no dice de qué
     # empresa es. Ver la cabecera del módulo.
     with worker_session(is_admin=True) as db:
@@ -422,7 +443,13 @@ async def pagos_entrante(request: Request):
     con un cuerpo controlado —sin excepción ni traza hacia la pasarela— para que
     pueda decidir si reintenta.
     """
-    cuerpo = await request.body()
+    try:
+        cuerpo = await read_request_body_limited(
+            request, MAX_WEBHOOK_BODY_BYTES)
+    except RequestBodyTooLarge:
+        return _respuesta_error(
+            413, "CUERPO_DEMASIADO_GRANDE",
+            "El cuerpo del webhook supera el máximo permitido").respuesta()
     try:
         _exigir_firma("PAGOS_WEBHOOK_SECRET", settings.pagos_webhook_secret,
                       cuerpo, request.headers.get("X-Signature"))

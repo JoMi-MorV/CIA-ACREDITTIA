@@ -26,6 +26,7 @@ from ..config import settings
 _MAGIC = b"ACRBACKUP1"
 _CHUNK_SIZE = 1024 * 1024
 _FORMAT = "acredittia-backup-v1"
+MAX_IMPORT_BYTES = 2 * 1024**3
 
 
 class BackupError(RuntimeError):
@@ -369,7 +370,7 @@ def re_full_id(value: str) -> bool:
 def import_backup(source: Path, original_filename: str = "backup.acb") -> dict:
     """Importa y valida un paquete cifrado generado por Acredittia."""
     _key()
-    if source.stat().st_size > 2 * 1024**3:
+    if source.stat().st_size > MAX_IMPORT_BYTES:
         raise BackupError("El respaldo supera el límite de importación de 2 GiB")
     with tempfile.TemporaryDirectory(prefix="acredittia-import-") as workdir:
         archive_path = Path(workdir) / "package.tar.gz"
