@@ -23,12 +23,14 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from ..config import settings
 from ..deps import (Page, aplicar_orden, contrato_scope, err, get_company_id,
                     get_current_user, get_db, paginacion, require_company, sobre)
 from ..models import (Company, Contrato, Documento, PasswordResetToken,
                       RefreshToken, Sujeto, User)
 from ..security import hash_password
 from ..services import actividad
+from ..services.email import EmailDeliveryError, enviar_email
 
 logger = logging.getLogger("acredittia.company")
 
@@ -119,7 +121,8 @@ def _company_out(db: Session, c: Company, scope: uuid.UUID | None) -> dict:
     }
 
 
-def _usuario_out(u: User, contrato_nombre: str | None = None) -> dict:
+def _usuario_out(u: User, contrato_nombre: str | None = None,
+                 invitacion_pendiente: bool = False) -> dict:
     return {
         "id": str(u.id), "nombre": u.nombre, "email": u.email, "role": u.role,
         "contrato_id": str(u.contrato_id) if u.contrato_id else None,
@@ -127,6 +130,7 @@ def _usuario_out(u: User, contrato_nombre: str | None = None) -> dict:
         "activo": u.activo, "status": u.status,
         "last_login_at": u.last_login_at.isoformat() if u.last_login_at else None,
         "created_at": u.created_at.isoformat(),
+        "invitacion_pendiente": invitacion_pendiente,
     }
 
 
@@ -247,7 +251,24 @@ def listar_usuarios(role: str | None = Query(None),
     total = db.scalar(select(func.count()).select_from(q.subquery())) or 0
     q = aplicar_orden(q, User, p.sort, ORDEN_USUARIOS, "nombre")
     filas = db.execute(q.offset(p.offset).limit(p.page_size)).all()
-    items = [_usuario_out(f[0], f.contrato_nombre) for f in filas]
+    usuarios = [fila[0] for fila in filas]
+    tokens = set()
+    if usuarios:
+        tokens = set(db.scalars(select(PasswordResetToken.user_id).where(
+            PasswordResetToken.user_id.in_([u.id for u in usuarios]),
+            PasswordResetToken.used_at.is_(None),
+            PasswordResetToken.uso == "invitacion",
+        )).all())
+    items = [
+        _usuario_out(
+            fila[0], fila.contrato_nombre,
+            invitacion_pendiente=(
+                fila[0].id in tokens and fila[0].last_login_at is None
+                and fila[0].status == "approved"
+            ),
+        )
+        for fila in filas
+    ]
     return sobre(items, total, p)
 
 
@@ -290,19 +311,30 @@ def invitar_usuario(body: UsuarioIn, db: Session = Depends(get_db),
         db.rollback()
         raise err(409, "USUARIO_DUPLICADO", "El email ya está registrado")
 
-    _, token_hash, expira = _nuevo_token_activacion()
+    raw, token_hash, expira = _nuevo_token_activacion()
     db.add(PasswordResetToken(user_id=u.id, token_hash=token_hash,
-                              expires_at=expira))
+                              expires_at=expira, uso="invitacion"))
     actividad.log(db, cid, "creacion", "usuarios",
                   f"Usuario {u.email} invitado con rol {u.role}",
                   user_id=user.id, entidad_tipo="usuario", entidad_id=u.id)
     db.commit()
-    # TODO(coordinador): enviar el email de invitación con el token en claro
-    # (`raw` de _nuevo_token_activacion) cuando exista services/notificaciones.
-    # El token en claro NO se devuelve en la respuesta a propósito.
+    enlace = f"{settings.frontend_url.rstrip('/')}/reset?token={raw}"
+    email_enviado = False
+    try:
+        enviar_email(
+            u.email,
+            "Activa tu cuenta en Acredittia",
+            f"Fuiste invitado a Acredittia como {u.role}.\n\n"
+            f"Activa tu cuenta y crea tu contraseña aquí:\n{enlace}\n\n"
+            f"Este enlace expira en {ACTIVACION_TTL_HORAS} horas.",
+        )
+        email_enviado = True
+    except EmailDeliveryError:
+        logger.warning("No se pudo enviar la invitación a user=%s", u.id)
     logger.info("usuario invitado id=%s role=%s", u.id, u.role)
     return {"id": str(u.id), "email": u.email, "role": u.role,
-            "activacion_expira_at": expira.isoformat()}
+            "activacion_expira_at": expira.isoformat(),
+            "email_enviado": email_enviado}
 
 
 @router.patch("/usuarios/{uid}")
@@ -375,3 +407,66 @@ def desactivar_usuario(uid: uuid.UUID, db: Session = Depends(get_db),
     db.commit()
     return {"ok": True, "id": str(u.id), "activo": False,
             "tokens_revocados": revocados}
+
+
+def _token_invitacion_pendiente(db: Session, user_id: uuid.UUID,
+                                bloquear: bool = False) -> PasswordResetToken | None:
+    query = select(PasswordResetToken).where(
+        PasswordResetToken.user_id == user_id,
+        PasswordResetToken.uso == "invitacion",
+        PasswordResetToken.used_at.is_(None),
+    ).limit(1)
+    if bloquear:
+        query = query.with_for_update()
+    return db.scalar(query)
+
+
+def _es_invitacion_pendiente(db: Session, usuario: User) -> bool:
+    return (
+        usuario.status == "approved"
+        and usuario.last_login_at is None
+        and _token_invitacion_pendiente(db, usuario.id) is not None
+    )
+
+
+def eliminar_invitacion_pendiente(
+        db: Session, cid: uuid.UUID, usuario: User, actor: User,
+        motivo: str) -> dict:
+    token = _token_invitacion_pendiente(db, usuario.id, bloquear=True)
+    if (usuario.company_id != cid or usuario.role == "admin"
+            or usuario.status != "approved" or usuario.last_login_at is not None
+            or token is None):
+        raise err(409, "INVITACION_NO_PENDIENTE",
+                  "Solo se pueden eliminar invitaciones que aún no fueron aceptadas")
+    if usuario.id == actor.id:
+        raise err(400, "AUTO_ELIMINACION",
+                  "No puedes eliminar la invitación de tu propia cuenta")
+
+    _proteger_ultimo_admin(db, cid, usuario)
+    usuario_id = usuario.id
+    actividad.log(
+        db, cid, "actualizacion", "usuarios",
+        "Invitación cancelada y cuenta pendiente eliminada",
+        user_id=actor.id, entidad_tipo="usuario", entidad_id=usuario_id,
+        metadata={"motivo": motivo},
+    )
+    db.delete(usuario)
+    db.commit()
+    return {"ok": True, "id": str(usuario_id), "invitacion_eliminada": True}
+
+
+@router.delete("/usuarios/{uid}/invitacion")
+def eliminar_invitacion_empresa(
+        uid: uuid.UUID,
+        db: Session = Depends(get_db),
+        cid: uuid.UUID = Depends(get_company_id),
+        user: User = Depends(require_company)):
+    """Elimina una cuenta invitada solo si nunca canjeó su activación."""
+    invitado = db.scalar(select(User).where(
+        User.id == uid, User.company_id == cid
+    ).with_for_update())
+    if not invitado:
+        raise err(404, "NO_ENCONTRADO", "Invitación no encontrada")
+    return eliminar_invitacion_pendiente(
+        db, cid, invitado, user, "Cancelada desde la gestión de cuentas",
+    )

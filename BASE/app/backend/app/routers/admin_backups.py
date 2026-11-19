@@ -7,12 +7,11 @@ import uuid
 from datetime import datetime, timedelta, timezone
 import tempfile
 from pathlib import Path
-from typing import Literal
 
 from fastapi import APIRouter, Depends, File, Header, Query, Response, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.routing import APIRoute
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -23,7 +22,7 @@ from starlette.responses import JSONResponse
 from ..config import settings
 from ..database import SessionLocal, get_db
 from ..deps import err, get_current_user, require_admin
-from ..models import AdminAccessGrant, Company, User
+from ..models import AdminAccessGrant, User
 from ..models_ops import OpsJob
 from ..services import ops
 from ..services.actividad import minimizar_texto
@@ -97,8 +96,7 @@ class DeleteBody(BaseModel):
 
 
 class ExportGrantIn(BaseModel):
-    alcance: Literal["global", "empresa"]
-    company_id: uuid.UUID | None = None
+    model_config = ConfigDict(extra="forbid")
     motivo: str = Field(min_length=12, max_length=240)
 
 
@@ -110,20 +108,9 @@ def crear_concesion_exportacion(
     if len(motivo) < 12:
         raise err(400, "MOTIVO_REQUERIDO",
                   "Indique un motivo de al menos 12 caracteres para autorizar")
-    if body.alcance == "global" and body.company_id is not None:
-        raise err(422, "ALCANCE_INVALIDO",
-                  "Una concesión global no puede indicar empresa")
-    if body.alcance == "empresa" and body.company_id is None:
-        raise err(422, "ALCANCE_REQUERIDO",
-                  "Seleccione una empresa para limitar la exportación")
-    if body.company_id is not None and not db.get(Company, body.company_id):
-        raise err(422, "EMPRESA_INVALIDA",
-                  "La empresa de la concesión no existe")
-
     grant = AdminAccessGrant(
         admin_user_id=user.id,
         granted_by=user.id,
-        company_id=body.company_id,
         recurso_tipo="exportacion",
         motivo=motivo,
         expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
@@ -131,15 +118,14 @@ def crear_concesion_exportacion(
     db.add(grant)
     ops.auditar(
         db, "creacion",
-        f"Autoconcesión temporal de exportación {body.alcance}; "
-        f"empresa: {body.company_id or 'todas'}; motivo: {motivo}",
+        f"Autoconcesión temporal para resumen general de consola ADMIN; "
+        f"motivo: {motivo}",
         user_id=user.id, entidad_tipo="concesion_acceso",
         entidad_id=grant.id)
     db.commit()
     return {
         "id": str(grant.id),
-        "alcance": body.alcance,
-        "company_id": str(body.company_id) if body.company_id else None,
+        "alcance": "global_agregado",
         "expires_at": grant.expires_at.isoformat(),
     }
 
@@ -347,10 +333,9 @@ def exportar(resp: Response,
             or export_grant.admin_user_id != user.id
             or export_grant.recurso_tipo != "exportacion"
             or export_grant.recurso_id is not None
+            or export_grant.company_id is not None
             or export_grant.revoked_at is not None
             or export_grant.expires_at <= datetime.now(timezone.utc)
-            or (export_grant.company_id is not None
-                and not db.get(Company, export_grant.company_id))
         ):
             raise err(403, "PERMISO_INFORMACION_INVALIDO",
                       "La autoconcesión no autoriza esta exportación o ya no está vigente")

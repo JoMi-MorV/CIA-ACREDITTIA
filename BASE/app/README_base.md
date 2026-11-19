@@ -23,7 +23,7 @@ app/
 
 PostgreSQL no ejecuta el esquema desde su inicialización. El servicio `migrate`
 aplica las migraciones versionadas de `../modelo_datos/` antes de iniciar la
-API y los workers. La versión actual del esquema es **20**, y la API comprueba
+api y los workers. La versión actual del esquema es **22**, y la API comprueba
 la versión requerida al arrancar.
 
 ## Ejecutar en local
@@ -209,7 +209,7 @@ no la instalación ni la ejecución normal de la imagen de la aplicación.
 | DATABASE_URL | postgres local | Conexión SQLAlchemy (psycopg) |
 | DB_RLS_ENABLED | true | Activa el contexto de aislamiento por tenant |
 | DB_APPLY_SCHEMA_ON_START | false | En Compose el servicio `migrate` aplica el esquema |
-| SCHEMA_VERSION_ESPERADA | 20 | Versión de esquema exigida por la API |
+| SCHEMA_VERSION_ESPERADA | 23 | Versión de esquema exigida por la API |
 | STORAGE_BACKEND / STORAGE_DIR | local / `/data/uploads` | Almacenamiento local o `azure` |
 | AZURE_STORAGE_ACCOUNT / AZURE_BLOB_CONN / AZURE_BLOB_CONTAINER | vacío / vacío / `docs` | Configuración de Azure Blob Storage |
 | QUEUE_BACKEND / REDIS_URL | inproc / Redis local | `celery` usa Redis para trabajos en segundo plano |
@@ -217,6 +217,9 @@ no la instalación ni la ejecución normal de la imagen de la aplicación.
 | IA_BACKEND / ANTHROPIC_API_KEY | simulada / vacío | Revisión simulada o `claude` |
 | JWT_SECRET | valor de desarrollo | Usa un secreto único de al menos 32 bytes en producción |
 | CORS_ORIGINS | http://localhost:3000 | Orígenes permitidos |
+| SMTP_HOST / SMTP_PORT | vacío / 587 | Servidor SMTP; Gmail usa `smtp.gmail.com:587` |
+| SMTP_USER / SMTP_PASSWORD | vacío / vacío | Cuenta remitente y contraseña de aplicación |
+| EMAIL_FROM / FRONTEND_URL | vacío / http://localhost:3000 | Remitente y base pública para enlaces |
 
 ## Documentación y verificación
 

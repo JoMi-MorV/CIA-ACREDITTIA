@@ -1,14 +1,38 @@
 # Estado de salud general de Acredittia
 
-**Fecha de corte:** 14 de noviembre de 2026
+**Fecha de corte:** 18 de noviembre de 2026
 **Preparado para:** revisión técnica, operativa y de gestión  
 **Alcance:** backend, frontend, SQL/migraciones, seguridad, privacidad, continuidad operativa, documentación y preparación para producción.
+
+### Actualización de continuidad — 19 de noviembre de 2026
+
+Se acordaron objetivos funcionales de RPO ≤24 horas y RTO ≤30 minutos, con
+respaldo diario. La última restauración local en esquema 23 reportó RPO 13,659 s
+y RTO 7,815 s, con estado `restored`, dentro de ambos objetivos.
+`tests/test_esquema.py` y `tests/test_admin_backups.py` pasaron 41/41 tras la
+migración 23 y la compatibilidad con respaldos v22. No se requiere una prueba
+separada en staging para cerrar el alcance funcional local. La configuración,
+activación y monitoreo del job,
+el almacenamiento externo y la recuperación ante pérdida total siguen sin
+acreditarse para producción. El corte general siguiente permanece fechado al
+18 de noviembre y no se recalculó en su conjunto.
 
 ## Resumen ejecutivo
 
 El proyecto presenta una base técnica sólida para desarrollo y validación focalizada, pero aún no alcanza un estado de madurez compatible con producción real. El backend muestra estabilidad funcional y la mayoría de las capas de aplicación tienen evidencia concreta; sin embargo, el conjunto presenta riesgos de integración, seguridad, requisitos de cumplimiento por confirmar y continuidad que siguen bloqueando el paso a producción con datos reales.
 
 La evaluación actual se mantiene en **NO GO** para producción. La mejora más importante desde el último corte es que el código y la documentación han convergido hacia una visión más realista: el proyecto no se presenta como “listo para producción”, sino como una plataforma con avances relevantes y con bloqueadores específicos todavía abiertos.
+
+### Actualización documental — 18 de noviembre de 2026
+
+Se verificó una compilación de Next.js y se confirmó que la suite backend
+completa registrada en el proyecto es la ejecución del 16-11-2026:
+**492 aprobadas, 0 fallidas**. Las correcciones realizadas el 17-11 tienen
+validación focalizada de **14/14** y no se reejecutó la suite completa posterior
+a esas correcciones. También se confirmó que `BASE/app/.env` contiene secretos
+locales administrados fuera de Git y sin evidencia de filtración pública;
+se recomienda mantenerlos fuera de documentación y registros. El Compose local
+sigue usando un rol de PostgreSQL elevado.
 
 ### Actualización de avance — 14 de noviembre de 2026
 
@@ -58,7 +82,7 @@ y continuidad. El detalle y los límites de evidencia están en
 | Buscador global | 🟢 RF-BUS-01 y RF-BUS-02 cerrados (IV, 100%) | 83 pruebas focalizadas validan autorización por categoría, concesiones (titular, vigencia, revocación y alcance), ficha directa y exportación ZIP limitada; build frontend aprobado. El listado administrativo independiente de usuarios continúa bajo RF-USU. No se realizó recorrido manual de navegador. |
 | Seguridad y aislamiento de datos | 🟡 Parcial; RNF-SEG-01 IV/100%, RF-SEG-02 al 95% | 76 pruebas focalizadas de roles, configuración, tenants y esquema pasaron. El usuario confirmó roles separados, RLS efectivo con roles reales, denegaciones y secretos externos en el entorno destino, además del recorrido de concesión temporal auditado. Falta revisar algunas lecturas sensibles y cerrar los requisitos RF-SEG-01/02/03; Compose de desarrollo conserva rol elevado. |
 | Ajustes de negocio ADMIN | 🟢 Implementado | UF/vigencia/fuente, CAC, margen bruto y objetivo de churn son persistentes; solo ADMIN puede modificarlos, motivo obligatorio y auditoría con antes/después. Migración 17; suites focalizadas 86 aprobadas y build frontend correcto. La fuente UF es manual. |
-| Recuperación y continuidad | 🔴 Rojo | Faltan pruebas de restauración real y objetivos RPO/RTO certificados. |
+| Recuperación y continuidad | 🟡 Parcial | RPO ≤24 h y RTO ≤30 min acordados; la última restauración local en esquema 23 cumplió (13,659 s / 7,815 s). Falta configurar/monitorear el job y acreditar continuidad productiva, almacenamiento externo y pérdida total. |
 | Documentación y arquitectura | 🟡 Amarillo | Buena cobertura documental; SRS v0.92 refleja el recálculo actual, aunque persisten rutas heredadas, decisiones pendientes y verificaciones de consistencia por completar. |
 | Producción con datos reales | 🔴 No GO | Bloqueado por seguridad, continuidad, controles de privacidad y validación operativa. |
 

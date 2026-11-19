@@ -130,8 +130,9 @@ export default function LoginPage() {
         {tab === "recuperar" && (
           <form onSubmit={recuperar} className="space-y-4">
             <p className="text-sm text-slate-600">
-              Te enviaremos un enlace para restablecer la contraseña. Tras el
-              cambio hay que volver a ingresar en todos los dispositivos.
+              Si el correo corresponde a una cuenta activa, enviaremos un enlace
+              para restablecer la contraseña. Si no lo recibes, revisa Spam o
+              Promociones. Después del cambio tendrás que iniciar sesión de nuevo.
             </p>
             <Campo etiqueta="Email"><input className="input" type="email" value={f.email} onChange={set("email")} required /></Campo>
             <button className="btn-primary w-full py-2.5" disabled={cargando}>

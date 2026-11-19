@@ -118,22 +118,19 @@ def test_exportacion_redacta_actividad_historica(
                 (company_id, user_id, tipo, modulo, descripcion, metadata)
             VALUES
                 (CAST(:company_id AS uuid), NULL, 'visualizacion', :modulo,
-                 'Correo persona@example.cl RUT 12.345.678-5 token=secreto123',
+                 'test_export_privacidad Correo persona@example.cl '
+                 'RUT 12.345.678-5 token=secreto123',
                  CAST(:metadata AS jsonb))
         """), {
             "company_id": empresa_a["company_id"],
-            "modulo": marcador,
+            "modulo": "admin",
             "metadata": json.dumps({"password": "no-exportar"}),
         })
 
     grant = app_cliente.post(
         f"{API}/admin/backups/export-grants",
         headers=admin["headers"],
-        json={
-            "alcance": "empresa",
-            "company_id": empresa_a["company_id"],
-            "motivo": "Validar exportación de actividad",
-        },
+        json={"motivo": "Validar exportación de actividad"},
     )
     assert grant.status_code == 201, grant.text
     headers = dict(admin["headers"])
@@ -149,12 +146,13 @@ def test_exportacion_redacta_actividad_historica(
     assert respuesta.status_code == 200, respuesta.text
 
     with ZipFile(io.BytesIO(respuesta.content)) as archive:
-        filas = json.loads(archive.read("json/actividad.json"))
-    fila = next(fila for fila in filas if fila["modulo"] == marcador)
-    assert "persona@example.cl" not in fila["descripcion"]
-    assert "12.345.678-5" not in fila["descripcion"]
-    assert "secreto123" not in fila["descripcion"]
-    assert fila["metadata"]["password"] == "[dato sensible redactado]"
+        exportado = b"".join(archive.read(name) for name in archive.namelist())
+        actividad = json.loads(archive.read("json/actividad.json"))
+    assert marcador.encode() not in exportado
+    assert b"persona@example.cl" not in exportado
+    assert b"12.345.678-5" not in exportado
+    assert b"secreto123" not in exportado
+    assert all(set(fila) == {"tipo", "modulo", "eventos"} for fila in actividad)
 
 
 def test_poda_aplica_plazos_y_preserva_historicos_previos(

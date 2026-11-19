@@ -1022,6 +1022,7 @@ export type UsuarioEmpresa = {
   contrato_id: string | null;
   contrato_nombre?: string | null;
   contrato?: ContratoResumen | null;
+  invitacion_pendiente?: boolean;
   last_login_at: string | null;
   created_at: string | null;
 };

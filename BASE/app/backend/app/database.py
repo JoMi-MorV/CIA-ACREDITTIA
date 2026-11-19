@@ -96,8 +96,11 @@ SCHEMA_SCRIPTS = ["01_esquema.sql", "02_indices.sql", "03_triggers.sql",
                   "16_privacidad_retencion.sql", "17_ajustes_negocio.sql",
                   "18_confirmacion_cambio_email.sql",
                   "19_progreso_procesos.sql",
-                  "20_telemetria_actividad.sql"]
-SCHEMA_VERSION = 20
+                  "20_telemetria_actividad.sql",
+                  "21_baja_invitaciones_pendientes.sql",
+                  "22_normalizar_tipo_token_password.sql",
+                  "23_respaldo_diario_rpo24h.sql"]
+SCHEMA_VERSION = 23
 MIGRATION_LOCK_ID = 918273        # clave del pg_advisory_lock de migración
 
 
@@ -398,19 +401,38 @@ def apply_schema(schema_dir: str | None = None) -> int:
             if actual == 16:
                 pendientes = ["17_ajustes_negocio.sql", "18_confirmacion_cambio_email.sql",
                               "19_progreso_procesos.sql",
-                              "20_telemetria_actividad.sql"]
+                              "20_telemetria_actividad.sql",
+                              "21_baja_invitaciones_pendientes.sql",
+                              "22_normalizar_tipo_token_password.sql"]
             elif actual == 17:
                 pendientes = ["18_confirmacion_cambio_email.sql",
                               "19_progreso_procesos.sql",
-                              "20_telemetria_actividad.sql"]
+                              "20_telemetria_actividad.sql",
+                              "21_baja_invitaciones_pendientes.sql",
+                              "22_normalizar_tipo_token_password.sql"]
             elif actual == 18:
                 pendientes = ["19_progreso_procesos.sql",
-                              "20_telemetria_actividad.sql"]
+                              "20_telemetria_actividad.sql",
+                              "21_baja_invitaciones_pendientes.sql",
+                              "22_normalizar_tipo_token_password.sql"]
             elif actual == 19:
-                pendientes = ["20_telemetria_actividad.sql"]
+                pendientes = ["20_telemetria_actividad.sql",
+                              "21_baja_invitaciones_pendientes.sql",
+                              "22_normalizar_tipo_token_password.sql"]
+            elif actual == 20:
+                pendientes = ["21_baja_invitaciones_pendientes.sql",
+                              "22_normalizar_tipo_token_password.sql"]
+            elif actual == 21:
+                pendientes = ["22_normalizar_tipo_token_password.sql"]
+            elif actual == 22:
+                pendientes = ["23_respaldo_diario_rpo24h.sql"]
             elif actual < 16:
                 for script in ("17_ajustes_negocio.sql", "18_confirmacion_cambio_email.sql",
                                "19_progreso_procesos.sql", "20_telemetria_actividad.sql"):
+                    if script not in pendientes:
+                        pendientes.append(script)
+                for script in ("21_baja_invitaciones_pendientes.sql",
+                               "22_normalizar_tipo_token_password.sql"):
                     if script not in pendientes:
                         pendientes.append(script)
             elif actual < 19:
@@ -418,6 +440,10 @@ def apply_schema(schema_dir: str | None = None) -> int:
                     if script not in pendientes:
                         pendientes.append(script)
                 pendientes.append("20_telemetria_actividad.sql")
+
+            latest_migration = "23_respaldo_diario_rpo24h.sql"
+            if actual < SCHEMA_VERSION and latest_migration not in pendientes:
+                pendientes.append(latest_migration)
 
             for nombre in pendientes:
                 ruta = os.path.join(sdir, nombre)

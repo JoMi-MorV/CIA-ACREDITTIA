@@ -113,7 +113,8 @@ Ruta base: `BASE/app/frontend/`
 | `app/login/page.tsx` | `/login` | Login, registro de empresa y usuario inicial con nombre, y solicitud de recuperacion de contrasena. |
 | `app/(app)/layout.tsx` | Layout protegido | Verifica que exista una sesion y monta el sidebar. |
 | `app/(app)/perfil/page.tsx` | `/perfil` | Perfil personal; para ADMIN en «Ver como empresa», perfil de la empresa (nombre/correo editables; RUT/estado de solo lectura). |
-| `app/(app)/gestion-cuentas/page.tsx` | `/gestion-cuentas` | Listado paginado y administracion de roles/estado de cuentas asociadas; invitacion de cuentas existentes pendiente. |
+| `app/(app)/gestion-cuentas/page.tsx` | `/gestion-cuentas` | Listado paginado y administración de roles/estado; modal para invitar cuentas nuevas con rol de empresa o contrato. |
+| `app/reset/page.tsx` | `/reset?token=...` | Activación de cuenta invitada mediante contraseña de un solo uso. |
 | `components/Sidebar.tsx` | Navegacion lateral | Enlaces, empresa actual, impersonacion y cierre de sesion. |
 | `components/ui.tsx` | Compartido | KPIs, tablas, modales, chips, spinner y paginacion. |
 
@@ -765,10 +766,11 @@ impersonacion para operar sobre la empresa seleccionada.
 impersonada. Se puede asignar una cuenta `company` como `contract_admin` con
 confirmacion doble; el backend impide dejar a la empresa sin otro usuario
 `company` activo (`ULTIMO_ADMINISTRADOR`). Las cuentas `contract_admin`
-existentes se pueden reasignar entre contratos. La invitacion/aceptacion de
-cuentas ya existentes no esta implementada; `POST /company/usuarios` crea
-usuarios nuevos y el envio/canje del token de activacion por email sigue
-pendiente.
+existentes se pueden reasignar entre contratos. El 18-11-2026 se implementó
+la invitación de cuentas nuevas: `POST /company/usuarios` crea la cuenta dentro
+del `company_id`, asigna el rol y contrato, envía el enlace de activación por
+SMTP y `/reset` permite crear la contraseña. La transferencia de una cuenta
+existente entre empresas sigue pendiente.
 
 En la consola ADMIN, los cambios de rol, empresa o contrato requieren una
 confirmacion que explica consecuencias y un motivo obligatorio. El registro

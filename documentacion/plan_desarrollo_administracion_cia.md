@@ -1,5 +1,11 @@
 # Plan de Desarrollo (8 Días) — Equipo Administración (`CIA-ACREDITTIA-main`)
 
+> **Documento histórico de planificación.** Describe la propuesta del plan de
+> 8 días de noviembre de 2026; no representa por sí mismo el estado ejecutado
+> actual. Los criterios vigentes son el [estado de salud](ESTADO_SALUD_GENERAL.md),
+> [la validación actual](VALIDACION_ACTUAL.md) y el [README raíz](../README.md).
+> Fecha de actualización de este aviso: 18-11-2026.
+
 **Fecha de Inicio:** Día 1 (2026-11-01) · **Fusión:** Día 4 (2026-11-04) · **Cierre:** Día 8 (2026-11-08)  
 **Repositorio Origen:** `c:\Users\Cristobal\Downloads\Universidad\GPI\Proyecto Acredittia\CIA-ACREDITTIA-main`  
 **Objetivo del Equipo:** Promover la aplicación desde `BASE/app/` y `BASE/modelo_datos/` a la raíz del repositorio, aislar todos los módulos de la Consola Interna de Operaciones bajo el namespace `ops/` (Backend y Frontend Next.js App Router `(ops)`), renumerar sus scripts SQL a `19`..`22`, fusionar con `Acredittia-` en el Día 4 sobre la misma base de datos PostgreSQL 16 + `pgvector` (versión `22`), ejecutar QA de consola y seguridad (Días 5–7) y documentar la operación y gobernanza (Día 8).
@@ -14,8 +20,8 @@ tareas debe actualizarse contra el repositorio real disponible:
 | Hallazgo comprobado en `CIA-ACREDITTIA-main` | Impacto en el plan |
 |---|---|
 | El código aún usa la estructura `BASE/app/` y `BASE/modelo_datos/` | Las tareas 1.1 a 3.1 requieren ejecución real; no asumirlas completadas. |
-| La versión esperada del esquema es `15`, definida en `app/database.py` | No declarar la versión `22` hasta fusionar las migraciones de Plataforma y renumerar Administración. |
-| Los scripts Administración existentes llegan a la versión `15` (`07` Consola hasta `15` Acceso excepcional) | Renumerar `19`..`22` solo dentro de una secuencia unificada acordada con Plataforma. |
+| La revisión original encontró una versión esperada distinta a la vigente actual | La aplicación actual exige el esquema `20`; cualquier propuesta futura de versión `22` debe migrarse, probarse y documentarse antes de adoptarla. |
+| Los scripts Administración históricos llegan hasta extensiones previas al esquema actual | No confundir la numeración histórica `19`..`22` con los scripts vigentes `01`..`20` ubicados en `BASE/modelo_datos/`. |
 | `sonner` no aparece en `frontend/package.json` | Agregarlo antes de incluirlo como dependencia obligatoria. |
 | `pgserver` oficial no está declarado ni hay una librería PyPI disponible según `requirements-test.txt` | Mantener la compatibilidad local existente; no ejecutar `backend/pgserver/__init__.py` en Python. |
 | `pytest` y `httpx` están aislados en `requirements-test.txt`, y el frontend no tiene scripts `test` | Deben incorporarse al alcance real antes de declarar QA automatizado listo. |

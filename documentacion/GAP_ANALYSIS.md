@@ -1,508 +1,182 @@
 # Gap Analysis — Acredittia
 
-Estado: borrador de revisión
-Fecha de referencia: 14-11-2026
-
-
-
-Este documento consolida la evidencia documental y técnica del proyecto a partir de la especificación funcional ([SRS.md](./SRS.md)) y la implementación actual en código. Este corte incorpora las pruebas/build y límites de validación registrados en [VALIDACION_ACTUAL.md](./VALIDACION_ACTUAL.md); el análisis de brechas no sustituye aceptación de producto ni certificación de producción.
-
-## 1. Propósito
-
-Este documento complementa al SRS y al plan operativo. Su objetivo es resumir las brechas funcionales, de seguridad, de auditoría y de producto que aún no están cerradas antes de considerar la consola administrativa como un módulo listo para producción.
-
-No reemplaza el SRS. Sirve como registro de evidencia y de decisiones pendientes para cerrar requisitos, riesgos y pruebas.
-
-## 2. Método
-
-Se compararon tres fuentes:
-
-- Requisitos funcionales del SRS y de la matriz de administración.
-- Evidencia funcional implementada en la API y en el frontend.
-- Decisiones pendientes o no aprobadas registradas en documentación y conversaciones de producto.
-
-La evaluación no se basa solo en la existencia de pantallas. Se prioriza la evidencia de cumplimiento por criterios de aceptación, autorización, auditoría, aislamiento de datos y validación operativa.
-
-## 3. Resumen ejecutivo
-
-**Actualización 04-11-2026 — cronograma simplificado:** se adopta un plan
-de cierre inicial de dos semanas, del 5 al 19 de noviembre de 2026. Semana 1:
-vulnerabilidades frontend, mínimo privilegio, pruebas negativas, roles PostgreSQL,
-RLS y preparación DEC-08. Semana 2: restauración real, medición de rollback/RPO/RTO,
-auditoría de consultas/exportaciones, pruebas finales y decisión GO/NO-GO. El plan
-no acelera ni presume el cierre de los bloqueadores y debe mantenerse NO-GO
-mientras falten evidencia real y aprobaciones.
-
-**Actualización 13-10-2026:** además de las mejoras recientes de interfaz y
-trazabilidad, se revisaron el código y la documentación de las ocho prioridades
-ADMIN. La revisión estima **67% de avance funcional ADMIN** como promedio
-simple de estimaciones por prioridad: 75%, 90%, 55%, 60%, 70%, 70%, 50% y 62%.
-No se ejecutaron pruebas ni recorrido de navegador para producir esta
-estimación; no equivale a cumplimiento validado ni a preparación para
-producción. Los bloqueos P0 de DEC-08, permisos granulares, auditoría integral
-y evidencia de aislamiento/mínimo privilegio siguen abiertos.
-
-**Actualización 14-10-2026 — validación real del backend y reportes del portal de empresa:** la página `/reportes` ofrece generación, historial, descarga y programación de los seis tipos disponibles en PDF/CSV. El PDF tiene marca, metadatos, recuento de registros, tabla multipágina con encabezados repetidos y numeración de página. La suite backend quedó validada con PostgreSQL efímero en Docker: `python -m pytest -q` en `BASE/app/backend` obtuvo **399 aprobadas, 0 fallidas**. Queda un warning residual de compatibilidad del stack FastAPI/Starlette (`TestClient` con `httpx` deprecado), sin impacto funcional. El entorno local no exige `pgserver` externo; el repo incluye una compatibilidad local híbrida para iniciar PostgreSQL temporalmente.
-
-Esta entrega del portal de empresa corresponde al alcance funcional del producto y no altera el cálculo de avance de las ocho prioridades ADMIN, que sigue siendo una estimación documental. La preparación para producción sigue bloqueada por DEC-08 y por la necesidad de evidenciar permisos granulares, auditoría y aislamiento equivalente a producción.
-
-**Actualización 15-10-2026 13:55:03 -03:00 — portal de empresa y alcance de usuarios:** `/gestion-cuentas` permite listar, buscar, paginar y administrar cuentas asociadas. Durante impersonación, ADMIN ve Responsables de contrato y el perfil de empresa, no su perfil personal. Se restaura la conversión de una cuenta `company` a `contract_admin`, incluida la inicial, si queda otro `company` activo; solo se bloquea si sería el último (`ULTIMO_ADMINISTRADOR`). La interfaz confirma doblemente la reducción de alcance. La regresión de autenticación/tenant pasó 71/71 y el build frontend pasó. No existe todavía invitación/aceptación para vincular una cuenta existente; las invitaciones actuales crean usuarios nuevos y su entrega de token por correo sigue incompleta. Esta actualización no cambia el 67% histórico de avance ADMIN ni los bloqueos P0 de DEC-08, auditoría y aislamiento de producción.
-
-**Actualización 03-11-2026 — salud operativa y procesos programados:** se
-unificaron los horarios Celery Beat/APScheduler bajo el ciclo de `ops_jobs`,
-incluyendo historial, pausa y prevención de solapamiento. En Compose local se
-aplicó y verificó el esquema 12; Beat despachó heartbeat y reportes por Redis,
-el worker completó los runs `4476`, `4477` y `4478` con estado `ok`, y el
-heartbeat sondeó seis componentes. Se ejecutaron 124 pruebas focalizadas y el
-build frontend pasó. Esta evidencia mejora la validación técnica de
-Salud/Sistemas, pero no cierra pruebas de fallo/recuperación, trazabilidad
-integral ni disponibilidad externa de Azure Blob/IA simulada. Tras la
-verificación, Compose se detuvo por solicitud; los servicios están detenidos y
-los datos conservados.
-
-**Actualización 04-11-2026 — RF-AUD-02:** se incorporó auditoría persistente
-de autenticación para ingreso exitoso/fallido, cierre, rotación de refresh y
-uso de una sesión revocada. Cada refresh conserva un identificador aleatorio
-de sesión sin guardar el token en claro ni credenciales. La consola global
-ADMIN filtra estos eventos por módulo/tipo. El esquema pasó a v14. Se ejecutaron
-36 regresiones de autenticación y 13 de esquema. Esto eleva la implementación
-inicial, pero no acredita cierre: quedan retención DEC-08, integridad,
-revocación administrativa y pruebas de autorización/aislamiento de consulta.
-
-**Actualización 10-11-2026 — RF-AUD-01:** 71 pruebas de `test_ops.py` y
-`test_contratos.py` aprobaron. El usuario revisó y confirma que las mutaciones
-administrativas acordadas (contratos, empresas/usuarios, concesiones, catálogos,
-plataformas, procesos y reset-demo) aparecen en auditoría. RF-AUD-01 se fija en
-90% y cierre funcional parcial. Queda un pendiente: verificar que los eventos
-de cambios de permisos/estados y pausa de procesos muestran valores
-anterior/nuevo cuando corresponda. El borrado físico de contratos está
-deshabilitado (HTTP 410). Con este ajuste, la media de 37 fichas es **76,6%
-(`2833 / 37`, 77% redondeado)**; la prioridad Auditoría y trazabilidad se
-recalcula a 73,3% y el promedio de las ocho prioridades ADMIN a 73,7% en ese
-corte.
-
-**Corte previo 10-11-2026 — RF-BUS-01/02:** el usuario confirmó que probó y
-verificó el funcionamiento de RF-BUS-01, que pasa a IV (100%). También confirmó
-que la búsqueda no revela tokens ni información sensible. RF-BUS-02 permanece
-PAR/P0 al 65% hasta validar autorización granular, acceso directo a detalle/API,
-alcance y ciclo de vida de concesiones y exportaciones. El promedio de las 37
-fichas pasa a **77,1% (`2853 / 37`)** y el de las ocho prioridades ADMIN a
-**74,9% (75% redondeado)**.
-
-**Cierre técnico RF-BUS-02 — 10-11-2026:** se validaron en servidor las
-concesiones por titular, categoría, vencimiento, revocación, empresa y recurso;
-la redacción de la ficha directa; y la denegación/filtrado de la exportación ZIP.
-La salida PDF revisada es agregada. Las pruebas focalizadas de buscador,
-administración, respaldos y privacidad pasaron **83/83**, y el build frontend
-pasó. RF-BUS-02 queda IV/P0 al 100% en las rutas de búsqueda, ficha vinculada y
-exportación probadas. El listado administrativo independiente de usuarios se
-mantiene bajo RF-USU y fuera de este cierre. Las métricas se recalculan a
-**78,1% (`2888 / 37`)** para los 37 requisitos, **77,1%** para las ocho
-prioridades ADMIN y **61,1%** para los nueve requisitos P0. No se realizó un
-recorrido manual de navegador; el proyecto conserva su NO-GO general de
-producción por otros bloqueos.
-
-**Reevaluación 12-11-2026 — perfil y procesos críticos:** se actualizan de
-forma conservadora dos fichas directamente afectadas:
-
-- **RF-CLI-01: 75% → 80% (+5 puntos).** Mi perfil exige la contraseña actual
-  al solicitar un correo nuevo y solo lo activa tras confirmar por email un
-  token hasheado, de un solo uso y con expiración; ausencia/fallo de SMTP
-  bloquea la solicitud. Se validó en pruebas de autenticación y esquema. No se
-  da por cerrado el canal real de recuperación de contraseña ni se probó SMTP
-  real.
-- **RF-SAL-03: 90% → 95% (+5 puntos).** Se persisten y exponen progreso/etapa
-  cuando el runner puede medirlos; cola, estado e historial se actualizan sin
-  recarga y el historial aparece junto al proceso seleccionado. La regresión
-  focalizada de operaciones y esquema pasó 54 pruebas y el build frontend
-  pasó. No se asigna porcentaje ficticio a tareas sin progreso medible. Siguen
-  pendientes aceptación visual del usuario, fallos/recuperación distribuida y
-  trazabilidad integral.
-
-La suma de las 37 estimaciones individuales vigentes es **2.918**, es decir,
-`2918 / 37 = 78,9%`. Al revertir para comparación los cinco puntos añadidos a
-RF-CLI-01 y RF-SAL-03, la base inmediatamente anterior a esta entrega es
-`2908 / 37 = 78,6%`; el efecto de estos cambios es `10 / 37 = +0,3 puntos
-porcentuales`. El agregado anterior publicado como `2888 / 37` estaba 20
-puntos por debajo de la suma de las fichas y se corrige en este corte. El
-promedio de ocho prioridades ADMIN pasa de 77,1% a **77,3%**: Salud se
-recalcula de `(75 + 80 + 90) / 3 = 81,7%` a
-`(75 + 80 + 95) / 3 = 83,3%`; los otros siete promedios no cambian.
-Recalculados desde las 37 fichas actuales, P0 suma `650 / 9 = 72,2%`, P1
-`1853 / 22 = 84,2%` y P2 `415 / 6 = 69,2%`. La base P1 sin estos cambios era
-`1843 / 22 = 83,8%`. Estos valores sustituyen los promedios P0/P1/P2
-publicados anteriormente, que no coincidían con las estimaciones individuales
-del SRS. Son estimaciones documentales de cobertura, no mediciones objetivas
-de esfuerzo, aceptación integral ni preparación productiva. La mejora visual
-sin salto se contabiliza dentro de RF-SAL-03, no como un incremento adicional.
-
-**Línea base de cobertura de código — SRS v0.62, 03-11-2026:** la revisión de
-las 37 fichas (29 funcionales y 8 no funcionales) estimó 68,6% (`2538 / 37`).
-Reevaluó RF-SAL-02 55→70, RF-SAL-03 80→90, RF-USU-01 65→75, RF-CLI-07 90→93,
-RNF-REP-01 60→65, RNF-VAL-01 75→80 y RNF-OPE-01 60→75. Los demás valores eran
-estimaciones del SRS, no una auditoría automatizada de criterios.
-
-**Actualización RNF-REC-01 / DEC-14 — 03-11-2026:** se implementó el flujo
-inicial ADMIN de respaldo cifrado local, retención, verificación/restauración
-controlada y exportación de conjuntos administrativos. El job queda pausado
-hasta que exista configuración válida. Las pruebas focalizadas pasaron 54/54
-y el build web pasó; el ciclo local de restauración real ya fue acreditado, y faltan
-aplicó el esquema 13 al entorno detenido. RNF-REC-01 se reestima de 0% a 50%;
-la cobertura estimada de ese corte pasó a **69,9% (`2588 / 37`, 70% redondeado)**.
-Por dominio: ADMIN 69,5%, portal 78,7% y RNF 61,3%; P0 54,4%, P1 78,1% y P2
-63,3%. Es una actualización de cobertura de código/evidencia, no de aceptación
-ni de preparación productiva. La estimación de las ocho prioridades ADMIN
-permanece en 67,5%; no se reponderó por esta entrega.
-
-**Actualización RF-SAL-02 — 03-11-2026, 19:40 -03:00:** se aprobaron cinco
-regresiones aisladas: API inaccesible mientras los workers siguen activos,
-heartbeat vencido y recuperación, umbral p95, Redis caído, ausencia de workers
-y profundidad de cola en y sobre el límite. RF-SAL-02 sube
-de 70% a 80%; queda pendiente confirmar recuperación de workers con una
-integración distribuida real y proveedores externos. Con el mismo promedio
-simple por ficha, los 37 requisitos alcanzan **74,5% (`2758 / 37`, 75%
-redondeado)** tras RF-AUD-02, RF-SEG-02, RNF-PER-01, RF-BUS-02 y RF-CLI-09. Salud ADMIN promedia 81,7% y las ocho prioridades ADMIN
-promedian **71,1%**; ADMIN promedia 70,0%, los requisitos P1 78,5%, P0 54,4%
-y P2 63,3%. La suite estándar no pudo arrancar porque el `conftest` requiere
-Docker disponible desde dentro; los cinco casos se ejecutaron de forma aislada
-sin levantar la pila Compose, que permanece detenida.
-
-El módulo admin tiene una base funcional sólida en:
-
-- dashboard general y KPI operativos,
-- gestión global de empresas,
-- listado y control de usuarios,
-- búsqueda global básica,
-- alertas en empresa y contratos,
-- auditoría de actividades relevantes,
-- políticas de aislamiento por tenant y roles.
-
-Sin embargo, todavía existen brechas importantes en:
-
-- permisos granulares por categoría y por recurso,
-- auditoría completa de accesos sensibles, descargas y exportaciones,
-- acceso excepcional mínimo necesario para documentos sensibles,
-- definición de métricas SaaS y de salud con universos claros,
-- gestión multiempresa / alcance de cuenta entre entidades,
-- validación de entorno de producción y control de exportaciones/restauración.
-
-El estado global es mejor que un prototipo, pero no alcanza la madurez de producción sin cerrar esas brechas.
-
-La principal señal de riesgo es el bloqueo P0 documentado en el SRS:
-
-- DEC-08 quedó acordada como política interna el 09-11-2026; no pasar a producción con datos reales hasta confirmar su aplicabilidad.
-- En PostgreSQL, el usuario confirmó versión máxima de migración 16 y `effective_at=2026-11-09 03:00:00+00` (medianoche local UTC−03). También confirmó `ops_retencion` activo y reportó ejecución manual local `ok` el 10-11-2026 a las 00:18:52, con 0 filas podadas y 0 ejecuciones marcadas timeout. Esto acredita ejecución sin error, no la configuración de todas las fuentes. No se acreditaron la retención de 90 días en Log Analytics, el inventario/revisión de registros históricos ni la aprobación de aplicabilidad por producción.
-
-el avance reportable del conjunto de requisitos documentados es **81,4%
-(81% redondeado)**: promedio de 37 porcentajes revaluados, con igual peso para
-cada requisito. El 67% del 13-10 era el promedio de ocho prioridades ADMIN;
-no era el avance total del proyecto. La línea base SRS v0.62 fue 68,6%;
-RNF-REC-01 se reestimó de 60% a 100% tras acreditar el ciclo local de creación,
-descarga `.acb`, eliminación, importación, verificación y restauración.
-Para mantener comparabilidad, el
-promedio actualizado de esas ocho prioridades es **81,0% (81% redondeado)**:
-se reevalúan Dashboard global (90%), Buscador global (100%), Salud y operación
-como promedio simple de RF-SAL-01 (75%), RF-SAL-02 (80%) y RF-SAL-03 (95%),
-Auditoría como promedio simple de RF-AUD-01 (90%), RF-AUD-02 (70%) y RF-AUD-03
-(60%), y Seguridad como promedio de sus cuatro requisitos (81,3%). Las otras
-tres prioridades conservan su estimación previa. No hay un
-modelo de ponderación aprobado, y varios requisitos siguen
-usando estimaciones anteriores; por ello 81,0% es una
-estimación basada en cobertura de código/evidencia, no un porcentaje medido de
-líneas, esfuerzo o criterios aceptados. La preparación para producción real
-con datos sensibles no se puntúa: DEC-08 y otros bloqueos P0 permanecen
-abiertos.
-
-## 4. Fuentes de evidencia utilizadas
-
-- [SRS.md](./SRS.md) — requisitos, prioridades, estados, bloqueos y criterios.
-- [README.md](../README.md) — contexto general del proyecto y observaciones operativas.
-- [README_ops_Back.md](../README_ops_Back.md) — trazabilidad de la consola interna backend.
-- [BASE/app/backend/app/main.py](../BASE/app/backend/app/main.py) — arranque API y guardas de seguridad.
-- [BASE/app/backend/app/config.py](../BASE/app/backend/app/config.py) — configuración de producción y validaciones.
-- [BASE/app/backend/app/routers/admin.py](../BASE/app/backend/app/routers/admin.py) — administración global.
-- [BASE/app/backend/app/routers/admin_ops.py](../BASE/app/backend/app/routers/admin_ops.py) — consola interna y métricas.
-- [BASE/app/backend/worker/ops_tasks.py](../BASE/app/backend/worker/ops_tasks.py) — jobs, health y operación.
-- [BASE/app/backend/app/services/ops_probes.py](../BASE/app/backend/app/services/ops_probes.py) — sondas de salud y telemetría.
-- [BASE/modelo_datos/12_scheduling_operacional.sql](../BASE/modelo_datos/12_scheduling_operacional.sql) — actualización del cron de reportes programados.
-- [BASE/app/backend/app/routers/reportes.py](../BASE/app/backend/app/routers/reportes.py) y [BASE/app/backend/app/services/pdf.py](../BASE/app/backend/app/services/pdf.py) — generación y formatos de reportes del portal.
-- [VALIDACION_ACTUAL.md](./VALIDACION_ACTUAL.md) — evidencia y límites de validación del sistema, incluyendo procesos programados.
-
-## 5. Matriz de cumplimiento por prioridad de ADMIN
-
-| Prioridad ADMIN | Estado | % estimado al 14-11-2026 | Observación |
-|---|---|---:|---|
-| Dashboard global | Avanzado | 90% | RF-DAS-01 está al 100% tras la confirmación visual del usuario; RF-DAS-02 y las series de adopción siguen pendientes. |
-| Gestión global de empresas | Avanzado | 90% | Listado y ficha agregada con industria, estado de cuenta, perfiles y responsables; el rechazo y los casos límite siguen pendientes. |
-| Buscador global | IV en alcance probado | 100% | RF-BUS-01 y RF-BUS-02 al 100%. Pruebas API de autorización por categoría, alcance/vigencia/revocación de concesiones, ficha directa y ZIP limitado; 83 pruebas focalizadas y build frontend aprobados. El listado administrativo independiente de usuarios se sigue en RF-USU. |
-| Métricas SaaS | Parcial | 60% histórico, no recalculado | RF-MET-02 tiene telemetría real implementada y probada; la estimación previa queda aparte. RF-MET-01/03 y la distinción entre revisiones de IA y documentos únicos siguen pendientes. |
-| Alertas y salud de clientes | Parcial | 83,3% | Promedio de RF-SAL-01 (75%), RF-SAL-02 (80%) y RF-SAL-03 (95%). Los procesos muestran etapas/progreso cuando se puede medir, historial actualizado automáticamente y visible junto al proceso seleccionado; suite focalizada de operaciones/esquema y build aprobados. Siguen pendientes recuperación distribuida real, casos de salud de clientes y totales/paginación. Azure Blob e IA simulada no acreditan disponibilidad SaaS externa. |
-| Usuarios, roles y permisos | Parcial | 70% | La consola pagina usuarios; el portal permite convertir `company` a `contract_admin` si queda otro `company` activo. Se conserva el bloqueo de último administrador. Falta invitación/aceptación de cuentas existentes, correo de activación y validación integral de permisos. El 70% es la estimación histórica del 13-10, no recalculada en este corte. |
-| Auditoría y trazabilidad | Parcial | 73,3% | RF-AUD-01 al 90%: mutaciones acordadas revisadas por el usuario y registradas; queda comprobar anterior/nuevo para permisos/estados y pausa de procesos. RF-AUD-02 registra autenticación, cierre, rotación y revocación. RF-AUD-03 conserva pendientes de acceso/exportación, retención e integridad. |
-| Seguridad y aislamiento de datos | Parcial; bloqueo P0 | 81,3% | RNF-SEG-01 queda IV/100% tras la confirmación del usuario de roles separados, RLS efectivo con roles reales, denegaciones y secretos externos en el entorno destino, con la condición DEC-10 verificada. Las pruebas focalizadas de roles, configuración, tenants y esquema pasaron 76/76. RF-SEG-02 está al 95%; quedan revisión de lecturas sensibles y otros controles de RF-SEG-01/02/03. Compose local de desarrollo conserva rol elevado. |
-
-### % global estimado
-
-El promedio actualizado de las ocho prioridades ADMIN es **81,0% (81%
-redondeado)**: `(90 + 90 + 100 + 60 + 83,3 + 70 + 73,3 + 81,3) / 8`. La prioridad
-de Salud se obtiene del promedio de sus tres requisitos asociados. El promedio
-de los 37 requisitos es **81,4% (81% redondeado)**: `3013 / 37`. El primer valor
-comparable con el 67% histórico de ADMIN; el segundo amplía el alcance e
-incluye el portal y requisitos no funcionales. No se dispone de ponderación
-por esfuerzo o criticidad, así que ambos son estimaciones, no medidas objetivas
-ni aceptación.
-
-| Indicador | Valor |
-|---|---:|
-| Avance funcional estimado de las ocho prioridades ADMIN | 81,0% (81% redondeado) |
-| Cobertura estimada de los 37 requisitos SRS | 81,4% (81% redondeado) |
-| Avance total ponderado del producto Acredittia | No determinado; falta ponderación por alcance/esfuerzo aprobada |
-| Preparación para producción real con datos sensibles | No puntuada; bloqueada por brechas P0 y DEC-08 |
-| Cumplimiento ADMIN validado como conjunto | No determinado; aceptación integral pendiente |
-| Estado del riesgo crítico operativo | Alto; no expresado como porcentaje de avance |
-
-Por prioridad de requisito, los nueve P0 promedian **72,2%**, los 22 P1
-**84,2%** y los seis P2 **69,2%**. La conclusión es que existe una base
-funcional amplia, pero el 70% estimado no significa que el producto esté listo
-para producción real. Persisten brechas críticas de permisos granulares,
-aislamiento/mínimo privilegio, auditoría y revisión legal/retención.
-
-## 6. Brechas por prioridad
-
-### 6.1 Dashboard global
-
-Estado: parcial.
-
-Cumple parcialmente:
-- cuentas de empresas, contratos, trabajadores y usuarios;
-- porcentaje de acreditación global;
-- documentos pendientes/vencidos;
-- actividad y crecimiento visible.
-
-Brechas:
-- falta acuerdo explícito sobre universos y denominadores de cada KPI;
-- necesidad de distinguir "actividad" de "crecimiento de clientes" y "adopción";
-- algunos indicadores dependen de series o eventos no normalizados aún;
-- falta validación de definiciones de venta/uso, especialmente para métricas SaaS.
-
-Riesgo:
-- reportes incorrectos o comparaciones engañosas entre paneles.
-
-### 6.2 Gestión global de empresas
-
-Estado: principalmente funcional en lectura y control administrativo.
-
-Cumple parcialmente:
-- listado de empresas;
-- estado de cada cliente;
-- número de contratos y trabajadores;
-- nivel de uso y última actividad;
-- ocultación de datos sensibles innecesarios en listados.
-
-Brechas:
-- falta validación completa de rechazos, transiciones y flujo de aprobación de registro;
-- quedan pendientes decisiones sobre empresas multi-contrato y sobre la representación de flujo comercial vs operativo;
-- la industria y el estado de cuenta ya se muestran en la tabla y el detalle agregado incluye perfiles/responsables; esto no reemplaza la diferenciación entre detalle operativo y detalle comercial ni valida la exactitud de los estados de pago.
-
-Riesgo:
-- decisiones orientadas a la administración sin distinguir claramente compradores, empresas, usuarios, contratos y obligaciones.
-
-### 6.3 Buscador global
-
-Estado: RF-BUS-01 y RF-BUS-02 IV (100%) dentro de las rutas y operaciones
-definidas para el buscador global.
-
-Cumple:
-- búsqueda por empresa, contrato, trabajador, equipo y usuario;
-- autorización de servidor por categoría, con denegación sin concesión para
-  trabajadores/usuarios;
-- validación de concesión por titular, categoría, expiración, revocación,
-  empresa y recurso;
-- redacción o filtrado de identidades en la ficha directa vinculada;
-- exportación ZIP denegada sin concesión de usuarios y limitada por empresa/
-  recurso cuando se autoriza; PDF de resumen agregado;
-- pruebas focalizadas de autorización, minimización y alcance: 83 aprobadas.
-
-Pendiente fuera de RF-BUS-02: revisar el listado administrativo independiente
-`GET /admin/users` bajo RF-USU; no se realizó recorrido manual de navegador.
-Este cierre no altera el NO-GO general ni otros bloqueadores P0 de producción.
-
-### 6.4 Métricas SaaS
-
-Estado: parcial.
-
-Cumple parcialmente:
-- empresas activas;
-- usuarios activos;
-- sesiones;
-- tiempo de uso;
-- documentos procesados;
-- evolución mensual;
-- identificación de clientes con baja actividad, presentada ahora en Salud de clientes.
-
-Brechas:
-- RF-MET-02 está implementado y pasó pruebas focalizadas; queda revisión visual y desplegar la migración en el entorno destino;
-- la validación de crecimiento y series positivas/negativas de RF-MET-01/03 no está completamente cerrada; documentos procesados siguen sin equivaler necesariamente a documentos únicos. Los indicadores de uso/adopción y la distribución de usuarios por plan/industria se presentan en Salud de clientes.
-
-Riesgo:
-- métricas no auditables ni comparables entre períodos.
-
-### 6.5 Alertas y salud de clientes
-
-Estado: parcial.
-
-Cumple parcialmente:
-- alertas de acreditación y vencimientos;
-- alertas por documentación pendiente;
-- salud de clientes y listado de incidentes;
-- panel de salud con alertas activas;
-- indicadores de uso/adopción, clientes con baja actividad y usuarios por plan/industria, con detalle desplegable.
-
-Brechas:
-- faltan umbrales explícitos para baja actividad, muchos pendientes y vencimientos;
-- falta distinguir claramente empresa sin usuarios, empresa con usuarios sin actividad, empresa sin documentos y salud correcta;
-- los totales y paginación de bandeja requieren validación en casos límite;
-- se verificó en Compose local el heartbeat y las sondas API, PostgreSQL, Redis/workers y Storage local; faltan escenarios negativos, vencimiento/recuperación del heartbeat y validación de datos/umbrales. Azure Blob no fue sondeado para evitar operaciones facturables; IA simulada no acredita salud SaaS externa.
-
-Riesgo:
-- falsas alarmas o alarmas no accionables, con impacto operativo.
-
-### 6.6 Usuarios, roles y permisos
-
-Estado: funcional en parte, pero incompleto.
-
-Cumple parcialmente:
-- roles admin, company y contract_admin;
-- asignación de empresa y contrato;
-- revocación y reactivación de acceso;
-- registro de último acceso;
-- invalidación de sesiones al cambiar permisos.
-- ajuste aplicado: desde la ficha de empresa del admin se muestran las cuentas asociadas, su perfil, rol y responsable de contrato para facilitar la gestión y la auditoría sin ocultar datos necesarios a la administración global.
-
-Brechas:
-- no existe una invitación formal para vincular una cuenta existente a una empresa ni un flujo de aceptación de esa membresía; el endpoint actual crea usuarios nuevos, guarda un token de activación pero no lo entrega por email;
-- una cuenta no puede ser miembro de varias empresas salvo decisión explícita del cliente;
-- la conversión de `company` a `contract_admin` se permite desde gestión de empresa, incluida la cuenta inicial, si queda otro `company` activo. API conserva `ULTIMO_ADMINISTRADOR` para no dejar a la empresa sin administrador; la administración global de ADMIN es una vía distinta;
-- no está cerrada la matriz de permisos de acceso excepcional y temporales;
-- no está totalmente validado el comportamiento con permisos cruzados. En la consola ADMIN los cambios de rol/empresa/contrato ya exigen confirmación contextual y motivo, se registran con valores anteriores/nuevos y revocan las sesiones del usuario; esto no constituye auditoría completa de todas las operaciones.
-
-Riesgo:
-- crecimiento del sistema sin modelo de alcance definido.
-
-### 6.7 Auditoría y trazabilidad
-
-Estado: parcial.
-
-Cumple parcialmente:
-- eventos de actividad y cambio;
-- cambios de estado de empresa y cuentas afectadas, revocación de usuario sin
-  empresa, cambios de faenas/plantillas y alta de plataformas de catálogo;
-- valores anteriores/nuevos en cambios auditados de catálogo, usuario,
-  empresa y contrato;
-- edición y transiciones de ciclo de contrato con motivo y estado anterior/nuevo;
-- ingreso exitoso/fallido, cierre, rotación y reutilización revocada de sesión;
-- correlación aleatoria de sesión sin almacenar refresh tokens ni contraseñas;
-- consulta global ADMIN con filtros de módulo/tipo y esquema v14;
-- motivo en ciertas solicitudes de acceso o URL;
-- registro de actividad global.
-
-Brechas:
-- falta inventariar y verificar todas las mutaciones de las rutas administrativas
-  y del catálogo acordado;
-- falta validar retención y integridad conforme a DEC-08;
-- falta completar pruebas de acceso autorizado y aislamiento de la consulta;
-- falta una revocación administrativa masiva y su auditoría comprobada;
-- falta acreditar expiración y rotación automática con casos terminales;
-- falta historial uniforme de descargas, exportaciones y documentos sensibles;
-- falta distinguir claramente creación, actualización, asignación, borrado, desactivación y reactivación;
-- no está cerrado el catálogo de acceso a metadatos sensibles ni la retención de auditoría.
-
-Riesgo:
-- no se puede responder auditivamente quién consultó qué, cuándo, por qué y con qué alcance.
-
-### 6.8 Seguridad y aislamiento de datos
-
-Estado: parcialmente implementado, pero no listo para producción.
-
-Cumple parcialmente:
-- RLS en tablas con company_id;
-- control de acceso en backend;
-- concesiones excepcionales ADMIN persistentes, limitadas a 24 horas, con motivo, alcance, auditoría y revocación;
-- esquema v15 con RLS reforzado sobre las concesiones;
-- separación física por tenant en parte de la base de datos;
-- consideración de privilegios mínimos.
-
-Brechas:
-- la base de datos del Compose sigue usando modelos de desarrollo, no una configuración de producción real;
-- falta validación con roles reales de mínimo privilegio y credenciales producidas para cada servicio;
-- faltan pruebas de denegación cruzada entre empresas y contratos;
-- falta validar el flujo de autoconcesión de la interfaz ADMIN contra el backend integrado;
-- el listado global `GET /admin/users` y otras lecturas sensibles requieren terminar su revisión;
-- las credenciales de despliegue real y los permisos efectivos de producción no se han validado.
-
-Riesgo:
-- acceso accidental o no autorizado a datos sensibles.
-
-## 7. Decisiones pendientes y bloqueadores
-
-Estas son las decisiones, implementaciones y validaciones que todavía deben
-cerrarse antes de avanzar con una liberación productiva:
-
-- DEC-08: retención, privacidad y auditoría de datos sensibles.
-- DEC-10: demostrar mínimo privilegio y aislamiento en API/BD; RLS contractual sigue condicionado a viabilidad y pruebas.
-- DEC-11: implementar y validar exportación de datos/archivos, autorización, motivo, auditoría y viabilidad en grandes volúmenes.
-- DEC-12: el ciclo de contratos está implementado con validación focalizada; falta aceptación integral y cobertura adicional.
-- DEC-13: transferencia de cuenta entre empresas, propuesta pendiente de aprobación del cliente.
-
-Adicionalmente, quedan pendientes:
-
-- decisión concreta de si una cuenta puede pertenecer a varias empresas;
-- política formal de exportación/restauración y copias de seguridad;
-- política de eliminación de datos y relaciones, separada del ciclo contractual acordado en DEC-12;
-- definición de qué elementos no se muestran en dashboards globales por privacidad;
-- retención y eliminación de actividades, alertas y exportaciones;
-- validación de compatibilidad con entornos de despliegue reales.
-
-## 8. Riesgos de no cerrar estas brechas
-
-Si no se cierran, la plataforma corre riesgo de:
-
-- presentar resultados engañosos en el dashboard global;
-- permitir acceso cruzado por mala interpretación del alcance;
-- no responder adecuadamente a auditorías regulatorias o internas;
-- crear alertas no confiables o no accionables;
-- generar exportaciones o descargas no controladas;
-- comprometer la confianza del cliente al manejar datos de otras empresas.
-
-## 9. Recomendación de avance
-
-Se recomienda tratar estas brechas en este orden:
-
-1. Seguridad y aislamiento: mínimo privilegio, denegación cruzada y acceso excepcional.
-2. Auditoría: autenticación, exportaciones, descargas, lecturas sensibles y trazabilidad.
-3. Permisos y alcance: usuarios, roles, empresa/contrato y multiempresa.
-4. Métricas y salud: definiciones y validación de series.
-5. Buscador y dashboard: permisos, universos y tabla de estados objetivos.
-6. Cierre documental y validación final con pruebas automatizadas y manuales.
-
-## 10. Criterio de cierre sugerido
-
-La documentación no debe considerarse cerrada hasta que exista evidencia de:
-
-- criterios de aceptación escritos por requisito;
-- pruebas automatizadas o manuales documentadas por dominio;
-- validación de permisos y aislamiento con roles reales;
-- definición de métricas con universos y ventana temporal;
-- evidencia de auditoría para cada operación sensible;
-- aprobación del cliente o del dueño del producto para las propuestas pendientes.
-
-## 11. Conclusión
-
-La consola administrativa ya no se encuentra en una fase totalmente exploratoria. Tiene una base funcional útil y una estructura de permisos y dashboards con valor operativo. Sin embargo, aún no cumple la madurez esperada para producción porque varias brechas críticas siguen abiertas en seguridad, permisos, auditoría, exportaciones y métricas.
-
-Por ese motivo, el estado correcto del módulo es: funcional y parcialmente validado, pero aún no cerrado para go-live con datos reales.
-
-El resumen siguiente refleja los ajustes ADMIN del 13-10-2026 y la entrega del
-portal de empresa del 14-10-2026; para el
-detalle vigente de estado y evidencia, prevalecen las secciones 3 a 10 y los
-documentos enlazados, no las estimaciones históricas.
+**Corte vigente:** 18-11-2026  
+**Estado:** funcionalmente avanzado; **NO-GO** para producción con datos reales.
+
+Este análisis refleja la implementación y la evidencia documentada en el SRS
+v1.03 y en [VALIDACION_ACTUAL.md](./VALIDACION_ACTUAL.md). Distingue entre
+funcionalidad local, validación en el entorno destino y aceptación para
+producción; una no sustituye a las otras.
+
+## 1. Resumen ejecutivo
+
+- Cobertura estimada de las 37 fichas SRS: **84,8% (3.138/37)**.
+- Promedio estimado de las ocho prioridades ADMIN: **82,7%**.
+- Promedios estimados P0/P1/P2: **86,1% / 84,7% / 83,3%**.
+- Son promedios documentales de avance por requisito, no un porcentaje
+  ponderado del producto, aceptación contractual ni preparación productiva.
+- El proyecto sigue **NO-GO** hasta cerrar los bloqueos P0 de privacidad,
+  seguridad, auditoría y validar continuidad, despliegue y regresión completa.
+
+### Cierres respaldados dentro de su alcance
+
+- `RF-DAS-01`: dashboard global funcional, con universos acordados y “N/A”
+  cuando no hay documentos evaluables.
+- `RF-BUS-01/02`: búsqueda, concesiones, alcance y exportación probados.
+- `RNF-SEG-01`: roles, RLS, denegaciones y secretos confirmados en el entorno
+  destino; no implica que todo `RF-SEG-01/02/03` esté cerrado.
+- `RF-AUD-03`: exportación de negocio con autorización, motivo, auditoría y
+  documentos asociados validada localmente (46 pruebas y pruebas sintéticas
+  de 60 MiB/10.000 filas). No es certificación de producción.
+- `RNF-REC-01`: creación, descarga, eliminación, importación, verificación y
+  restauración local acreditadas; recuperación productiva sigue pendiente.
+- Exportación general ADMIN: PDF y ZIP contienen solo resúmenes agregados; la
+  exportación de negocio permanece separada.
+- El PDF ADMIN ahora usa gráficos circulares para estados, líneas para series
+  mensuales y barras horizontales para comparaciones. Las dos pruebas
+  focalizadas de generación PDF pasaron con
+  `tests/test_admin_backups.py -k "export_console_pdf_resumen or export_pdf_summary_needs_no_user_grant"`;
+  el usuario confirmó que el flujo se ve más claro. Véase
+  [console_exports.py](../BASE/app/backend/app/services/console_exports.py).
+
+## 2. Matriz de prioridades ADMIN
+
+Los porcentajes se conservan según el corte vigente del SRS; los recortes de
+alcance no se usan para inflarlos.
+
+| Prioridad | Avance estimado | Funcionamiento actual | Brecha mínima restante |
+|---|---:|---|---|
+| Dashboard global | 90% | `RF-DAS-01` al 100%; KPI y universos acordados. | `RF-DAS-02`: completar/aceptar las series de actividad y crecimiento incluidas en el alcance de producto. |
+| Gestión global de empresas | 90% | Listado y ficha agregada; datos de empresa, usuarios y contratos disponibles. | Validar rechazo y transiciones/casos límite del flujo de empresa. |
+| Buscador global | 100% | `RF-BUS-01/02` validados en las rutas y operaciones probadas. | Ninguna para este requisito. El listado ADMIN de usuarios se mantiene en `RF-USU`. |
+| Métricas SaaS | 60% histórico | Telemetría de sesiones/uso implementada para `RF-MET-02`. | Cerrar definiciones y series de `RF-MET-01/03`; distinguir documentos únicos de revisiones IA. |
+| Alertas y salud | 83,3% | Alertas, sondas, historial y progreso medible de procesos disponibles. | Validar umbrales, totales/paginación y fallos/recuperación distribuida. |
+| Usuarios, roles y permisos | 70% histórico | Gestión de usuarios e invitaciones para cuentas nuevas dentro de una empresa. | Validar integralmente permisos y lecturas sensibles. La transferencia de una cuenta existente entre empresas queda fuera de la primera salida. |
+| Auditoría y trazabilidad | 86,7% | `RF-AUD-03` al 100% funcional local; `RF-AUD-01` 90%; `RF-AUD-02` 70%. | Revisar anterior/nuevo en eventos pendientes; completar retención, integridad, acceso y revocación administrativa de auditoría. |
+| Seguridad y aislamiento | 81,3% | `RNF-SEG-01` al 100% en el entorno destino; concesiones sensibles implementadas. | Completar matriz de operaciones empresa/contrato, inventario de lecturas sensibles y controles de despliegue (`RF-SEG-01/02/03`). |
+
+El promedio ADMIN de 82,7% y el promedio SRS de 84,8% no son métricas de
+preparación para producción. No hay un modelo de ponderación por esfuerzo,
+criticidad o aceptación aprobado.
+
+## 3. Bloqueos de salida y evidencia pendiente
+
+### P0 — Antes de usar datos reales
+
+1. **Privacidad (`DEC-08` / `RNF-PRV-01`, 80%).** DEC-08 está acordada y no
+   aplica a desarrollo/pruebas con datos simulados. Producción tendrá clientes
+   reales: falta aprobación del responsable de Producción sobre aplicabilidad
+   contractual/legal, reconciliar el plazo de 90 días con la política vigente,
+   demostrar retención por fuente (incluido Log Analytics) y documentar el
+   inventario/tratamiento de históricos. No borrar históricos antes de aprobar
+   su disposición.
+2. **Autorización y mínimo privilegio (`RF-SEG-01/02/03`).** `RNF-SEG-01` está
+   validado en el entorno destino; el Compose local de desarrollo conserva un
+   rol elevado. Completar pruebas de la matriz empresa/contrato en listados,
+   detalle, cambios, archivos y exportaciones; terminar el inventario de otras
+   lecturas sensibles; y validar roles, secretos y semillas en el despliegue
+   real.
+3. **Auditoría (`RF-AUD-01/02`).** Comprobar que cambios de permisos/estados y
+   pausas de procesos muestran anterior/nuevo cuando corresponde. Completar
+   evidencia de retención, integridad, aislamiento de consultas y revocación
+   administrativa de eventos de autenticación.
+4. **Entorno de aceptación.** No hay URL HTTPS de staging, remitente corporativo
+   ni buzón de prueba disponibles. Validar externamente acceso, invitación y
+   recuperación de contraseña antes del go-live.
+
+### P1 — Para una operación recuperable y repetible
+
+1. **Continuidad (`RNF-REC-01`).** RPO ≤24 h y RTO ≤30 min están acordados; la
+   última restauración local en esquema 23 reportó RPO 13,659 s y RTO 7,815 s
+   (`status=restored`), dentro de ambos objetivos. La programación diaria está
+   implementada, pero debe habilitarse y monitorearse tras configurar respaldos.
+   Siguen fuera del cierre funcional local el destino externo, el procedimiento
+   externo de claves y la recuperación ante pérdida total; no se exige una
+   prueba separada en staging.
+2. **Regresión (`RNF-VAL-01`).** La ejecución completa más reciente registró
+   517 aprobadas y 3 fallidas antes de corregir las rutas de migración. El
+   19-11-2026, `tests/test_esquema.py` y `tests/test_admin_backups.py` pasaron
+   41/41 tras agregar la migración 23 al fixture, actualizar la versión
+   esperada y probar la actualización de respaldos v22 durante la restauración.
+   Falta repetir la suite completa y validar con `citext`/`pg_trgm` reales en un
+   entorno reproducible.
+3. **Dependencias y reproducibilidad (`RNF-REP-01`).** Confirmar con auditoría
+   actual si siguen vigentes las vulnerabilidades reportadas anteriormente;
+   actualizar lo que corresponda, fijar dependencias/lockfiles para builds
+   reproducibles y repetir build/regresión. El hallazgo histórico de npm no se
+   presenta como vulnerabilidad confirmada en el corte actual.
+4. **Operación (`RNF-OPE-01`, `RF-SAL-02/03`).** Probar caída y recuperación de
+   API, worker y base de datos; verificar reintentos, heartbeat vencido,
+   recuperación distribuida y alertas con umbrales acordados.
+
+### Candidatos funcionales a diferir (requieren aprobación)
+
+- Definiciones y series avanzadas de adopción/métricas SaaS aún incompletas.
+- Casos excepcionales de rechazo y transiciones de empresas.
+- Umbrales de salud y escenarios límite de paginación/totales.
+- Validación visual/responsive y revisión de accesibilidad donde aplique.
+- Integraciones de proveedores externos solo requieren validación productiva si
+  el proveedor estará habilitado en la primera salida; un modo simulado no
+  acredita disponibilidad externa.
+
+## 4. Alcance mínimo acordado y recortes propuestos
+
+Solo se consideran acordados los límites confirmados por el usuario. Las
+propuestas de diferimiento de esta sección no cambian el SRS ni los porcentajes
+hasta que Producto las apruebe.
+
+- **Una empresa por cuenta** en la primera salida. Transferir una cuenta
+  existente entre empresas queda fuera de alcance y requiere una decisión
+  posterior para incorporarse.
+- **Invitar cuentas nuevas** dentro de la misma empresa está implementado. El
+  vínculo de una cuenta existente no se marca como aceptado ni como fuera de
+  alcance hasta que Producto confirme esa decisión.
+- **Exportación ADMIN general:** solo resúmenes globales agregados en PDF y
+  ZIP; no filas identificables. La exportación de negocio autorizada por
+  empresa/contrato/persona/equipo y documentos permanece separada.
+
+Estos recortes reducen el alcance de la primera salida; no eliminan requisitos
+P0 de privacidad, autorización, auditoría ni recuperación. Para cambiar el SRS
+o recalcular porcentajes se debe registrar la decisión y actualizar sus
+criterios de aceptación, no solo el GAP.
+
+### Recortes candidatos a aprobación de Producto
+
+- Diferir las métricas avanzadas de adopción hasta acordar sus fórmulas, dejando
+  en lanzamiento los KPI actuales con universos definidos.
+- Validar solo los proveedores externos habilitados para el lanzamiento. Una
+  integración simulada no acredita disponibilidad; los proveedores no
+  habilitados deben quedar desactivados y excluidos formalmente del alcance.
+- Mantener fuera de la primera salida la invitación para vincular cuentas
+  existentes, solo si Producto confirma que basta con invitar cuentas nuevas.
+- Priorizar rechazo y transiciones comunes de empresa; diferir escenarios
+  excepcionales no requeridos por el flujo aprobado, sin omitir denegaciones ni
+  controles de seguridad.
+
+## 5. Criterio de GO/NO-GO
+
+Mantener **NO-GO** para producción con datos reales hasta contar con evidencia
+de:
+
+- aprobación de Producción para privacidad/retención y tratamiento de históricos;
+- matriz de autorización y denegación probada en roles del entorno destino;
+- auditoría suficiente de operaciones y lecturas sensibles;
+- habilitación y monitoreo del respaldo diario; destino externo y procedimiento
+  de claves para preparación productiva (no requeridos para cerrar el alcance
+  funcional local);
+- suite completa posterior a las correcciones y auditoría actual de dependencias;
+- URL HTTPS, correo productivo y validación de los flujos desde el entorno de
+  aceptación.
+
+## 6. Fuentes de evidencia
+
+- [SRS.md](./SRS.md), versión 1.03, 18-11-2026: requisitos, porcentajes y
+  criterios vigentes.
+- [VALIDACION_ACTUAL.md](./VALIDACION_ACTUAL.md): pruebas, límites de evidencia,
+  DEC-08, restauración local y validación de flujos.
+- [ESTADO_SALUD_GENERAL.md](./ESTADO_SALUD_GENERAL.md): resumen NO-GO y riesgos.
+- [console_exports.py](../BASE/app/backend/app/services/console_exports.py):
+  exportación ADMIN y gráficos PDF.
+- [test_admin_backups.py](../BASE/app/backend/tests/test_admin_backups.py):
+  regresiones de exportación PDF/ZIP y respaldos.
+

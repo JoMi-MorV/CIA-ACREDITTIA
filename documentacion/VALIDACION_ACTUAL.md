@@ -1,4 +1,171 @@
-# Validación funcional — actualizado al 17 de noviembre de 2026
+# Validación funcional — actualizado al 19 de noviembre de 2026
+
+## Recuperación de respaldos — 19 de noviembre de 2026
+
+El objetivo funcional acordado es RPO ≤24 horas y RTO ≤30 minutos, con respaldos
+diarios. La última restauración local reportada el 19-11-2026 obtuvo
+`status=restored`, `schema_version=23`, RPO de 13,659 s y RTO de 7,815 s; cumple
+ambos objetivos. No se requiere prueba separada en staging para cerrar el
+alcance funcional local. La programación diaria permanece pausada hasta
+configurar y habilitar el respaldo. La evidencia local no certifica producción
+ni recuperación ante pérdida total del entorno.
+
+Tras implementar la migración 23 y actualizar el fixture/versión esperada,
+`pytest tests/test_esquema.py tests/test_admin_backups.py -q` pasó **41/41**,
+incluida una prueba que migra un respaldo v22 en la base aislada antes de
+validarlo; solo se emitió un warning no bloqueante de deprecación Starlette/httpx.
+
+## Exportación general de consola ADMIN — 18 de noviembre de 2026
+
+Se mantuvieron PDF y ZIP CSV+JSON, limitados a indicadores globales agregados,
+distribuciones agregadas, métricas mensuales, salud de servicios, procesos,
+incidentes agrupados y actividad por tipo/módulo. No incluyen filas
+identificables de empresas, usuarios, contratos, documentos ni actividad
+individual. La exportación de negocio con alcance y documentos permanece
+separada en `/api/v1/admin/exports/data`.
+
+La regresión de respaldos, privacidad y exportación de negocio pasó **37/37**;
+`npm run build` pasó. Quedó un warning no bloqueante de Starlette/httpx.
+
+## Invitaciones de cuentas — 18 de noviembre de 2026
+
+**Estado aprobado por el usuario: 98%.** El correo de invitación llegó a Spam
+del destinatario; se abrió el enlace, se creó la contraseña y se inició sesión
+correctamente. El flujo local queda aprobado. El 2% restante corresponde a la
+configuración productiva del remitente corporativo y a confirmar el acceso desde
+la URL pública definitiva.
+
+Se implementó el flujo simple de invitación para crear una cuenta dentro de la
+misma empresa:
+
+- Una cuenta `company` puede invitar usuarios desde `/gestion-cuentas`.
+- La invitación acepta `company` con alcance de toda la empresa o
+  `contract_admin` con un contrato activo obligatorio.
+- El usuario invitado queda asociado al `company_id` de la empresa.
+- El backend crea un token de activación aleatorio de 72 horas y guarda solo su
+  hash; el enlace se entrega por SMTP.
+- `/reset?token=...` permite crear la contraseña y la cuenta puede iniciar sesión.
+- Si SMTP falla, la cuenta se conserva creada y la API responde
+  `email_enviado=false`; el token no se devuelve.
+
+Validación automatizada ejecutada:
+
+```powershell
+python -m pytest tests/test_auth.py -k "invitacion or eliminar_invitacion or empresa_puede_eliminar" -q
+```
+
+Resultado: **5 aprobadas, 42 excluidas, 0 fallidas**; el build frontend aprobó.
+Una comprobación repetida posterior de eliminación pendiente también pasó.
+
+## SMTP real — 18 de noviembre de 2026
+
+Se configuró Gmail con `smtp.gmail.com:587`, STARTTLS y contraseña de aplicación.
+Compose fue recargado para API y worker y `docker compose config --quiet` pasó.
+
+La invitación real llegó a la carpeta Spam del destinatario. El usuario confirmó
+que el enlace permitió activar la cuenta e iniciar sesión. Esto valida el flujo
+local y SMTP, pero no garantiza la ubicación en la bandeja de entrada: los
+filtros y la reputación del remitente quedan fuera del control de la aplicación.
+
+Para producción falta configurar un remitente real de la empresa y establecer
+`FRONTEND_URL` con la URL HTTPS pública. En pruebas con ngrok, el túnel debe
+seguir activo y `FRONTEND_URL` debe apuntar al dominio de ngrok para que el enlace
+se pueda abrir desde otro dispositivo. No se debe compartir `.env` ni secretos.
+
+## Recuperación de contraseña desde el login — 18 de noviembre de 2026
+
+El acceso **¿Olvidaste tu contraseña?** en `/login` usa el endpoint
+`POST /auth/password/forgot`; el enlace abre `/reset`. La respuesta es opaca
+para evitar revelar si un correo tiene cuenta. El token se almacena como hash,
+es de un solo uso, expira a los 60 minutos por defecto y una solicitud nueva
+invalida el token anterior. Al cambiar la contraseña se revocan las sesiones
+anteriores. El mensaje de confirmación recomienda revisar Spam/Promociones.
+
+Validación ejecutada:
+
+```powershell
+python -m pytest tests/test_auth.py tests/test_config_seguridad.py -k "forgot or reset or recuperacion_no_expone_token" -q
+```
+
+Resultado: **11 aprobadas, 69 excluidas, 0 fallidas**. `npm run build` también
+pasó en la validación previa. Las pruebas no envían correos reales. Después de
+la corrección, el usuario confirmó que el flujo local de recuperación y cambio
+de contraseña funciona correctamente. En producción aún se debe configurar el
+remitente corporativo y una `FRONTEND_URL` pública accesible.
+
+### Error 500/CORS al solicitar el restablecimiento — corregido
+
+El 18-11 se confirmó que PostgreSQL aceptaba `restablecimiento` e `invitacion`,
+pero el endpoint intentaba insertar `reset`; el `CheckViolation` generaba el
+500 y, como efecto secundario, la respuesta carecía de la cabecera CORS. La API
+ahora usa el valor `restablecimiento`. La migración 22 normaliza la restricción
+y la ruta de actualización desde v21.
+
+Verificación local: migración aplicada correctamente (**v21 → v22**); API
+saludable; `OPTIONS` devolvió **200** con `Access-Control-Allow-Origin:
+http://localhost:3000`; `POST /auth/password/forgot` con un correo válido sin
+cuenta devolvió **200** y la misma cabecera CORS. No se envió un correo real en
+esta comprobación técnica; posteriormente el usuario confirmó que el flujo
+completo de recuperación funciona correctamente en local.
+
+## Preparación operativa local — 18 de noviembre de 2026
+
+Validaciones ejecutadas sin usar la base activa para restauraciones ni enviar
+correo a destinatarios reales:
+
+- `python -m pytest -q tests/test_admin_backups.py`: **22 aprobadas**. Cubre
+  controles de acceso/configuración, cifrado e integridad del paquete, límites
+  de importación, auditoría de exportaciones, cálculo del RPO desde la fecha del
+  respaldo y rechazo de reutilizar la URL de lectura como destino de restauración
+  en producción.
+- `python -m pytest -q tests/test_auth.py tests/test_config_seguridad.py -k "forgot or reset or invitacion"`:
+  **12 aprobadas, 54 excluidas**. Se ejecutó con PostgreSQL temporal y SMTP de
+  prueba; no valida entrega a un servidor de correo real.
+- `docker compose config --quiet`: aprobó. API y PostgreSQL reportaron estado
+  saludable; frontend, worker, beat y Redis estaban activos. API y frontend
+  escuchan solo en `127.0.0.1`, por lo que esta comprobación no valida acceso
+  HTTPS público.
+- Smoke test local: `/health`, preflight CORS y solicitud de recuperación con
+  dirección sintética respondieron **200**; CORS permitió
+  `http://localhost:3000`. No se envió correo.
+
+Las suites emitieron un warning no bloqueante de deprecación de
+`starlette.testclient` con `httpx`. Los resultados de prueba de esta sección no
+constituyen por sí solos una restauración integral ni miden el RTO de un
+incidente; la ejecución local reportada posteriormente se documenta al inicio
+de este archivo. Para preparación productiva siguen pendientes configurar y
+comprobar la infraestructura de respaldo y el destino externo, y demostrar
+recuperación ante pérdida total. No se exige una prueba separada en staging para
+cerrar el alcance funcional local. También faltan la URL HTTPS pública y el
+remitente corporativo para validar invitación y recuperación desde producción.
+No se abrió ni modificó `.env`.
+
+## DEC-08 — alcance de desarrollo y pruebas — 18 de noviembre de 2026
+
+El usuario confirma que el desarrollo y el entorno de pruebas usan únicamente
+datos simulados. DEC-08 queda **cerrada como no aplicable a esos entornos**; esto
+no autoriza el uso de datos reales ni cierra el bloqueo de producción.
+
+Para producción, el usuario designa al **responsable de Producción** como dueño
+de la revisión, indica 90 días como plazo de retención y dispone que los
+históricos permanezcan con acceso restringido y auditado, sin borrarlos hasta
+aprobar formalmente su disposición. El plazo y las categorías deben conciliarse
+con la política DEC-08 ya documentada antes del go-live. Siguen pendientes la
+validación contractual/legal, la evidencia de retención en las fuentes de
+producción y el inventario/revisión de históricos.
+
+**Aclaración de alcance — 18-11-2026:** el usuario confirma que producción
+tendrá clientes reales y que solo el seed inicial será simulado. Por tanto, el
+bloqueo DEC-08/RNF-PRV-01 sí aplica antes de manejar datos reales. Para la primera
+salida se confirma una empresa por cuenta, sin transferencia entre empresas;
+auditoría de mutaciones/lecturas sensibles y exportación CSV/JSON más documentos
+autorizados forman parte del alcance P0. Aún no hay URL HTTPS de staging,
+remitente corporativo ni buzón de prueba, de modo que no se validó entrega de
+correo ni acceso externo.
+
+La transferencia de una cuenta ya existente entre empresas queda fuera del
+alcance de la primera salida por decisión del usuario (18-11-2026). El modelo
+mantiene una empresa por cuenta; una fase futura requerirá una nueva aprobación.
 
 ## Correcciones de auditoría de código — 17 de noviembre de 2026
 
@@ -158,7 +325,7 @@ usuario dueño o a una sesión ADMIN de autenticación y registra la confirmaci�
 en actividad. `SCHEMA_VERSION` y la versión esperada de configuración pasan a
 18. Las pruebas `tests/test_auth.py` y `tests/test_esquema.py` finalizaron con
 **56 aprobadas** en PostgreSQL temporal. La build de producción del frontend
-pasó y generó 29 rutas, incluida `/confirmar-correo`. SMTP real no se probó; la
+pasó y generó 29 rutas, incluida `/confirmar-correo`. Gmail real se probó el 18-11-2026 con envío exitoso; falta
 entrega correcta y el fallo de entrega se validaron mediante dobles de prueba.
 
 ## UX de Mi perfil ADMIN — 12 de noviembre de 2026
@@ -274,7 +441,7 @@ vistas ADMIN ni preparación de producción.
 | Frontend | VERDE | `npm ci` y `npm run build` completaron correctamente. |
 | Docker Compose | VERDE | `docker compose config --quiet` completó correctamente. |
 | Dependencias frontend | AMARILLO/ROJO | `npm audit --omit=dev`: 1 crítica, 2 altas; afectan a Next.js/PostCSS/source-map-js. |
-| Respaldo real | VERDE funcional / AMARILLO productivo | Ciclo local acreditado; faltan RPO/RTO aprobados y recuperación ante pérdida total. |
+| Respaldo real | VERDE funcional / AMARILLO productivo | RPO ≤24 h y RTO ≤30 min acordados; la última restauración local en esquema 23 reportó 13,659 s / 7,815 s y cumple. Job diario aún pausado hasta configuración y habilitación; falta validar recuperación ante pérdida total en producción. |
 | Privacidad / RNF-PRV-01 | PARCIAL / P0 | Job `ops_retencion` confirmado activo y ejecutado manualmente `ok` en entorno local (10-11-2026 00:18:52; 0 filas podadas). Falta verificar Log Analytics, documentar históricos y obtener aprobación de producción. |
 | Producción con datos reales | ROJO | Sigue bloqueada por controles de privacidad/retención pendientes, infraestructura, roles reales y recuperación completa. |
 
@@ -554,9 +721,12 @@ reactivar la pila local, ejecutar `docker compose up -d` desde `BASE/app`.
 
 Se añadió `/gestion-cuentas` al portal, con listado paginado de cuentas de la
 empresa, búsqueda, cambio de alcance permitido y activación/desactivación. La
-invitación y aceptación de cuentas existentes no está implementada; el endpoint
-actual de invitación crea usuarios nuevos y todavía no entrega por email el
-token de activación.
+la invitación de cuentas nuevas y su activación están implementadas. El endpoint
+crea el usuario dentro del mismo `company_id`, asigna `company` o
+`contract_admin` y envía el enlace por SMTP cuando está configurado. `/reset`
+permite establecer la contraseña mediante el token de un solo uso; si falla el
+SMTP, la respuesta informa `email_enviado=false` sin exponer el token.
+La transferencia de una cuenta existente entre empresas sigue pendiente.
 
 Durante «Ver como empresa», ADMIN vuelve a ver el panel de responsables de
 contrato y la entrada de perfil abre el perfil de la empresa, no el perfil
@@ -908,6 +1078,60 @@ probar autorización y transferencia. Esta decisión funcional no demuestra
 implementación ni validación, y la exportación no sustituye los respaldos de
 RNF-REC-01.
 
+## RF-AUD-03 — implementación y evidencia — 18 de noviembre de 2026
+
+Se agregó el flujo ADMIN independiente `POST /api/v1/admin/exports/data`.
+Produce ZIP con CSV por categoría y documentos asociados, valida la pertenencia
+del recurso a la empresa y aplica el alcance a filas y registros de actividad.
+Incluye motivo obligatorio, saneamiento de nombres, exclusión de columnas
+sensibles, lectura de blobs por fragmentos, soporte ZIP64 y eliminación del
+temporal ante éxito/fallo. El respaldo administrativo DEC-14 no se reutiliza y
+sigue excluyendo documentos.
+
+La auditoría separa solicitud, generación y respuesta HTTP completada. Este
+último resultado acredita que el servidor terminó de enviar la respuesta; no
+demuestra que el usuario guardó el archivo. La API documental registra lectura
+de metadatos permitida/denegada y emisión de URL SAS; emitir la URL tampoco
+acredita la descarga del blob.
+
+Pruebas focalizadas ejecutadas después de los cambios:
+
+```powershell
+python -m pytest -q tests\test_admin_exports.py tests\test_documentos.py
+```
+
+Resultado: **46 aprobadas, 0 fallidas**, con un warning no bloqueante de
+Starlette/httpx. La regresión
+`test_exporta_actividad_de_entidades_relacionadas_al_contrato` incluye la
+actividad del requisito y de la plataforma global asociada al contrato, y
+excluye la actividad de otro contrato de la misma empresa.
+
+La comprobación sintética de volumen pasó **2/2**:
+
+- archivo documental de **60 MiB**, leído en bloques sin usar la lectura
+  completa del almacenamiento;
+- exportación de **10.000 filas de actividad** con el conteo verificado en
+  CSV y manifiesto.
+
+La suite backend completa anterior (`python -m pytest -q`) tardó **20 min 44 s**:
+**517 aprobadas y 3 fallidas**. Las tres fallas estaban en
+`tests/test_esquema.py`: las rutas desde versiones 7, 8 y 11 omitían las
+migraciones 21 y 22, y las pruebas simulaban esquemas antiguos conservando la
+columna `password_reset_tokens.uso`.
+
+La corrección añadió las migraciones 21 y 22 a esas rutas y ajustó las pruebas
+para retirar el efecto de esas migraciones al simular una versión anterior.
+Después del cambio, `python -m pytest tests\test_esquema.py -q` pasó **18/18**
+en PostgreSQL temporal (91 s; un warning no bloqueante de Starlette/httpx).
+La suite completa todavía no se ha repetido; por tanto, el resultado histórico
+517/3 no debe leerse como validación del código corregido.
+
+RF-AUD-03 queda **IV/100% para el alcance funcional local validado**. Esto no
+certifica tamaños arbitrarios ni el entorno de producción. El fallback de
+navegador sin File System Access API usa Blob y puede mantener el ZIP completo
+en memoria. La respuesta HTTP completada no demuestra que el usuario guardó el
+archivo; la emisión de URL SAS tampoco acredita la descarga del blob.
+
 ## DEC-12 — ciclo de vida de contratos — 8 de octubre de 2026
 
 Se acordó reemplazar la eliminación física como acción ordinaria por estados
@@ -1028,7 +1252,7 @@ Validación ejecutada:
   documentos. No se realizó una prueba del despliegue productivo; RF-SEG-02
   conserva su estado PAR/95% por los pendientes restantes.
 
-> **BLOQUEO P0 — PRIVACIDAD ANTES DE PRODUCCIÓN CON DATOS REALES:** DEC-08 quedó acordada como política interna funcional el 09-11-2026. Los controles de aplicación están implementados, pero antes de usar datos reales se requiere evidencia operativa de retención (incluidos logs Azure), revisión documentada de registros históricos y confirmación de aplicabilidad por el responsable de producto/cliente.
+> **BLOQUEO P0 — PRIVACIDAD ANTES DE PRODUCCIÓN CON DATOS REALES:** DEC-08 quedó acordada como política interna funcional el 09-11-2026. El usuario confirmó el 18-11-2026 que desarrollo/pruebas usan solo datos simulados, por lo que DEC-08 queda no aplicable a esos entornos. Para producción con datos reales siguen pendientes la evidencia operativa de retención (incluidos logs Azure), la revisión documentada de históricos y la validación contractual/legal por el responsable de Producción.
 
 ## Evidencia requerida para cerrar RNF-PRV-01 y evaluar el bloqueo
 
@@ -1038,7 +1262,7 @@ Registrar en esta validación (o enlazar evidencia):
 - ejecución local `ok` de `ops_retencion` reportada el 10-11-2026 a las 00:18:52 (0 filas podadas; adjuntar o enlazar registro de ejecución);
 - evidencia de la regla de retención de 90 días de Log Analytics, pendiente;
 - inventario/revisión de registros anteriores a la fecha efectiva, con alcance, resultado e integridad, pendiente;
-- confirmación de aplicabilidad de DEC-08 por el responsable de producto/cliente;
+- validación de aplicabilidad contractual/legal por el responsable de Producción; la confirmación de datos simulados solo cubre desarrollo/pruebas;
 - evaluación GO/NO-GO de producción separada, con fecha y responsables.
 
 ## Decisión de trazabilidad de incidentes (DEC-06) — 7 de octubre de 2026

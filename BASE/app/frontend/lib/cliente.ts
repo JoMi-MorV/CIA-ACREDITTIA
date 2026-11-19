@@ -99,12 +99,18 @@ export const admin = {
   empresas: (params?: ParamsPagina & { status?: string; es_demo?: boolean }) =>
     api<Pagina<Empresa>>("/admin/companies", { query: q(params) }),
 
-  empresa: (id: string) => api<EmpresaDetalle>(`/admin/companies/${id}`),
+  empresa: (id: string, accessGrantId?: string) =>
+    api<EmpresaDetalle>(`/admin/companies/${id}`, { accessGrantId }),
+
+  eliminarInvitacion: (companyId: string, userId: string, motivo: string) =>
+    api<{ ok: boolean; id: string; invitacion_eliminada: boolean }>(
+      `/admin/companies/${companyId}/users/${userId}/invitation`,
+      { method: "DELETE", body: { motivo } }),
 
   crearConcesionLectura: (body: {
     admin_user_id: string;
     company_id: string;
-    recurso_tipo: "personal" | "documento";
+    recurso_tipo: "personal" | "documento" | "usuario";
     motivo: string;
     horas: 1;
   }) => api<{ id: string; expires_at: string }>(
@@ -184,7 +190,10 @@ export const empresa = {
   invitar: (body: {
     nombre: string; email: string; role?: "company" | "contract_admin";
     contrato_id?: string | null;
-  }) => api<UsuarioEmpresa & { activacion?: Record<string, unknown> }>(
+  }) => api<UsuarioEmpresa & {
+    activacion_expira_at: string;
+    email_enviado: boolean;
+  }>(
     "/company/usuarios", { body }),
 
   editarUsuario: (id: string, cambios: {
@@ -193,6 +202,10 @@ export const empresa = {
 
   desactivarUsuario: (id: string) =>
     api<{ ok: boolean }>(`/company/usuarios/${id}`, { method: "DELETE" }),
+
+  eliminarInvitacion: (id: string) =>
+    api<{ ok: boolean; id: string; invitacion_eliminada: boolean }>(
+      `/company/usuarios/${id}/invitacion`, { method: "DELETE" }),
 };
 
 // ============================================================================

@@ -124,6 +124,97 @@ export async function opsDownload(
   };
 }
 
+type DownloadFileHandle = {
+  createWritable: () => Promise<WritableStream<Uint8Array>>;
+};
+
+type SaveFilePickerWindow = Window & {
+  showSaveFilePicker?: (options: { suggestedName: string }) =>
+    Promise<DownloadFileHandle>;
+};
+
+export async function opsDownloadPost(
+  path: string, body: unknown,
+): Promise<{ blob?: Blob; filename: string; saved: boolean; cancelled?: boolean }> {
+  if (MOCK) {
+    throw new OpsApiError("EXPORTACION_NO_DISPONIBLE",
+      "Las descargas no están disponibles en modo demostración.", 501);
+  }
+
+  const picker = typeof window === "undefined"
+    ? undefined
+    : (window as SaveFilePickerWindow).showSaveFilePicker;
+  let fileHandle: DownloadFileHandle | undefined;
+  if (picker) {
+    try {
+      fileHandle = await picker.call(window, {
+        suggestedName: "acredittia-exportacion-datos.zip",
+      });
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") {
+        return { filename: "", saved: false, cancelled: true };
+      }
+      throw error;
+    }
+  }
+
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  const tok = getAccess();
+  if (tok) headers["Authorization"] = `Bearer ${tok}`;
+
+  const request = () => fetch(`${BASE}/api/v1/admin${path}`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(body),
+  });
+
+  let res: Response;
+  try {
+    res = await request();
+  } catch {
+    throw new OpsApiError("SIN_CONEXION",
+      "No se pudo contactar con el servidor.", 0);
+  }
+  if (res.status === 401) {
+    if (!(await refrescar())) {
+      if (typeof window !== "undefined") window.location.href = "/login";
+      throw new OpsApiError("SESION_EXPIRADA", "La sesión expiró.", 401);
+    }
+    const refreshedToken = getAccess();
+    if (refreshedToken) headers["Authorization"] = `Bearer ${refreshedToken}`;
+    try {
+      res = await request();
+    } catch {
+      throw new OpsApiError("SIN_CONEXION",
+        "No se pudo contactar con el servidor.", 0);
+    }
+    if (res.status === 401) {
+      if (typeof window !== "undefined") window.location.href = "/login";
+      throw new OpsApiError("SESION_EXPIRADA", "La sesión expiró.", 401);
+    }
+  }
+
+  if (!res.ok) {
+    const texto = await res.text();
+    let data: any = {};
+    try { data = texto ? JSON.parse(texto) : {}; } catch { /* cuerpo no JSON */ }
+    throw new OpsApiError(data?.error?.code ?? "ERROR",
+      data?.error?.message ?? `Error ${res.status}`, res.status);
+  }
+  const disposition = res.headers.get("content-disposition") ?? "";
+  const encoded = disposition.match(/filename\*=UTF-8''([^;]+)/i)?.[1];
+  const plain = disposition.match(/filename="?([^";]+)"?/i)?.[1];
+  const filename = encoded
+    ? decodeURIComponent(encoded)
+    : plain ?? "acredittia-exportacion-datos.zip";
+
+  if (fileHandle && res.body) {
+    await res.body.pipeTo(await fileHandle.createWritable());
+    return { filename, saved: true };
+  }
+  return { blob: await res.blob(), filename, saved: false };
+}
+
 export async function opsUpload<T = any>(
   path: string, file: File, reintento = true,
 ): Promise<T> {

@@ -2,7 +2,7 @@
 
 import { ChangeEvent, useCallback, useEffect, useRef, useState } from "react";
 import { Card, Pill } from "@/components/ops/ui";
-import { opsApi, opsDownload, opsUpload } from "@/lib/ops/api";
+import { opsApi, opsDownload, opsDownloadPost, opsUpload } from "@/lib/ops/api";
 import { useI18n } from "@/lib/ops/i18n";
 import * as Api from "@/lib/cliente";
 import type { Empresa } from "@/lib/tipos";
@@ -38,6 +38,13 @@ type OpsRun = {
   ultima_ejecucion?: { status: string } | null;
 };
 
+const BUSINESS_EXPORT_CATEGORIES = [
+  "empresa", "contratos", "personas_equipos", "documentos", "alertas",
+  "actividad", "requisitos", "plataformas", "cumplimiento", "calendario",
+] as const;
+type BusinessExportCategory = typeof BUSINESS_EXPORT_CATEGORIES[number];
+type BusinessExportScope = "empresa" | "contrato" | "persona" | "equipo";
+
 export default function RespaldosPage() {
   const { t, locale } = useI18n();
   const [status, setStatus] = useState<BackupStatus | null>(null);
@@ -49,9 +56,14 @@ export default function RespaldosPage() {
   const [restoreId, setRestoreId] = useState<string | null>(null);
   const [confirmation, setConfirmation] = useState("");
   const [exportMotivo, setExportMotivo] = useState("");
-  const [exportAlcance, setExportAlcance] = useState<"global" | "empresa">("global");
-  const [exportCompanyId, setExportCompanyId] = useState("");
   const [companies, setCompanies] = useState<Empresa[]>([]);
+  const [businessExportMotivo, setBusinessExportMotivo] = useState("");
+  const [businessExportScope, setBusinessExportScope] =
+    useState<BusinessExportScope>("empresa");
+  const [businessExportCompanyId, setBusinessExportCompanyId] = useState("");
+  const [businessExportResourceId, setBusinessExportResourceId] = useState("");
+  const [businessExportCategories, setBusinessExportCategories] =
+    useState<BusinessExportCategory[]>([...BUSINESS_EXPORT_CATEGORIES]);
   const importInput = useRef<HTMLInputElement>(null);
 
   const reload = useCallback(async () => {
@@ -72,12 +84,12 @@ export default function RespaldosPage() {
 
   useEffect(() => { void reload(); }, [reload]);
   useEffect(() => {
-    if (exportAlcance !== "empresa" || companies.length) return;
+    if (companies.length) return;
     Api.paginarTodo<Empresa>((page, pageSize) =>
       Api.admin.empresas({ page, page_size: pageSize }))
       .then(setCompanies)
       .catch((e) => setError(Api.mensajeError(e)));
-  }, [companies.length, exportAlcance]);
+  }, [companies.length]);
   useEffect(() => {
     const status = run?.ultima_ejecucion?.status;
     if (status !== "queued" && status !== "running") return;
@@ -114,11 +126,6 @@ export default function RespaldosPage() {
       setError(t("respaldos.export_motivo_req"));
       return;
     }
-    if (formato === "zip" && exportAlcance === "empresa"
-        && !exportCompanyId) {
-      setError(t("respaldos.export_empresa_requerida"));
-      return;
-    }
     const params = new URLSearchParams({ formato, motivo });
     setBusy(true);
     setError("");
@@ -130,11 +137,7 @@ export default function RespaldosPage() {
       if (formato === "zip") {
         const grant = await opsApi<{ id: string }>("/backups/export-grants", {
           method: "POST",
-          body: {
-            alcance: exportAlcance,
-            company_id: exportAlcance === "empresa" ? exportCompanyId : null,
-            motivo,
-          },
+          body: { motivo },
         });
         grantId = grant.id;
         headers = { "X-Access-Grant": grant.id };
@@ -168,6 +171,54 @@ export default function RespaldosPage() {
         }
       }
       if (downloadMessage && concesionRevocada) setMessage(downloadMessage);
+      setBusy(false);
+    }
+  };
+
+  const exportarDatosNegocio = async () => {
+    const motivo = businessExportMotivo.trim();
+    if (motivo.length < 12) {
+      setError(t("respaldos.export_motivo_req"));
+      return;
+    }
+    if (!businessExportCompanyId) {
+      setError(t("respaldos.negocio_empresa_requerida"));
+      return;
+    }
+    if (businessExportScope !== "empresa" && !businessExportResourceId.trim()) {
+      setError(t("respaldos.negocio_recurso_requerido"));
+      return;
+    }
+    if (businessExportCategories.length === 0) {
+      setError(t("respaldos.negocio_categoria_requerida"));
+      return;
+    }
+
+    setBusy(true);
+    setError("");
+    setMessage("");
+    try {
+      const result = await opsDownloadPost("/exports/data", {
+        alcance: businessExportScope,
+        company_id: businessExportCompanyId,
+        recurso_id: businessExportScope === "empresa"
+          ? null : businessExportResourceId.trim(),
+        categorias: businessExportCategories,
+        motivo,
+      });
+      if (result.cancelled) return;
+      if (result.blob) {
+        const url = URL.createObjectURL(result.blob);
+        const anchor = document.createElement("a");
+        anchor.href = url;
+        anchor.download = result.filename;
+        anchor.click();
+        window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      }
+      setMessage(t("respaldos.negocio_descargado"));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t("respaldos.error"));
+    } finally {
       setBusy(false);
     }
   };
@@ -361,41 +412,6 @@ export default function RespaldosPage() {
         <h2 className="ops-title">{t("respaldos.export_titulo")}</h2>
         <p className="ops-sub mt-1">{t("respaldos.export_desc")}</p>
         <label className="mt-3 block text-sm">
-          {t("respaldos.export_alcance")}
-          <select value={exportAlcance}
-            onChange={(event) => {
-              setExportAlcance(event.target.value as "global" | "empresa");
-              setExportCompanyId("");
-            }}
-            className="mt-1 w-full rounded-md border bg-transparent px-3 py-2"
-            style={{ borderColor: "var(--ops-line)" }}>
-            <option value="global">{t("respaldos.export_alcance_global")}</option>
-            <option value="empresa">{t("respaldos.export_alcance_empresa")}</option>
-          </select>
-        </label>
-        {exportAlcance === "empresa" && (
-          <label className="mt-3 block text-sm">
-            {t("respaldos.export_empresa")}
-            <select value={exportCompanyId}
-              onChange={(event) => setExportCompanyId(event.target.value)}
-              className="mt-1 w-full rounded-md border bg-transparent px-3 py-2"
-              style={{ borderColor: "var(--ops-line)" }}>
-              <option value="">{t("respaldos.export_empresa_seleccionar")}</option>
-              {companies.map((company) => (
-                <option key={company.id} value={company.id}>{company.nombre}</option>
-              ))}
-            </select>
-          </label>
-        )}
-        <p className="mt-2 text-xs ops-sub">
-          {exportAlcance === "global"
-            ? t("respaldos.export_alcance_global_desc")
-            : t("respaldos.export_alcance_empresa_desc")}
-        </p>
-        <p className="mt-1 text-xs ops-sub">
-          {t("respaldos.export_alcance_pdf_desc")}
-        </p>
-        <label className="mt-3 block text-sm">
           {t("respaldos.export_motivo")}
           <input value={exportMotivo}
             onChange={(event) => setExportMotivo(event.target.value)}
@@ -405,8 +421,7 @@ export default function RespaldosPage() {
             placeholder={t("respaldos.export_motivo_ph")} />
         </label>
         <div className="mt-3 flex flex-wrap gap-2">
-          <button disabled={busy || exportMotivo.trim().length < 12
-            || (exportAlcance === "empresa" && !exportCompanyId)}
+          <button disabled={busy || exportMotivo.trim().length < 12}
             onClick={() => void exportar("zip")}
             className="rounded-lg px-3 py-2 text-sm font-semibold disabled:opacity-50"
             style={{ background: "var(--ops-accent)", color: "white" }}>
@@ -419,6 +434,91 @@ export default function RespaldosPage() {
             {t("respaldos.export_pdf")}
           </button>
         </div>
+      </Card>
+
+      <Card>
+        <h2 className="ops-title">{t("respaldos.negocio_titulo")}</h2>
+        <p className="ops-sub mt-1">{t("respaldos.negocio_desc")}</p>
+        <label className="mt-3 block text-sm">
+          {t("respaldos.negocio_alcance")}
+          <select value={businessExportScope}
+            onChange={(event) => {
+              setBusinessExportScope(event.target.value as BusinessExportScope);
+              setBusinessExportResourceId("");
+            }}
+            className="mt-1 w-full rounded-md border bg-transparent px-3 py-2"
+            style={{ borderColor: "var(--ops-line)" }}>
+            <option value="empresa">{t("respaldos.negocio_alcance_empresa")}</option>
+            <option value="contrato">{t("respaldos.negocio_alcance_contrato")}</option>
+            <option value="persona">{t("respaldos.negocio_alcance_persona")}</option>
+            <option value="equipo">{t("respaldos.negocio_alcance_equipo")}</option>
+          </select>
+        </label>
+        <label className="mt-3 block text-sm">
+          {t("respaldos.negocio_empresa")}
+          <select value={businessExportCompanyId}
+            onChange={(event) => {
+              setBusinessExportCompanyId(event.target.value);
+              setBusinessExportResourceId("");
+            }}
+            className="mt-1 w-full rounded-md border bg-transparent px-3 py-2"
+            style={{ borderColor: "var(--ops-line)" }}>
+            <option value="">{t("respaldos.export_empresa_seleccionar")}</option>
+            {companies.map((company) => (
+              <option key={company.id} value={company.id}>{company.nombre}</option>
+            ))}
+          </select>
+        </label>
+        {businessExportScope !== "empresa" && (
+          <label className="mt-3 block text-sm">
+            {t(`respaldos.negocio_recurso_${businessExportScope}`)}
+            <input value={businessExportResourceId}
+              onChange={(event) => setBusinessExportResourceId(event.target.value)}
+              className="mt-1 w-full rounded-md border bg-transparent px-3 py-2"
+              style={{ borderColor: "var(--ops-line)" }}
+              placeholder={t("respaldos.negocio_recurso_id_ph")} />
+            <span className="mt-1 block text-xs ops-sub">
+              {t("respaldos.negocio_recurso_id_desc")}
+            </span>
+          </label>
+        )}
+        <fieldset className="mt-4">
+          <legend className="text-sm font-semibold">
+            {t("respaldos.negocio_categorias")}
+          </legend>
+          <div className="mt-2 grid gap-2 sm:grid-cols-2">
+            {BUSINESS_EXPORT_CATEGORIES.map((category) => (
+              <label key={category} className="flex items-center gap-2 text-sm">
+                <input type="checkbox"
+                  checked={businessExportCategories.includes(category)}
+                  onChange={(event) => {
+                    setBusinessExportCategories((selected) => event.target.checked
+                      ? [...selected, category]
+                      : selected.filter((item) => item !== category));
+                  }} />
+                {t(`respaldos.negocio_categoria_${category}`)}
+              </label>
+            ))}
+          </div>
+        </fieldset>
+        <label className="mt-4 block text-sm">
+          {t("respaldos.export_motivo")}
+          <input value={businessExportMotivo}
+            onChange={(event) => setBusinessExportMotivo(event.target.value)}
+            maxLength={240}
+            className="mt-1 w-full rounded-md border bg-transparent px-3 py-2"
+            style={{ borderColor: "var(--ops-line)" }}
+            placeholder={t("respaldos.export_motivo_ph")} />
+        </label>
+        <button disabled={busy || businessExportMotivo.trim().length < 12
+          || !businessExportCompanyId
+          || (businessExportScope !== "empresa" && !businessExportResourceId.trim())
+          || businessExportCategories.length === 0}
+          onClick={() => void exportarDatosNegocio()}
+          className="mt-3 rounded-lg px-3 py-2 text-sm font-semibold disabled:opacity-50"
+          style={{ background: "var(--ops-accent)", color: "white" }}>
+          {t("respaldos.negocio_exportar")}
+        </button>
       </Card>
 
       <Card>

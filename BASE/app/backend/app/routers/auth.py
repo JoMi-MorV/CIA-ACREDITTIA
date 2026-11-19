@@ -50,8 +50,10 @@ logger = logging.getLogger("acredittia.auth")
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 # Respuesta única de /password/forgot: idéntica exista o no la cuenta.
-MSG_FORGOT = ("Si el email corresponde a una cuenta activa, enviaremos un "
-              "enlace para restablecer la contraseña.")
+MSG_FORGOT = (
+    "Si el email corresponde a una cuenta activa, enviaremos un enlace para "
+    "restablecer la contraseña. Si no lo recibes, revisa Spam o Promociones."
+)
 
 MSG_PASSWORD = "Mínimo 8 caracteres, una mayúscula y un dígito"
 
@@ -380,6 +382,7 @@ def password_forgot(body: ForgotIn):
             db.add(PasswordResetToken(
                 user_id=user.id, token_hash=_hash_reset(raw),
                 expires_at=ahora + timedelta(minutes=settings.reset_ttl_min),
+                uso="restablecimiento",
             ))
             db.commit()
             logger.info("token de reset emitido para user=%s", user.id)
@@ -390,6 +393,7 @@ def password_forgot(body: ForgotIn):
                     "Restablece tu contraseña de Acredittia",
                     "Solicitaste restablecer tu contraseña.\n\n"
                     f"Abre este enlace: {enlace}\n\n"
+                    f"Este enlace expira en {settings.reset_ttl_min} minutos.\n\n"
                     "Si no solicitaste este cambio, ignora este correo.",
                 )
             except EmailDeliveryError:
@@ -416,7 +420,8 @@ def password_reset(body: ResetIn):
 
     with auth_session() as db:
         prt = db.scalar(select(PasswordResetToken).where(
-            PasswordResetToken.token_hash == _hash_reset(body.token or "")))
+            PasswordResetToken.token_hash == _hash_reset(body.token or "")
+        ).with_for_update())
         ahora = datetime.now(timezone.utc)
         if not prt or prt.used_at or prt.expires_at < ahora:
             raise err(400, "TOKEN_INVALIDO", "El enlace es inválido o expiró")

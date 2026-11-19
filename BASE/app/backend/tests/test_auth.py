@@ -6,9 +6,12 @@ import uuid
 from datetime import datetime, timedelta, timezone
 
 import pytest
+from sqlalchemy import select
 
 from app.database import worker_session
-from app.models import Actividad, EmailChangeToken, RefreshToken, User
+from app.models import (
+    Actividad, EmailChangeToken, PasswordResetToken, RefreshToken, User,
+)
 
 from tests.conftest import API, CLAVE, crear_contract_admin, rut_valido
 
@@ -268,6 +271,13 @@ def test_forgot_es_opaco(app_cliente, empresa_a):
     assert existente.status_code == inexistente.status_code == 200
     assert _publico(existente.json()) == _publico(inexistente.json())
     assert _publico(existente.json())["ok"] is True
+    with worker_session(is_admin=True) as db:
+        token = db.scalar(select(PasswordResetToken).join(User).where(
+            User.email == empresa_a["email"],
+            PasswordResetToken.used_at.is_(None),
+        ))
+        assert token is not None
+        assert token.uso == "restablecimiento"
 
 
 def test_forgot_invalida_el_token_anterior(app_cliente, empresa_a):
@@ -612,3 +622,205 @@ def test_invitar_usuario_valida_el_rol(app_cliente, empresa_a, contrato_a):
         "email": "ad@empresa.cl", "nombre": "AD", "role": "admin"})
     assert r.status_code == 400
     assert r.json()["error"]["code"] == "ROL_INVALIDO"
+
+
+def test_invitacion_asigna_company_y_rol_y_permite_activar(
+        app_cliente, empresa_a, contrato_a, monkeypatch):
+    from app.routers import company
+
+    correos = []
+    monkeypatch.setattr(company, "enviar_email",
+                        lambda *args: correos.append(args))
+
+    r = app_cliente.post(
+        f"{API}/company/usuarios",
+        headers=empresa_a["headers"],
+        json={
+            "email": "nuevo-admin-contrato@empresa.cl",
+            "nombre": "Nuevo Administrador",
+            "role": "contract_admin",
+            "contrato_id": contrato_a["id"],
+        },
+    )
+    assert r.status_code == 201, r.text
+    invitacion = r.json()
+    assert invitacion["email_enviado"] is True
+    assert invitacion["role"] == "contract_admin"
+
+    enlace = correos[0][2]
+    token = enlace.split("token=", 1)[1].splitlines()[0].strip()
+    assert token
+
+    with worker_session(is_admin=True) as db:
+        usuario = db.scalar(select(User).where(
+            User.email == "nuevo-admin-contrato@empresa.cl"))
+        assert str(usuario.company_id) == empresa_a["company_id"]
+        assert usuario.role == "contract_admin"
+        assert str(usuario.contrato_id) == contrato_a["id"]
+        token_row = db.scalar(select(PasswordResetToken).where(
+            PasswordResetToken.user_id == usuario.id))
+        assert token_row.token_hash == hashlib.sha256(token.encode()).hexdigest()
+        assert token_row.uso == "invitacion"
+
+    r = app_cliente.post(
+        f"{API}/auth/password/reset",
+        json={"token": token, "password": "NuevaClave9"},
+    )
+    assert r.status_code == 200, r.text
+
+    r = app_cliente.post(
+        f"{API}/auth/login",
+        json={
+            "email": "nuevo-admin-contrato@empresa.cl",
+            "password": "NuevaClave9",
+        },
+    )
+    assert r.status_code == 200, r.text
+
+
+def test_eliminar_invitacion_pendiente_borra_cuenta_y_revoca_token(
+        app_cliente, admin, empresa_a, monkeypatch):
+    from app.routers import company
+
+    correos = []
+    monkeypatch.setattr(company, "enviar_email",
+                        lambda *args: correos.append(args))
+    email = "eliminar-invitacion@empresa.cl"
+    invitacion = app_cliente.post(
+        f"{API}/company/usuarios",
+        headers=empresa_a["headers"],
+        json={"email": email, "nombre": "Cuenta invitada", "role": "company"},
+    )
+    assert invitacion.status_code == 201, invitacion.text
+    user_id = uuid.UUID(invitacion.json()["id"])
+    token = correos[0][2].split("token=", 1)[1].splitlines()[0].strip()
+
+    eliminada = app_cliente.request(
+        "DELETE",
+        f"{API}/admin/companies/{empresa_a['company_id']}/users/{user_id}/invitation",
+        headers=admin["headers"],
+        json={"motivo": "Invitación solicitada por error"},
+    )
+    assert eliminada.status_code == 200, eliminada.text
+    assert eliminada.json()["invitacion_eliminada"] is True
+
+    with worker_session(is_admin=True) as db:
+        assert db.get(User, user_id) is None
+        assert db.scalar(select(PasswordResetToken).where(
+            PasswordResetToken.user_id == user_id)) is None
+        evento = db.scalar(select(Actividad).where(
+            Actividad.entidad_id == user_id,
+            Actividad.descripcion ==
+            "Invitación cancelada y cuenta pendiente eliminada",
+        ))
+        assert evento is not None
+        assert email not in evento.descripcion
+
+    respuesta = app_cliente.post(
+        f"{API}/auth/password/reset",
+        json={"token": token, "password": "NuevaClave9"},
+    )
+    assert respuesta.status_code == 400
+    assert respuesta.json()["error"]["code"] == "TOKEN_INVALIDO"
+
+    repetida = app_cliente.post(
+        f"{API}/company/usuarios",
+        headers=empresa_a["headers"],
+        json={"email": email, "nombre": "Nueva cuenta", "role": "company"},
+    )
+    assert repetida.status_code == 201, repetida.text
+
+
+def test_eliminar_invitacion_restringe_empresa_y_cuenta_activada(
+        app_cliente, admin, empresa_a, empresa_b, monkeypatch):
+    from app.routers import company
+
+    correos = []
+    monkeypatch.setattr(company, "enviar_email",
+                        lambda *args: correos.append(args))
+    email = "invitacion-activada@empresa.cl"
+    invitacion = app_cliente.post(
+        f"{API}/company/usuarios",
+        headers=empresa_a["headers"],
+        json={"email": email, "nombre": "Cuenta activada", "role": "company"},
+    )
+    assert invitacion.status_code == 201, invitacion.text
+    user_id = uuid.UUID(invitacion.json()["id"])
+    ruta = (
+        f"{API}/admin/companies/{empresa_a['company_id']}"
+        f"/users/{user_id}/invitation"
+    )
+
+    ajena = app_cliente.request(
+        "DELETE",
+        f"{API}/admin/companies/{empresa_b['company_id']}"
+        f"/users/{user_id}/invitation",
+        headers=admin["headers"],
+        json={"motivo": "Prueba de empresa distinta"},
+    )
+    assert ajena.status_code == 404
+
+    token = correos[0][2].split("token=", 1)[1].splitlines()[0].strip()
+    activada = app_cliente.post(
+        f"{API}/auth/password/reset",
+        json={"token": token, "password": "NuevaClave9"},
+    )
+    assert activada.status_code == 200, activada.text
+
+    no_pendiente = app_cliente.request(
+        "DELETE",
+        ruta, headers=admin["headers"],
+        json={"motivo": "Cuenta activada no se borra"},
+    )
+    assert no_pendiente.status_code == 409
+    assert no_pendiente.json()["error"]["code"] == "INVITACION_NO_PENDIENTE"
+    with worker_session(is_admin=True) as db:
+        assert db.get(User, user_id) is not None
+
+
+def test_empresa_puede_eliminar_su_invitacion_pendiente(
+        app_cliente, empresa_a, empresa_b, monkeypatch):
+    from app.routers import company
+
+    correos = []
+    monkeypatch.setattr(company, "enviar_email",
+                        lambda *args: correos.append(args))
+    invitacion = app_cliente.post(
+        f"{API}/company/usuarios",
+        headers=empresa_a["headers"],
+        json={"email": "cancelar-desde-empresa@empresa.cl",
+              "nombre": "Cuenta invitada", "role": "company"},
+    )
+    assert invitacion.status_code == 201, invitacion.text
+    user_id = invitacion.json()["id"]
+    ruta = f"{API}/company/usuarios/{user_id}/invitacion"
+
+    ajena = app_cliente.delete(ruta, headers=empresa_b["headers"])
+    assert ajena.status_code == 404
+
+    eliminada = app_cliente.delete(ruta, headers=empresa_a["headers"])
+    assert eliminada.status_code == 200, eliminada.text
+    assert eliminada.json()["invitacion_eliminada"] is True
+
+
+def test_invitacion_reporta_fallo_smtp_sin_exponer_token(
+        app_cliente, empresa_a, monkeypatch):
+    from app.routers import company
+    from app.services.email import EmailDeliveryError
+
+    def fallo(*args):
+        raise EmailDeliveryError("SMTP no disponible")
+
+    monkeypatch.setattr(company, "enviar_email", fallo)
+    r = app_cliente.post(
+        f"{API}/company/usuarios",
+        headers=empresa_a["headers"],
+        json={
+            "email": "sin-correo@empresa.cl",
+            "nombre": "Sin Correo",
+            "role": "company",
+        },
+    )
+    assert r.status_code == 201, r.text
+    assert r.json()["email_enviado"] is False
+    assert "token" not in r.text.lower()

@@ -35,7 +35,7 @@ OPS_CRON_SCHEDULES = {
     "ops_disponibilidad": "5 0 * * *",
     "metricas_snapshot": "10 2 * * *",
     "ops_retencion": "30 3 * * 0",
-    "admin_backup": "0 2 * * 0",
+    "admin_backup": "0 2 * * *",
 }
 
 

@@ -29,7 +29,7 @@ from .routers import (actividad, admin, alertas, auth, blobs, calendario, cargos
                       documentos, faenas, ia, integraciones, licencia_interna,
                       notificaciones, personas, plataformas, reportes,
                       requisitos, sujetos, suscripcion, webhooks, admin_ops,
-                      admin_backups)
+                      admin_backups, admin_exports)
 # Importar los módulos de tareas registra las entradas de TAREAS que usa la cola.
 from .services import integraciones as _svc_integraciones  # noqa: F401
 from .services import tasks as _svc_tasks  # noqa: F401
@@ -131,6 +131,7 @@ app.include_router(suscripcion.router_admin, prefix=API)
 app.include_router(admin_ops.router, prefix=f"{API}/admin")
 app.include_router(admin_ops.router, prefix=f"{API}/admin/ops")
 app.include_router(admin_backups.router, prefix=API)
+app.include_router(admin_exports.router, prefix=API)
 
 # --- Empresa y catálogos --------------------------------------------------
 app.include_router(company.router, prefix=API)

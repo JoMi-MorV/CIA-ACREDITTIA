@@ -9,6 +9,14 @@ pendientes de recuperación real, privacidad o infraestructura que requieran má
 tiempo. El estado final esperado al término es **condicional NO-GO** hasta
 completar la evidencia real.
 
+### Actualización de recuperación — 19 de noviembre de 2026
+
+Se acordaron RPO ≤24 h y RTO ≤30 min. La última restauración local en esquema 23
+reportó RPO 13,659 s, RTO 7,815 s y `status=restored`. No se requiere una prueba
+separada en staging para cerrar el alcance funcional local. La programación
+diaria permanece pausada hasta configurar y habilitar el respaldo; el resultado
+local no certifica producción ni recuperación ante pérdida total.
+
 ## Semana 1 — seguridad y evidencia técnica
 
 ### 5-6 de noviembre

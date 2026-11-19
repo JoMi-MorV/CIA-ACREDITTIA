@@ -108,6 +108,9 @@ class PasswordResetToken(Base):
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"))
     token_hash: Mapped[str] = mapped_column(Text, unique=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    uso: Mapped[str] = mapped_column(Text, nullable=False,
+                                     default="restablecimiento",
+                                     server_default="restablecimiento")
     used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
 

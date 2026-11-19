@@ -1,7 +1,7 @@
 # Despliegue en Azure
 
 Guía operativa para la versión actual del backend. La API requiere el esquema
-**v20** (`SCHEMA_VERSION_ESPERADA=20`); aplica y verifica las migraciones antes
+**v23** (`SCHEMA_VERSION_ESPERADA=23`); aplica y verifica las migraciones antes
 de desplegar API, worker y beat con la misma imagen.
 
 Cuatro procesos, **una sola imagen**, diferenciados por el `command`. Así un
@@ -50,7 +50,7 @@ de configuración más fácil de cometer y el más difícil de notar.
 DATABASE_URL      postgresql+psycopg://acredittia_app:<pwd>@<host>:5432/acredittia?sslmode=require
 DB_RLS_ENABLED    true
 DB_APPLY_SCHEMA_ON_START  false      # lo hace el job de migración
-SCHEMA_VERSION_ESPERADA   20
+SCHEMA_VERSION_ESPERADA   23
 JWT_SECRET        <secreto de Key Vault>
 CORS_ORIGINS      https://app.acredittia.cl
 PUBLIC_BASE_URL   https://api.acredittia.cl
@@ -104,8 +104,10 @@ servicio usa `BACKUP_DATABASE_URL` como compatibilidad local; en producción no
 hay fallback. `BACKUPS_DIR` debe ser privado y persistente, compartido por API
 y worker. No se incluyen claves JWE/vault, secretos ni archivos remotos de
 Azure. La retención de ocho no constituye una copia fuera del entorno ni
-define RPO o RTO; no desplegar ni ejecutar la restauración contra producción
-sin una ventana aprobada y prueba de recuperación.
+demuestra que los objetivos RPO/RTO acordados se cumplan en Azure; esos objetivos
+se midieron en una restauración local y no certifican producción. No desplegar ni
+ejecutar la restauración contra producción sin una ventana aprobada y prueba de
+recuperación.
 
 ### Worker y beat
 Lo mismo, salvo:

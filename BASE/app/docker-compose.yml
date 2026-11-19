@@ -79,6 +79,12 @@ services:
       JWE_BACKEND: local              # keyvault en producción
       KEYS_DIR: /data/keys
       IA_BACKEND: simulada            # claude para revisión real
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      EMAIL_FROM: ${EMAIL_FROM:-}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
     volumes:
       - uploads:/data/uploads
       - keys:/data/keys
@@ -115,6 +121,12 @@ services:
       JWE_BACKEND: local
       KEYS_DIR: /data/keys
       IA_BACKEND: simulada
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      EMAIL_FROM: ${EMAIL_FROM:-}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
     volumes:
       - uploads:/data/uploads
       - keys:/data/keys

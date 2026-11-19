@@ -29,7 +29,7 @@ import os
 import uuid
 from datetime import date, datetime, timezone
 
-from fastapi import APIRouter, Depends, Header, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
@@ -309,12 +309,31 @@ def detalle(doc_id: uuid.UUID, db: Session = Depends(get_db),
             user: User = Depends(get_current_user),
             access_grant: uuid.UUID | None = Header(
                 default=None, alias="X-Access-Grant")):
-    documento = _get_doc(db, cid, doc_id, user)
-    grant = _autorizar_lectura_admin(db, user, cid, access_grant, documento.id)
+    try:
+        documento = _get_doc(db, cid, doc_id, user)
+        grant = _autorizar_lectura_admin(db, user, cid, access_grant, documento.id)
+    except HTTPException as exc:
+        actividad.log(
+            db, cid, "visualizacion", "documentos",
+            "Intento denegado de lectura de metadatos de documento",
+            user_id=user.id, entidad_tipo="documento", entidad_id=doc_id,
+            metadata={"accion": "lectura_metadatos", "resultado": "denegada",
+                      "codigo_http": exc.status_code,
+                      "concesion_id": str(access_grant) if access_grant else None},
+        )
+        db.commit()
+        raise
     respuesta = doc_out(documento)
     _auditar_uso_concesion_documento(db, cid, user, grant, documento.id)
-    if grant is not None:
-        db.commit()
+    actividad.log(
+        db, cid, "visualizacion", "documentos",
+        "Lectura de metadatos de documento",
+        user_id=user.id, entidad_tipo="documento", entidad_id=documento.id,
+        metadata={"accion": "lectura_metadatos", "resultado": "permitida",
+                  "motivo": grant.motivo if grant else None,
+                  "concesion_id": str(grant.id) if grant else None},
+    )
+    db.commit()
     return respuesta
 
 
@@ -527,6 +546,8 @@ def download_url(doc_id: uuid.UUID, archivo_id: uuid.UUID,
                   f"Descarga de archivo '{a.filename}' del documento '{d.titulo}'",
                   user_id=user.id, entidad_tipo="documento", entidad_id=d.id,
                   metadata={"motivo_acceso": motivo, "archivo_id": str(a.id),
+                            "accion": "emision_url_descarga",
+                            "resultado": "url_emitida",
                             "concesion_id": str(grant.id) if grant else None,
                             "motivo_concesion": grant.motivo if grant else None})
     db.commit()

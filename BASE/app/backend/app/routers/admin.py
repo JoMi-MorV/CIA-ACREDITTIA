@@ -52,6 +52,7 @@ from ..services.checklist import (calc_estado_doc, calc_estado_sujeto,
 from ..security import hash_password
 from ..security import hash_password
 from ..services.storage import get_storage
+from .company import _es_invitacion_pendiente, eliminar_invitacion_pendiente
 
 logger = logging.getLogger("acredittia.admin")
 
@@ -76,6 +77,10 @@ class AccessGrantIn(BaseModel):
     recurso_id: uuid.UUID | None = None
     motivo: str = Field(min_length=12, max_length=240)
     horas: int = Field(default=1, ge=1, le=24)
+
+
+class CancelInvitationIn(BaseModel):
+    motivo: str = Field(min_length=12, max_length=240)
 
 
 @router.post("/access-grants", status_code=201)
@@ -808,6 +813,7 @@ def _admin_user_out(db: Session, user: User) -> dict:
         } if contrato else None,
         "last_login_at": _iso(user.last_login_at),
         "created_at": _iso(user.created_at),
+        "invitacion_pendiente": _es_invitacion_pendiente(db, user),
     }
 
 
@@ -1164,6 +1170,21 @@ def detalle_company(
         )
         db.commit()
     return out
+
+
+@router.delete("/companies/{company_id}/users/{user_id}/invitation")
+def eliminar_invitacion_admin(
+        company_id: uuid.UUID, user_id: uuid.UUID, body: CancelInvitationIn,
+        admin: User = Depends(require_admin), db: Session = Depends(get_db)):
+    company = _get_company(db, company_id)
+    invitado = db.scalar(select(User).where(
+        User.id == user_id, User.company_id == company.id
+    ).with_for_update())
+    if not invitado:
+        raise err(404, "NO_ENCONTRADO", "Invitación no encontrada")
+    return eliminar_invitacion_pendiente(
+        db, company.id, invitado, admin, body.motivo.strip(),
+    )
 
 
 def _set_status(db: Session, company_id: uuid.UUID, admin: User,

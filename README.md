@@ -2,12 +2,22 @@
 
 ## Estado actual verificado
 
-Actualizado al 17-11-2026.
+Actualizado al 18-11-2026.
 
-- Avance estimado vigente: **83,7%** para las 37 fichas SRS (`3098 / 37`).
-  El promedio de las ocho prioridades ADMIN es **81,0%**; P0/P1/P2: 81,7%,
-  84,7% y 83,3%. El corte anterior de `3013 / 37` no coincidía con la suma
-  de las estimaciones vigentes y se corrigió.
+- Avance estimado vigente: **84,8%** para las 37 fichas SRS (`3138 / 37`),
+  tras RF-AUD-03 en 100%. El promedio de las ocho prioridades ADMIN es **82,7%**;
+  P0/P1/P2: 86,1%, 84,7% y 83,3%. Son estimaciones de cobertura, no aceptación
+  integral ni preparación productiva.
+- RF-AUD-03 queda **IV/100% en alcance funcional local**: exportación ZIP de
+  negocio por alcance, documentos asociados, motivo y auditoría implementados;
+  lecturas de metadatos y emisión de URL documental también se registran.
+  Pasaron pruebas sintéticas de 60 MiB y 10.000 filas; falta validar el entorno
+  destino. La respuesta completa del servidor no acredita que el usuario haya
+  guardado el archivo.
+- La exportación de consola ADMIN se limita a resúmenes globales agregados en
+  PDF y ZIP CSV+JSON; excluye filas identificables de empresas, usuarios,
+  contratos, documentos y actividad individual. La exportación de negocio
+  permanece separada.
 - RF-DAS-01 queda **IV/100%**: universos acordados, conteos documentales
   alineados, salida “N/A” sin datos evaluables, pruebas/build aprobados y
   revisión visual confirmada por el usuario.
@@ -35,13 +45,31 @@ Actualizado al 17-11-2026.
   [Validación actual](documentacion/VALIDACION_ACTUAL.md).
 - RF-CLI-01 está en 80% por el cambio seguro de correo; RF-SAL-03, en 95% por
   el progreso medible y la actualización automática de procesos. La entrega
-  SMTP se probó con dobles; no se verificó un servidor SMTP real.
+  SMTP se probó con dobles y se confirmó un servidor Gmail real con envío exitoso.
 - En la auditoría de dependencias reportada el 04-11, `npm audit --omit=dev`
   encontró **1 vulnerabilidad crítica y 2 altas** en Next.js/PostCSS/source-map-js;
   confirmar el estado actual con una nueva ejecución de auditoría.
+- Gmail SMTP quedó configurado localmente con `smtp.gmail.com:587` y una
+  contraseña de aplicación. El servicio fue recargado y el envío de prueba
+  a `lp7901341@gmail.com` finalizó correctamente.
+- El usuario aprobó el flujo local de invitación de cuentas al **98%**: el correo
+  llegó a Spam y el enlace permitió activar la cuenta e iniciar sesión. Para
+  producción faltan el remitente corporativo real y la URL pública definitiva.
+- La recuperación desde **¿Olvidaste tu contraseña?** en `/login` usa el envío
+  SMTP y `/reset`. Pasaron 11 pruebas focalizadas y el usuario confirmó que el
+  flujo local de recuperación funciona correctamente. En producción falta
+  validar el remitente corporativo y la URL pública.
+- **Secretos locales:** existe un archivo [BASE/app/.env](BASE/app/.env) con
+  valores locales reales. Está excluido por `.gitignore` y se mantiene en
+  almacenamiento local seguro; no existe confirmación de filtración Git.
+  Mantener el archivo fuera de documentación, capturas y registros, y rotar
+  periódicamente el token ngrok, `JWT_SECRET` y `BACKUP_ENCRYPTION_KEY`.
 - Respaldos: ciclo funcional local 100% acreditado (crear, descargar `.acb`,
-  eliminar, importar, verificar y restaurar). Faltan RPO/RTO aprobados y
-  recuperación ante pérdida total del entorno.
+  eliminar, importar, verificar y restaurar). Objetivos acordados: RPO ≤24 h y
+  RTO ≤30 min; la última restauración local (esquema 23) reportó RPO 13,659 s y
+  RTO 7,815 s, con `status=restored`. La programación diaria queda pausada hasta
+  configurarse y habilitarse. Esto no certifica producción ni recuperación ante
+  pérdida total del entorno.
 - Producción con datos reales: **NO-GO** por privacidad/retención, otros
   controles de seguridad y auditoría, dependencias, infraestructura y
   recuperación pendientes. RNF-SEG-01 está validado en el entorno destino;
@@ -56,7 +84,8 @@ Documentos vigentes:
 - [Estado de salud general](documentacion/ESTADO_SALUD_GENERAL.md)
 - [Cronograma de cierre de 2 semanas](documentacion/CRONOGRAMA_CIERRE_PRODUCCION.md)
 - [Validación actual](documentacion/VALIDACION_ACTUAL.md)
-- [Requisitos con menor avance](documentacion/REQUISITOS_BAJO_AVANCE.md)
+- [Resumen de requisitos ADMIN](documentacion/RESUMEN_REQUISITOS_ADMIN.md)
+- [Análisis de brechas](documentacion/GAP_ANALYSIS.md)
 
 ### Historial de regresión backend
 
@@ -111,7 +140,7 @@ Bash
 cd BASE/app
 docker compose up --build
 
-### Actualización de esquema 20
+### Actualización de esquema 23
 
 Las migraciones `09_indices_consola.sql` y `10_version_sesion.sql` crean índices
 administrativos y añaden `users.auth_version`. `11_ciclo_vida_contratos.sql`
@@ -124,7 +153,16 @@ exportaciones ADMIN. La migración 18 (`18_confirmacion_cambio_email.sql`) agreg
 el flujo de confirmación de correo; la migración 19
 (`19_progreso_procesos.sql`) persiste etapa y porcentaje de procesos; la 20
 (`20_telemetria_actividad.sql`) agrega telemetría de sesiones activas y retención.
-La API exige el esquema 20 para este corte. Desde
+La 21 (`21_baja_invitaciones_pendientes.sql`) identifica explícitamente los
+tokens de invitación, permite eliminar solo cuentas invitadas que aún no
+activaron su acceso y conserva la bitácora al borrar la cuenta. La migración 22
+normaliza el tipo del token de recuperación de contraseña para que coincida con
+la restricción de la base. La migración 23 cambia a diaria (02:00
+`America/Santiago`) la programación de respaldo existente, sin activarla. La API
+exige el esquema 23 para este corte. Al restaurar un respaldo de esquema 22,
+la API aplica la migración 23 a la base aislada antes de validar y reemplazar la
+base activa.
+Desde
 `BASE/app`, actualizar las imágenes y aplicar las migraciones pendientes antes
 de recrear los servicios:
 
@@ -135,19 +173,25 @@ docker compose up -d api worker beat
 ```
 
 Si se configuró `SCHEMA_VERSION_ESPERADA` externamente, debe coincidir con la
-versión que requiere la aplicación (20 para este corte). Las migraciones
+versión que requiere la aplicación (23 para este corte). Las migraciones
 conservan los datos; la validación automatizada se realiza en PostgreSQL
 temporal y no aplica cambios a la base habitual. La migración 19 se validó con
 las pruebas focalizadas descritas en `documentacion/VALIDACION_ACTUAL.md`; la
 migración 20 también pasó pruebas en PostgreSQL temporal. Confirma el esquema
 de tu entorno antes de arrancar la API y workers.
 
+En **Gestión de cuentas** y en la ficha administrativa de una empresa,
+**Eliminar invitación** solo aparece para una invitación aún no aceptada.
+Elimina esa cuenta pendiente para liberar el email y poder invitar la dirección
+correcta; no se puede usar con cuentas activadas. La acción requiere
+confirmación y deja un evento de auditoría sin el email del usuario.
+
 En Usuarios, las cuentas revocadas tienen la acción **Reactivar** con confirmación.
 Conserva identidad, rol y alcance. Revocar o cambiar el estado activo desde ADMIN
 invalida los JWT anteriores y los refresh tokens; el usuario debe iniciar sesión
 nuevamente. Reactivar no aprueba una solicitud pendiente/rechazada. Instalar esquema
 11 fue el requisito de la versión que introdujo esta función; para el código
-actual, seguir la sección de esquema 20 anterior. Las cuentas que ya estaban
+actual, seguir la sección de esquema 23 anterior. Las cuentas que ya estaban
 revocadas también invalidan sus sesiones antiguas al reactivarse.
 
 
@@ -192,10 +236,12 @@ activar production con ellas provoca rechazo de la conexión.
 La recuperación ya no devuelve tokens por usar un secreto `dev-*`. Solo los
 entornos no productivos que activen `AUTH_DEV_RESET_TOKEN_ENABLED=true` pueden
 recibir `_dev_token`; por defecto y en Compose está desactivado. El envío real de
-correo para recuperación de contraseña sigue pendiente, por lo que aún no hay un
-flujo productivo completo de recuperación. Las pruebas aisladas habilitan estas
-opciones explícitamente. El seed actual incluye al menos 30 empresas demo con
-industrias, usuarios y antigüedades diferentes para
+correo de recuperación usa el SMTP local configurado; el flujo de interfaz y
+restablecimiento pasó 11 pruebas focalizadas. El usuario confirmó que el flujo
+local de recuperación y cambio de contraseña funciona correctamente. Queda
+validar en producción el remitente corporativo y la URL pública. Las pruebas
+aisladas habilitan estas opciones explícitamente. El seed actual incluye al menos
+30 empresas demo con industrias, usuarios y antigüedades diferentes para
 que los filtros y el resumen de clientes se parezcan a un entorno de producción.
 
 Para crear el primer administrador productivo sin ejecutar semillas demo, configurar
@@ -752,23 +798,27 @@ con enlaces previos. Las rutas Ops antiguas de Plataforma, Usuarios e
 Indicadores también redirigen a sus destinos Admin. `/admin` y la entrada Ops
 abren ahora el Dashboard global.
 
-## Cambios a la fecha — 17-11-2026
+## Cambios a la fecha — 18-11-2026
 
-El documento funcional vigente es el [SRS v0.98](documentacion/SRS.md). Esta
+El documento funcional vigente es el [SRS v1.02](documentacion/SRS.md). Esta
 sección resume los cambios relevantes y el estado conocido a la fecha; no
 sustituye los criterios, pendientes ni evidencias detallados en el SRS y la
 [validación actual](documentacion/VALIDACION_ACTUAL.md).
 
-**Resumen del corte:** la suma de las 37 fichas es **83,7% (3098/37)** y el
-promedio de las ocho prioridades ADMIN, **81,0%**; P0/P1/P2: 81,7%, 84,7% y
-83,3%. RF-DAS-01 queda IV/100%; RNF-SEG-01, IV/100% en el entorno destino; y
-RF-SEG-02, PAR/95% tras confirmar el recorrido de concesión y su auditoría,
-incluida la exportación global y por empresa.
+**Resumen del corte:** la suma de las 37 fichas es **84,8% (3138/37)** y el
+promedio de las ocho prioridades ADMIN, **82,7%**; P0/P1/P2: 86,1%, 84,7% y
+83,3%. RF-AUD-03 queda IV/100% en alcance funcional local; RF-DAS-01 queda
+IV/100%; RNF-SEG-01, IV/100% en el entorno destino; y RF-SEG-02, PAR/95% tras
+confirmar el recorrido de concesión y su auditoría, incluida la exportación
+global y por empresa.
 RNF-PER-01 queda IV/100% para la carga local sintética acordada: siete rutas
 cumplieron p95 ≤ 800 ms y cero errores, con p95 máximo de 729,5 ms. Esta prueba
 no es SLA ni certificación de producción. Las suites focalizadas de seguridad
-(76/76) y acceso sensible (88/88) pasaron; la suite backend completa más
-reciente pasó 492/492 el 16-11. Otros controles de seguridad,
+(76/76), acceso sensible (46/46) y las cargas sintéticas RF-AUD-03 (2/2)
+pasaron; la suite backend completa anterior del 18-11 pasó 517 pruebas y falló
+3 pruebas de migración/esquema en `test_esquema.py`. Las rutas de migración y
+las pruebas se corrigieron; la suite focalizada de esquema pasó 18/18, aunque
+falta repetir la suite completa. Otros controles de seguridad,
 privacidad/retención, auditoría, SMTP real, recuperación y continuidad siguen
 pendientes; producción permanece **NO-GO**.
 
@@ -806,8 +856,13 @@ de estos cambios pasó 14/14; no se repitió la suite completa tras el cambio.
     ADMIN conserva su identidad administrativa, pero la vista de empresa muestra
     el perfil de esa empresa (nombre y correo editables; RUT y estado solo lectura),
     no el perfil personal. También puede gestionar responsables de contrato en
-    el contexto seleccionado. La invitación/aceptación de cuentas existentes
-    sigue pendiente.
+    el contexto seleccionado. Desde **Gestión de cuentas** se puede crear una
+    invitación para una cuenta nueva, asignarle rol `company` o
+    `contract_admin` y enviar por SMTP un enlace de activación de un solo uso.
+    El invitado crea su contraseña en `/reset`; si el SMTP no está disponible,
+    la cuenta queda creada y la interfaz informa que el correo no pudo enviarse.
+    La transferencia de cuentas existentes entre empresas sigue siendo una
+    propuesta distinta y no está implementada.
 - RF-MET-02 implementa telemetría real de tiempo activo: sesión autenticada,
   pestaña visible e interacción reciente, pausa tras cinco minutos inactivo y
   heartbeat cada 60 segundos bajo esas condiciones. Registra sesiones lógicas
@@ -906,11 +961,12 @@ de estos cambios pasó 14/14; no se repitió la suite completa tras el cambio.
   ADMIN; al aprobarlo, la empresa y el usuario inicial quedan aprobados y el
   usuario conserva el rol `company`. La verificación manual cubrió la
   aprobación; rechazo y transiciones repetidas requieren validación separada.
-- El esquema requerido por este corte de API es v20. La migración v9 incorporó
+- El esquema requerido por este corte de API es v22. La migración v9 incorporó
   invalidación de sesiones al cambiar el estado de acceso; la validación de
   seguridad de conexiones de producción no configura por sí sola los roles
-  reales de la base de datos. Las migraciones 18, 19 y 20 añaden confirmación
-  de cambio de correo, progreso de procesos y telemetría de actividad.
+  reales de la base de datos. Las migraciones 18, 19, 20, 21 y 22 añaden
+  confirmación de cambio de correo, progreso, telemetría, eliminación
+  controlada de invitaciones y normalización de tokens de contraseña.
 
 ### Validación y límites conocidos
 
@@ -929,10 +985,16 @@ de estos cambios pasó 14/14; no se repitió la suite completa tras el cambio.
   pendientes. Consultar
   [la guía de ngrok](documentacion/LANZAMIENTO_NGROK.md) para una exposición
   temporal.
-- La invitación completa de usuarios por correo, la recuperación productiva de
-  contraseña, algunas integraciones externas y Celery distribuido siguen pendientes.
+- El flujo local de invitación de usuarios está aprobado al 98%; falta configurar
+  en producción el remitente corporativo y la URL pública para activación desde
+  otros dispositivos. La recuperación de contraseña desde login está
+  implementada, probada y confirmada por el usuario en local; falta validar el
+  remitente y la URL pública en producción. Algunas
+  integraciones externas y Celery distribuido siguen pendientes.
 - El ciclo local cifrado de respaldos y restauración está cerrado: crear,
-  descargar `.acb`, eliminar, importar, verificar y restaurar. RPO/RTO,
-  recuperación ante pérdida total y almacenamiento externo siguen pendientes.
+  descargar `.acb`, eliminar, importar, verificar y restaurar. La última
+  ejecución local en esquema 23 cumplió RPO ≤24 h y RTO ≤30 min (13,659 s y
+  7,815 s); recuperación ante pérdida total y almacenamiento externo siguen
+  pendientes.
 - El borrado actual de contratos es destructivo y elimina información asociada;
   el archivo y la restauración de contratos todavía no están implementados.

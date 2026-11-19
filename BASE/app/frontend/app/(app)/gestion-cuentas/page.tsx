@@ -28,6 +28,12 @@ export default function GestionCuentasPage() {
   const [guardando, setGuardando] = useState(false);
   const [ocupadoId, setOcupadoId] = useState<string | null>(null);
   const [errorModal, setErrorModal] = useState("");
+  const [modalInvitar, setModalInvitar] = useState(false);
+  const [nombreInvitado, setNombreInvitado] = useState("");
+  const [emailInvitado, setEmailInvitado] = useState("");
+  const [rolInvitado, setRolInvitado] = useState<RolGestion>("contract_admin");
+  const [contratoInvitado, setContratoInvitado] = useState("");
+  const [errorInvitacion, setErrorInvitacion] = useState("");
 
   useEffect(() => {
     const user = Api.currentUser();
@@ -130,6 +136,65 @@ export default function GestionCuentasPage() {
     }
   };
 
+  const eliminarInvitacion = async (usuario: UsuarioEmpresa) => {
+    const confirmado = await dialog.confirm({
+      title: "Eliminar invitación pendiente",
+      message: `Se eliminará la invitación de ${usuario.email}. La cuenta no ha sido activada y podrás invitar de nuevo el email correcto. Esta acción no se puede deshacer.`,
+      confirmLabel: "Eliminar invitación",
+      danger: true,
+      doubleConfirm: true,
+    });
+    if (!confirmado) return;
+    setOcupadoId(usuario.id);
+    setError("");
+    setAviso("");
+    try {
+      await Api.empresa.eliminarInvitacion(usuario.id);
+      setAviso("Invitación eliminada. Puedes invitar nuevamente ese email.");
+      setActualizar((valor) => valor + 1);
+    } catch (e) {
+      setError(Api.mensajeError(e));
+    } finally {
+      setOcupadoId(null);
+    }
+  };
+
+  const cerrarInvitacion = () => {
+    setModalInvitar(false);
+    setNombreInvitado("");
+    setEmailInvitado("");
+    setRolInvitado("contract_admin");
+    setContratoInvitado("");
+    setErrorInvitacion("");
+  };
+
+  const invitarCuenta = async (evento: FormEvent<HTMLFormElement>) => {
+    evento.preventDefault();
+    if (rolInvitado === "contract_admin" && !contratoInvitado) {
+      setErrorInvitacion("Selecciona el contrato al que tendrá acceso.");
+      return;
+    }
+    setGuardando(true);
+    setErrorInvitacion("");
+    try {
+      const invitado = await Api.empresa.invitar({
+        nombre: nombreInvitado.trim(),
+        email: emailInvitado.trim().toLowerCase(),
+        role: rolInvitado,
+        contrato_id: rolInvitado === "contract_admin" ? contratoInvitado : null,
+      });
+      cerrarInvitacion();
+      setAviso(invitado.email_enviado
+        ? "Invitación enviada por correo."
+        : "Cuenta creada, pero el correo no pudo enviarse.");
+      setActualizar((valor) => valor + 1);
+    } catch (e) {
+      setErrorInvitacion(Api.mensajeError(e));
+    } finally {
+      setGuardando(false);
+    }
+  };
+
   if (!listo) return <Spinner />;
   if (!autorizado) return <p className="text-sm text-red-700">No tienes permisos para gestionar cuentas de esta empresa.</p>;
 
@@ -149,9 +214,10 @@ export default function GestionCuentasPage() {
         </p>
       </header>
 
-      <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-        <strong>Invitaciones de cuentas existentes pendientes.</strong>{" "}
-        Aquí puedes administrar cuentas ya asociadas. La invitación y aceptación de una cuenta existente aún no está conectada; el endpoint actual crea cuentas nuevas y no entrega el token de activación por email.
+      <div className="flex items-center justify-end">
+        <button type="button" className="btn-primary" onClick={() => setModalInvitar(true)}>
+          Invitar cuenta
+        </button>
       </div>
 
       {error && <p role="alert" className="rounded-md bg-red-50 px-4 py-2 text-sm text-red-700">{error}</p>}
@@ -193,7 +259,8 @@ export default function GestionCuentasPage() {
                     <td className="px-4 py-3">{usuario.contrato_nombre ?? "Toda la empresa"}</td>
                     <td className="px-4 py-3">
                       <Chip estado={usuario.activo ? usuario.status : "rejected"}
-                        texto={!usuario.activo ? "Desactivada"
+                        texto={usuario.invitacion_pendiente ? "Invitación pendiente"
+                          : !usuario.activo ? "Desactivada"
                           : usuario.status === "approved" ? "Activa" : usuario.status === "pending" ? "Pendiente" : "Rechazada"} />
                     </td>
                     <td className="px-4 py-3 text-slate-600">
@@ -208,11 +275,17 @@ export default function GestionCuentasPage() {
                             onClick={() => abrirPermisos(usuario)}>
                             Acceso
                           </button>
-                          <button type="button" className="btn-ghost text-xs"
-                            disabled={ocupadoId === usuario.id}
-                            onClick={() => void cambiarEstado(usuario)}>
-                            {usuario.activo ? "Desactivar" : "Reactivar"}
-                          </button>
+                          {usuario.invitacion_pendiente
+                            ? <button type="button" className="btn-ghost text-xs text-red-700"
+                                disabled={ocupadoId === usuario.id}
+                                onClick={() => void eliminarInvitacion(usuario)}>
+                                {ocupadoId === usuario.id ? "Eliminando…" : "Eliminar invitación"}
+                              </button>
+                            : <button type="button" className="btn-ghost text-xs"
+                                disabled={ocupadoId === usuario.id}
+                                onClick={() => void cambiarEstado(usuario)}>
+                                {usuario.activo ? "Desactivar" : "Reactivar"}
+                              </button>}
                         </>}
                         {usuario.id === usuarioActualId && <span className="text-xs text-slate-500">Tu cuenta</span>}
                       </div>
@@ -244,6 +317,55 @@ export default function GestionCuentasPage() {
           </div>
         </div>
       </section>
+
+      <Modal abierto={modalInvitar} titulo="Invitar cuenta" onCerrar={cerrarInvitacion}>
+        <form className="space-y-4" onSubmit={invitarCuenta}>
+          <label className="block text-sm font-medium text-slate-700">
+            Nombre
+            <input className="input mt-1 w-full" value={nombreInvitado}
+              onChange={(evento) => setNombreInvitado(evento.target.value)}
+              minLength={1} maxLength={160} required />
+          </label>
+          <label className="block text-sm font-medium text-slate-700">
+            Email
+            <input className="input mt-1 w-full" type="email" value={emailInvitado}
+              onChange={(evento) => setEmailInvitado(evento.target.value)} required />
+          </label>
+          <label className="block text-sm font-medium text-slate-700">
+            Rol
+            <select className="input mt-1 w-full" value={rolInvitado}
+              onChange={(evento) => {
+                const nuevoRol = evento.target.value as RolGestion;
+                setRolInvitado(nuevoRol);
+                if (nuevoRol === "company") setContratoInvitado("");
+              }}>
+              <option value="company">Acceso a toda la empresa</option>
+              <option value="contract_admin" disabled={contratos.length === 0}>
+                Acceso a un contrato
+              </option>
+            </select>
+          </label>
+          {rolInvitado === "contract_admin" && <label className="block text-sm font-medium text-slate-700">
+            Contrato
+            <select className="input mt-1 w-full" value={contratoInvitado}
+              onChange={(evento) => setContratoInvitado(evento.target.value)} required>
+              <option value="">Selecciona un contrato activo</option>
+              {contratos.map((contrato) => <option key={contrato.id} value={contrato.id}>
+                {contrato.nombre}
+              </option>)}
+            </select>
+          </label>}
+          {errorInvitacion && <p role="alert" className="text-sm text-red-700">{errorInvitacion}</p>}
+          <div className="flex justify-end gap-2">
+            <button type="button" className="btn-ghost" onClick={cerrarInvitacion}>
+              Cancelar
+            </button>
+            <button type="submit" className="btn-primary" disabled={guardando}>
+              {guardando ? "Invitando…" : "Enviar invitación"}
+            </button>
+          </div>
+        </form>
+      </Modal>
 
       <Modal abierto={Boolean(editando)} titulo="Cambiar acceso" onCerrar={() => setEditando(null)}>
         {editando && <form className="space-y-4" onSubmit={guardarPermisos}>

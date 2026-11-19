@@ -16,6 +16,7 @@ export default function EmpresasAdminPage() {
   const [empresaExpandida, setEmpresaExpandida] = useState<string | null>(null);
   const [cargandoDetalle, setCargandoDetalle] = useState<string | null>(null);
   const [autorizandoEmpresa, setAutorizandoEmpresa] = useState<string | null>(null);
+  const [eliminandoInvitacion, setEliminandoInvitacion] = useState<string | null>(null);
   const solicitudDetalle = useRef(0);
 
   const cargar = useCallback(() => {
@@ -113,6 +114,48 @@ export default function EmpresasAdminPage() {
         : mensaje);
     } finally {
       setAutorizandoEmpresa(null);
+    }
+  };
+  const cancelarInvitacion = async (
+    company: Empresa,
+    usuario: NonNullable<EmpresaDetalle["cuentas"]>[number],
+  ) => {
+    const motivo = await dialog.prompt({
+      title: "Eliminar invitación pendiente",
+      message: `Se eliminará la invitación de ${usuario.email}. Solo se permite si aún no fue aceptada.`,
+      inputLabel: "Motivo (mínimo 12 caracteres)",
+      minLength: 12,
+    });
+    if (!motivo) return;
+    if (!await dialog.confirm({
+      title: "Confirmar eliminación",
+      message: `Se eliminará permanentemente la cuenta pendiente de ${company.nombre}. Podrás volver a invitar el email correcto.`,
+      confirmLabel: "Eliminar invitación",
+      danger: true,
+      doubleConfirm: true,
+    })) return;
+
+    setEliminandoInvitacion(usuario.id);
+    setError("");
+    setAviso("");
+    try {
+      await Api.admin.eliminarInvitacion(company.id, usuario.id, motivo);
+      setDetalle((actual) => actual ? {
+        ...actual,
+        cuentas: actual.cuentas.filter((cuenta) => cuenta.id !== usuario.id),
+        stats: {
+          ...actual.stats,
+          usuarios: Math.max(0, actual.stats.usuarios - 1),
+          usuarios_activos: usuario.activo
+            ? Math.max(0, actual.stats.usuarios_activos - 1)
+            : actual.stats.usuarios_activos,
+        },
+      } : actual);
+      setAviso("Invitación eliminada. La acción quedó registrada en la auditoría.");
+    } catch (e) {
+      setError(Api.mensajeError(e));
+    } finally {
+      setEliminandoInvitacion(null);
     }
   };
   if (!companies) return error ? <p className="text-sm text-red-600">{error}</p> : <Spinner />;
@@ -257,6 +300,7 @@ export default function EmpresasAdminPage() {
                           <th>Contrato</th>
                           <th>Estado</th>
                           <th>Último acceso</th>
+                          <th>Acciones</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -272,10 +316,18 @@ export default function EmpresasAdminPage() {
                             <td>{usuario.contrato && typeof usuario.contrato === "object" ? usuario.contrato.nombre : typeof usuario.contrato === "string" ? usuario.contrato : "Sin contrato"}</td>
                             <td>
                               <Pill tono={usuario.activo && usuario.status === "approved" ? "ok" : usuario.status === "rejected" ? "crit" : "warn"}>
-                                {usuario.activo && usuario.status === "approved" ? "Activo" : usuario.status === "rejected" ? "Rechazado" : usuario.status === "pending" ? "Pendiente" : "Inactivo"}
+                                {usuario.invitacion_pendiente ? "Invitación pendiente" : usuario.activo && usuario.status === "approved" ? "Activo" : usuario.status === "rejected" ? "Rechazado" : usuario.status === "pending" ? "Pendiente" : "Inactivo"}
                               </Pill>
                             </td>
                             <td>{usuario.last_login_at ? new Date(usuario.last_login_at).toLocaleString("es-CL") : "Nunca"}</td>
+                            <td>
+                              {usuario.invitacion_pendiente && <button
+                                className="ops-btn ops-btn-ghost text-xs"
+                                disabled={eliminandoInvitacion === usuario.id}
+                                onClick={() => void cancelarInvitacion(company, usuario)}>
+                                {eliminandoInvitacion === usuario.id ? "Eliminando…" : "Eliminar invitación"}
+                              </button>}
+                            </td>
                           </tr>
                         ))}
                       </tbody>

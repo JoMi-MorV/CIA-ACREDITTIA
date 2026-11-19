@@ -552,6 +552,32 @@ def _check_schema(database: str) -> None:
             f"se requiere {settings.schema_version_esperada}")
 
 
+def _migrate_restored_schema(database: str) -> None:
+    url = _maintenance_url().set(database=database)
+    try:
+        with psycopg.connect(url.render_as_string(hide_password=False)) as conn:
+            row = conn.execute(
+                "SELECT max(version) FROM app_schema_migrations").fetchone()
+            version = row[0] if row else None
+            if version == settings.schema_version_esperada:
+                return
+            if version != 22 or settings.schema_version_esperada != 23:
+                raise BackupError(
+                    f"El respaldo usa esquema {version if version is not None else 'desconocido'}; "
+                    f"no hay migración de restauración compatible a "
+                    f"{settings.schema_version_esperada}")
+            migration_path = Path(settings.schema_dir) / "23_respaldo_diario_rpo24h.sql"
+            try:
+                migration_sql = migration_path.read_text(encoding="utf-8")
+            except OSError as exc:
+                raise BackupError(
+                    f"No se pudo cargar la migración {migration_path}: {exc}") from exc
+            conn.execute(migration_sql)
+    except psycopg.Error as exc:
+        raise BackupError(
+            f"No se pudo actualizar el esquema del respaldo restaurado: {exc}") from exc
+
+
 def _extract_uploads(archive_path: Path, stage: Path) -> None:
     stage.mkdir(mode=0o700)
     with tarfile.open(archive_path, "r:gz") as archive:
@@ -644,6 +670,7 @@ def restore_backup(backup_id: str, *, confirmation: str) -> dict:
                     pgsql.Identifier(restore_name)))
         try:
             _restore_database(dump_path, restore_name)
+            _migrate_restored_schema(restore_name)
             _check_schema(restore_name)
             with _connect_maintenance() as conn:
                 conn.execute(

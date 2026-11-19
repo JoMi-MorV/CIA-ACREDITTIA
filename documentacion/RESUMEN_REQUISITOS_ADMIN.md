@@ -1,6 +1,6 @@
 # Resumen de requisitos ADMIN
 
-**Corte ADMIN:** 14 de noviembre de 2026  
+**Corte ADMIN:** 18 de noviembre de 2026  
 **Base documental:** SRS versión 0.90, GAP, `VALIDACION_ACTUAL.md` y el [cronograma de cierre de 2 semanas](CRONOGRAMA_CIERRE_PRODUCCION.md).
 **Propósito:** resumir el estado técnico de las ocho prioridades ADMIN, distinguir lo implementado de lo validado y proponer criterios concretos para revisar su cierre.
 
@@ -34,9 +34,13 @@ de la estimación de las prioridades ADMIN.
 
 La sección `/ops/respaldos` incorpora creación, descarga `.acb`,
 eliminación, importación, verificación, duplicados y restauración controlada,
-además de exportación ZIP CSV+JSON/PDF. El ciclo completo fue acreditado en
-Compose local. La aceptación productiva, RPO/RTO, almacenamiento externo y
-recuperación ante pérdida total siguen pendientes. Véase
+además de exportación de consola en PDF/ZIP con resúmenes generales agregados.
+La exportación de negocio y documentos por alcance es independiente. El ciclo
+de respaldo completo fue acreditado en Compose local. Los objetivos funcionales
+acordados son RPO ≤24 h y RTO ≤30 min; la última restauración local en esquema
+23 reportó RPO 13,659 s y RTO 7,815 s (`status=restored`). La aceptación
+productiva, almacenamiento externo y recuperación ante pérdida total siguen
+pendientes. Véase
 DEC-14 en el SRS y los límites en GAP/VALIDACION_ACTUAL.
 
 La actualización del 15-10-2026 registra cambios del portal de empresa:
@@ -74,7 +78,7 @@ producción.
 | 3 | Buscador global | **100%** | **RF-BUS-01 IV (100%); RF-BUS-02 IV/P0 (100%)** | Autorización por categoría, detalle directo y exportación ZIP con concesiones y alcance validados por pruebas focalizadas. El listado administrativo independiente de usuarios queda en RF-USU. |
 | 4 | Métricas SaaS | **60% estimado, no recalculado** | **PAR** — RF-MET-01/03 pendientes; RF-MET-02 implementado y probado | Salud muestra el tiempo activo medido de RF-MET-02; la duración estimada por sesión se retiró de la interfaz. El porcentaje de la prioridad no se recalcula porque los otros requisitos y su ponderación siguen pendientes; revisiones de IA no equivale necesariamente a documentos únicos. |
 | 5 | Alertas y salud de clientes | **83,3%** | **Mixto:** RF-SAL-01 **PAR**; RF-SAL-02 **ISV**; RF-SAL-03 **ISV** | Promedio de RF-SAL-01 (75%), RF-SAL-02 (80%) y RF-SAL-03 (95%). Seguimiento de procesos validado en pruebas focalizadas; continúan pendientes recuperación distribuida real, validar riesgos de clientes y totales/paginación. |
-| 6 | Usuarios, roles y permisos | **70%** | **PAR** — RF-USU-01/02 | El listado ADMIN pagina usuarios y los cambios de alcance invalidan sesiones. El portal permite convertir `company` en `contract_admin` si queda otro `company` activo; siguen pendientes invitación/aceptación de cuentas existentes, historial completo de acceso y validación integral. El porcentaje es el estimado histórico del 13-10. |
+| 6 | Usuarios, roles y permisos | **70%** | **PAR** — RF-USU-01/02 | El listado ADMIN pagina usuarios y los cambios de alcance invalidan sesiones. El portal permite convertir `company` en `contract_admin` si queda otro `company` activo e invita cuentas nuevas con rol y contrato mediante activación por correo. Sigue pendiente la transferencia de cuentas existentes entre empresas, el historial completo de acceso y la validación integral. El porcentaje es el estimado histórico del 13-10. |
 | 7 | Auditoría y trazabilidad | **73,3%** | **PAR** — RF-AUD-01/02/03 | RF-AUD-01 está al 90%; el usuario confirmó revisión y registro de las mutaciones acordadas. Queda comprobar valores anterior/nuevo para permisos/estados y pausa de procesos. RF-AUD-02 registra autenticación, cierre y rotación. RF-AUD-03 conserva pendientes de integridad, retención y autorización/exportación. |
 | 8 | Seguridad y aislamiento | **81,3%** | **PAR** — RF-SEG-01/02/03; RNF-SEG-01 **IV (100%)** | RNF-SEG-01 queda validado en el entorno destino por confirmación del usuario: roles separados, RLS efectivo con roles reales, denegaciones entre empresas/contratos y secretos externos; se cumple la condición de DEC-10 para RLS contractual. Las pruebas focalizadas actuales pasaron 76/76. RF-SEG-02 está al 95%; quedan lecturas sensibles y controles de los requisitos RF-SEG-01/02/03. Compose local de desarrollo conserva rol elevado. |
 
@@ -256,7 +260,7 @@ que la prioridad Métricas SaaS sigue PAR y su 60% histórico no se recalcula.
 - El esquema actual vincula cada usuario a un único `company_id` y un único `contrato_id`; no permite membresías multiempresa ni varios contratos por cuenta `contract_admin`.
 - En el portal, el registro solicita el nombre del usuario inicial y el perfil personal permite editar nombre, correo y contraseña. En «Ver como empresa», `/perfil` muestra el perfil de la empresa (nombre/correo editables; RUT/estado de solo lectura), no la identidad personal de ADMIN.
 - `/gestion-cuentas` lista, busca, pagina y administra cuentas del tenant. En `/contratos`, ADMIN impersonando puede ver y gestionar responsables. Se puede asignar una cuenta `company` a un contrato con confirmación doble; el API conserva `ULTIMO_ADMINISTRADOR` si sería el último usuario `company` activo. Cuentas `contract_admin` existentes pueden reasignarse entre contratos.
-- La regresión `tests/test_auth.py` + `tests/test_tenants.py` pasó 71/71 el 15-10-2026. La invitación/aceptación de una cuenta existente sigue pendiente; `/company/usuarios` crea usuarios nuevos y todavía no entrega el token de activación por email.
+- La regresión `tests/test_auth.py` + `tests/test_tenants.py` pasó 71/71 el 15-10-2026. El 18-11-2026 se completó la invitación de cuentas nuevas: `/company/usuarios` crea la cuenta dentro del `company_id`, asigna el rol y el contrato de acceso, entrega el enlace de activación por SMTP y `/reset` crea la contraseña. La transferencia de una cuenta existente entre empresas sigue pendiente.
 - La reactivación de cuentas e invalidación de sesiones anteriores está implementada y probada en pruebas aisladas. La migración v9 añadió `auth_version`; el esquema que exige actualmente la API es v11. No se afirma que cada entorno destino esté ya migrado.
 - El listado administrativo de usuarios pagina los resultados; la navegación para universos mayores de 100 ya no es una brecha identificada.
 - Backend valida que el contrato pertenezca a la empresa; la interfaz puede enviar combinaciones inválidas que backend rechaza.
@@ -268,7 +272,7 @@ que la prioridad Métricas SaaS sigue PAR y su 60% histórico no se recalcula.
 1. Aprobar la matriz de roles y permisos por empresa/contrato, incluyendo ADMIN y cuentas sin empresa.
 2. Probar que cambiar cuerpo, URL o identificadores nunca permita acceder a otra empresa/contrato.
 3. Asegurar que rol, empresa y contrato se guarden como una combinación coherente, sin cambios parciales cuando hay error.
-4. Completar invitación/aceptación de cuentas existentes y activación por correo; la paginación del listado ADMIN está implementada.
+4. Completar la transferencia justificada de cuentas existentes entre empresas y su autorización/aceptación; la invitación y activación de cuentas nuevas ya están implementadas.
 5. Validar en navegador crear/editar/revocar/reactivar y cambiar rol/empresa/contrato; comprobar consecuencias, motivo obligatorio, auditoría, errores e identidad del destinatario.
 6. Aplicar y validar la migración pendiente en el entorno destino antes de considerar operativo el flujo allí.
 7. DEC-13 es una propuesta pendiente de aprobación del cliente: solicitud justificada por `company` o `contract_admin`; primero acepta el titular y luego ADMIN revisa. Ambas etapas deben completarse dentro de 14 días desde el envío; rechazo/expiración no cambian empresa/permisos. La alternativa recomendada es transferir la cuenta: retirar acceso de origen y asignar explícitamente el acceso de destino, sin heredar contratos. No implementar antes de la aprobación y validar aislamiento.

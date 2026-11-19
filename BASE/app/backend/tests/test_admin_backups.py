@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import base64
-import csv
 import io
 import json
 import re
+from pathlib import Path
 from zipfile import ZipFile
 
 import pytest
@@ -33,13 +33,10 @@ def concesion_usuarios(app_cliente, admin, empresa=None, recurso_id=None):
     return headers
 
 
-def autoconcesion_exportacion(app_cliente, admin, alcance="global", empresa=None):
+def autoconcesion_exportacion(app_cliente, admin):
     cuerpo = {
-        "alcance": alcance,
         "motivo": "Validar exportación administrativa",
     }
-    if empresa:
-        cuerpo["company_id"] = empresa["company_id"]
     respuesta = app_cliente.post(
         f"{API}/admin/backups/export-grants",
         headers=admin["headers"], json=cuerpo)
@@ -124,14 +121,47 @@ def test_estado_backups_no_expone_configuracion(app_cliente, admin):
     assert response.status_code == 200, response.text
     body = response.json()
     assert body["retention_count"] == 8
-    assert body["schedule"] == "0 2 * * 0"
+    assert body["schedule"] == "0 2 * * *"
     assert "backup_database_url" not in body
     assert "encryption_key" not in body
 
 
-def test_export_console_zip_excluye_credenciales(app_cliente, admin, empresa_a):
-    headers = autoconcesion_exportacion(
-        app_cliente, admin, alcance="empresa", empresa=empresa_a)
+def test_restauracion_actualiza_backup_de_esquema_22(motor_admin, monkeypatch):
+    schema_dir = Path(__file__).resolve().parents[3] / "modelo_datos"
+    maintenance_url = motor_admin.url.set(
+        drivername="postgresql").render_as_string(hide_password=False)
+    monkeypatch.setattr(backups.settings, "backup_restore_database_url", maintenance_url)
+    monkeypatch.setattr(backups.settings, "schema_dir", str(schema_dir))
+    with motor_admin.begin() as conn:
+        conn.execute(sa.text(
+            "UPDATE ops_jobs SET cron_expr='0 2 * * 0' "
+            "WHERE clave='admin_backup'"))
+        conn.execute(sa.text(
+            "DELETE FROM app_schema_migrations WHERE version=23"))
+    try:
+        backups._migrate_restored_schema(motor_admin.url.database)
+        with motor_admin.connect() as conn:
+            version = conn.execute(sa.text(
+                "SELECT max(version) FROM app_schema_migrations")).scalar_one()
+            schedule, active = conn.execute(sa.text(
+                "SELECT cron_expr, activo FROM ops_jobs "
+                "WHERE clave='admin_backup'")).one()
+        assert version == 23
+        assert schedule == "0 2 * * *"
+        assert active is False
+    finally:
+        with motor_admin.begin() as conn:
+            conn.execute(sa.text(
+                "UPDATE ops_jobs SET cron_expr='0 2 * * *' "
+                "WHERE clave='admin_backup'"))
+            conn.execute(sa.text(
+                "INSERT INTO app_schema_migrations (version) VALUES (23) "
+                "ON CONFLICT DO NOTHING"))
+
+
+def test_export_console_zip_solo_contiene_resumenes_agregados(
+        app_cliente, admin, empresa_a):
+    headers = autoconcesion_exportacion(app_cliente, admin)
     response = app_cliente.get(
         f"{API}/admin/backups/export?formato=zip"
         "&motivo=Revision%20operacional%20autorizada",
@@ -140,17 +170,27 @@ def test_export_console_zip_excluye_credenciales(app_cliente, admin, empresa_a):
     assert response.headers["content-type"] == "application/zip"
     with ZipFile(io.BytesIO(response.content)) as archive:
         names = set(archive.namelist())
-        assert "manifest.json" in names
-        assert "csv/companies.csv" in names
-        assert "json/planes.json" in names
-        assert "csv/plataforma_credenciales.csv" not in names
-        user_data = archive.read("json/users.json").decode("utf-8")
-        assert "password_hash" not in user_data
-        assert "auth_version" not in user_data
-        user_csv = list(csv.reader(io.StringIO(
-            archive.read("csv/users.csv").decode("utf-8-sig"))))
-        assert "password_hash" not in user_csv[0]
-        assert "auth_version" not in user_csv[0]
+        assert {
+            "manifest.json",
+            "csv/indicadores.csv",
+            "json/indicadores.json",
+            "csv/metricas_mensuales.csv",
+            "json/salud_servicios.json",
+            "json/procesos.json",
+            "json/incidentes.json",
+            "json/actividad.json",
+        } <= names
+        assert not any(name.startswith(("csv/companies.", "json/companies.",
+                                        "csv/users.", "json/users.",
+                                        "csv/contratos.", "json/contratos.",
+                                        "csv/actividad_detalle.", "json/actividad_detalle."))
+                       for name in names)
+        manifest = json.loads(archive.read("manifest.json"))
+        assert manifest["alcance"] == "resumen general agregado de la consola ADMIN"
+        assert manifest["incluye_registros_identificables"] is False
+        exportado = b"".join(archive.read(name) for name in names)
+        assert empresa_a["company_id"].encode() not in exportado
+        assert empresa_a["user_id"].encode() not in exportado
 
 
 def test_export_console_pdf_resumen(app_cliente, admin):
@@ -166,7 +206,7 @@ def test_export_console_pdf_resumen(app_cliente, admin):
 
 
 def test_export_console_requiere_motivo_y_lo_audita(
-        app_cliente, admin, motor_admin, empresa_a):
+        app_cliente, admin, motor_admin):
     sin_motivo = app_cliente.get(
         f"{API}/admin/backups/export?formato=zip", headers=admin["headers"])
     assert sin_motivo.status_code == 400
@@ -185,8 +225,7 @@ def test_export_console_requiere_motivo_y_lo_audita(
     assert motivo_largo.json()["error"]["code"] == "MOTIVO_INVALIDO"
 
     motivo = "Revision operacional autorizada"
-    headers = autoconcesion_exportacion(
-        app_cliente, admin, alcance="empresa", empresa=empresa_a)
+    headers = autoconcesion_exportacion(app_cliente, admin)
     response = app_cliente.get(
         f"{API}/admin/backups/export?formato=zip&motivo={motivo.replace(' ', '%20')}",
         headers=headers)
@@ -200,72 +239,24 @@ def test_export_console_requiere_motivo_y_lo_audita(
     assert motivo in audit
 
 
-def test_export_zip_requires_and_respects_company_export_grant(
-        app_cliente, admin, empresa_a, empresa_b):
+def test_export_zip_requires_global_summary_grant(app_cliente, admin):
     params = {"formato": "zip", "motivo": "Validación de alcance RF-BUS-02"}
     sin_concesion = app_cliente.get(
         f"{API}/admin/backups/export", headers=admin["headers"], params=params)
     assert sin_concesion.status_code == 403
     assert sin_concesion.json()["error"]["code"] == "PERMISO_INFORMACION_REQUERIDO"
 
-    headers = autoconcesion_exportacion(
-        app_cliente, admin, alcance="empresa", empresa=empresa_a)
+    headers = autoconcesion_exportacion(app_cliente, admin)
     respuesta = app_cliente.get(
         f"{API}/admin/backups/export", headers=headers, params=params)
     assert respuesta.status_code == 200, respuesta.text
     with ZipFile(io.BytesIO(respuesta.content)) as archive:
-        empresas = json.loads(archive.read("json/companies.json"))
-        usuarios = json.loads(archive.read("json/users.json"))
-        actividad = json.loads(archive.read("json/actividad.json"))
-        csv_empresas = list(csv.reader(io.StringIO(
-            archive.read("csv/companies.csv").decode("utf-8-sig"))))
         manifiesto = json.loads(archive.read("manifest.json"))
         nombres = set(archive.namelist())
-
-    assert {empresa["id"] for empresa in empresas} == {empresa_a["company_id"]}
-    assert {fila[0] for fila in csv_empresas[1:]} == {empresa_a["company_id"]}
-    ids = {usuario["id"] for usuario in usuarios}
-    assert empresa_a["user_id"] in ids
-    assert empresa_b["user_id"] not in ids
-    assert all(fila["company_id"] == empresa_a["company_id"]
-               for fila in actividad)
-    assert "json/metricas_mensuales.json" not in nombres
-    assert "json/ops_job_runs.json" not in nombres
-    assert "json/planes.json" in nombres
-    assert manifiesto["alcance_exportacion"] == {
-        "tipo": "empresa",
-        "company_id": empresa_a["company_id"],
-        "incluye_catalogos_globales": True,
-    }
-
-
-def test_export_zip_global_incluye_todas_las_empresas(
-        app_cliente, admin, empresa_a, empresa_b):
-    headers = autoconcesion_exportacion(app_cliente, admin)
-    respuesta = app_cliente.get(
-        f"{API}/admin/backups/export",
-        headers=headers,
-        params={"formato": "zip", "motivo": "Exportación global aprobada"},
-    )
-    assert respuesta.status_code == 200, respuesta.text
-    with ZipFile(io.BytesIO(respuesta.content)) as archive:
-        empresas = json.loads(archive.read("json/companies.json"))
-        usuarios = json.loads(archive.read("json/users.json"))
-        job_runs = json.loads(archive.read("json/ops_job_runs.json"))
-        manifiesto = json.loads(archive.read("manifest.json"))
-
-    company_ids = {empresa["id"] for empresa in empresas}
-    user_ids = {usuario["id"] for usuario in usuarios}
-    assert {empresa_a["company_id"], empresa_b["company_id"]} <= company_ids
-    assert {empresa_a["user_id"], empresa_b["user_id"]} <= user_ids
-    assert all("error_detalle" not in fila and "celery_task_id" not in fila
-               for fila in job_runs)
-    assert all("password_hash" not in fila and "auth_version" not in fila
-               for fila in usuarios)
-    assert manifiesto["alcance_exportacion"] == {
-        "tipo": "global", "company_id": None,
-        "incluye_catalogos_globales": False,
-    }
+    assert "json/indicadores.json" in nombres
+    assert "csv/companies.csv" not in nombres
+    assert "json/users.json" not in nombres
+    assert manifiesto["incluye_registros_identificables"] is False
 
 
 def test_export_zip_rechaza_concesion_de_usuarios_no_especifica(
@@ -282,8 +273,7 @@ def test_export_zip_rechaza_concesion_de_usuarios_no_especifica(
 
 def test_export_zip_rechaza_concesion_revocada(
         app_cliente, admin, empresa_a):
-    headers = autoconcesion_exportacion(
-        app_cliente, admin, alcance="empresa", empresa=empresa_a)
+    headers = autoconcesion_exportacion(app_cliente, admin)
     grant_id = headers["X-Access-Grant"]
     revocada = app_cliente.post(
         f"{API}/admin/access-grants/{grant_id}/revoke",
@@ -300,8 +290,7 @@ def test_export_zip_rechaza_concesion_revocada(
 
 def test_export_zip_rechaza_concesion_expirada(
         app_cliente, admin, empresa_a, motor_admin):
-    headers = autoconcesion_exportacion(
-        app_cliente, admin, alcance="empresa", empresa=empresa_a)
+    headers = autoconcesion_exportacion(app_cliente, admin)
     grant_id = headers["X-Access-Grant"]
     with motor_admin.begin() as conn:
         conn.execute(sa.text(
@@ -317,22 +306,17 @@ def test_export_zip_rechaza_concesion_expirada(
     assert respuesta.json()["error"]["code"] == "PERMISO_INFORMACION_INVALIDO"
 
 
-def test_export_grant_exige_alcance_coherente(app_cliente, admin, empresa_a):
-    base = {"motivo": "Validación de alcance exportación"}
-    global_con_empresa = app_cliente.post(
+def test_export_grant_rechaza_alcance_por_empresa(app_cliente, admin, empresa_a):
+    grant_empresa = app_cliente.post(
         f"{API}/admin/backups/export-grants",
         headers=admin["headers"],
-        json={**base, "alcance": "global", "company_id": empresa_a["company_id"]},
+        json={
+            "motivo": "Validación de exportación general",
+            "alcance": "empresa",
+            "company_id": empresa_a["company_id"],
+        },
     )
-    empresa_sin_id = app_cliente.post(
-        f"{API}/admin/backups/export-grants",
-        headers=admin["headers"],
-        json={**base, "alcance": "empresa"},
-    )
-    assert global_con_empresa.status_code == 422
-    assert global_con_empresa.json()["error"]["code"] == "ALCANCE_INVALIDO"
-    assert empresa_sin_id.status_code == 422
-    assert empresa_sin_id.json()["error"]["code"] == "ALCANCE_REQUERIDO"
+    assert grant_empresa.status_code == 422
 
 
 def test_export_pdf_summary_needs_no_user_grant(app_cliente, admin):
@@ -343,6 +327,7 @@ def test_export_pdf_summary_needs_no_user_grant(app_cliente, admin):
     )
     assert response.status_code == 200, response.text
     assert response.content.startswith(b"%PDF")
+    assert len(re.findall(rb"/Type /Page\b", response.content)) >= 5
 
 
 def test_encryption_roundtrip_and_tamper_detection(tmp_path, monkeypatch):

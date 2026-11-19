@@ -22,6 +22,7 @@ import time
 import uuid
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from collections.abc import Iterator
 from datetime import datetime, timedelta, timezone
 
 from ..config import settings
@@ -59,6 +60,9 @@ class Storage(ABC):
 
     @abstractmethod
     def read(self, blob_path: str) -> bytes: ...
+
+    @abstractmethod
+    def iter_chunks(self, blob_path: str) -> Iterator[bytes]: ...
 
     @abstractmethod
     def delete(self, blob_path: str) -> None: ...
@@ -131,6 +135,11 @@ class LocalStorage(Storage):
     def read(self, blob_path: str) -> bytes:
         with open(self._full(blob_path), "rb") as f:
             return f.read()
+
+    def iter_chunks(self, blob_path: str) -> Iterator[bytes]:
+        with open(self._full(blob_path), "rb") as file:
+            while chunk := file.read(1024 * 1024):
+                yield chunk
 
     def delete(self, blob_path: str) -> None:
         try:
@@ -233,6 +242,9 @@ class AzureBlobStorage(Storage):
 
     def read(self, blob_path: str) -> bytes:
         return self._blob(blob_path).download_blob().readall()
+
+    def iter_chunks(self, blob_path: str) -> Iterator[bytes]:
+        yield from self._blob(blob_path).download_blob().chunks()
 
     def delete(self, blob_path: str) -> None:
         from azure.core.exceptions import ResourceNotFoundError

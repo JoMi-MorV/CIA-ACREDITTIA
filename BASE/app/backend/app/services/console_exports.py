@@ -16,34 +16,21 @@ from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import mm
-from reportlab.graphics.charts.barcharts import VerticalBarChart
+from reportlab.graphics.charts.barcharts import HorizontalBarChart
+from reportlab.graphics.charts.lineplots import LinePlot
+from reportlab.graphics.charts.piecharts import Pie
 from reportlab.graphics.shapes import Drawing, String
+from reportlab.graphics.widgets.markers import makeMarker
 from reportlab.platypus import (PageBreak, Paragraph, SimpleDocTemplate, Spacer,
                                 Table, TableStyle)
 from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
-from ..models import (Actividad, AdminAccessGrant, Base, Company, Contrato,
-                      Documento, IaReview, Plan, Sujeto, Suscripcion, User)
+from ..models import (Actividad, AdminAccessGrant, Company, Contrato, Documento,
+                      IaReview, Plan, Sujeto, Suscripcion, User)
 from ..models_ops import (MetricasMensuales, OpsComponente,
                           MetricasMensualesPlan, OpsDisponibilidadDiaria,
                           OpsIncidente, OpsJob, OpsJobRun)
-from .actividad import minimizar_metadata, minimizar_texto
-
-# No se incluyen tablas de documentos/archivos, hashes de credenciales, tokens,
-# secretos ni el vault. Las columnas sensibles se excluyen por nombre.
-_TABLES = (
-    "companies", "users", "contratos", "planes", "suscripciones", "actividad",
-    "metricas_mensuales", "metricas_mensuales_plan", "ops_componentes",
-    "ops_disponibilidad_diaria", "ops_incidentes", "ops_jobs", "ops_job_runs",
-)
-_EXCLUDED_COLUMNS = {
-    "users": {"password_hash", "auth_version"},
-    "ops_job_runs": {"error_detalle", "celery_task_id"},
-}
-_SENSITIVE_NAMES = ("password", "token", "secret", "credential", "jwe", "private_key")
-_COMPANY_EXPORT_REFERENCES = {"planes", "ops_componentes"}
-
 
 def _json_value(value):
     if isinstance(value, (datetime, date)):
@@ -53,20 +40,6 @@ def _json_value(value):
     if isinstance(value, bytes):
         return "[contenido binario omitido]"
     return value
-
-
-def _tables():
-    for name in _TABLES:
-        table = Base.metadata.tables.get(name)
-        if table is None:
-            continue
-        columns = [
-            column for column in table.columns
-            if column.name not in _EXCLUDED_COLUMNS.get(name, set())
-            and not any(part in column.name.lower() for part in _SENSITIVE_NAMES)
-        ]
-        if columns:
-            yield table, columns
 
 
 def create_console_export(
@@ -84,60 +57,19 @@ def create_console_export(
             return path, "application/pdf", tmp
         if formato != "zip":
             raise ValueError("Formato de exportación no soportado")
-        if not export_grant or export_grant.recurso_tipo != "exportacion":
+        if (not export_grant or export_grant.recurso_tipo != "exportacion"
+                or export_grant.company_id is not None):
             raise ValueError("La exportación ZIP requiere una autoconcesión temporal")
 
         zip_path = root / "exportacion-admin.zip"
-        company_id = export_grant.company_id if export_grant else None
         manifest = {
             "generado_at": generated.isoformat(),
-            "alcance": "datos visibles de la consola ADMIN; sin archivos documentales, credenciales ni tokens",
-            "alcance_exportacion": {
-                "tipo": "empresa" if company_id else "global",
-                "company_id": str(company_id) if company_id else None,
-                "incluye_catalogos_globales": bool(company_id),
-            },
+            "alcance": "resumen general agregado de la consola ADMIN",
+            "incluye_registros_identificables": False,
             "contenido": [],
         }
         with ZipFile(zip_path, "w", compression=ZIP_DEFLATED) as package:
-            for table, columns in _tables():
-                company_column = table.c.get("company_id")
-                if company_id and table.name != "companies" and company_column is None \
-                        and table.name not in _COMPANY_EXPORT_REFERENCES:
-                    continue
-                csv_path = root / f"{table.name}.csv"
-                json_path = root / f"{table.name}.json"
-                count = 0
-                with csv_path.open("w", newline="", encoding="utf-8-sig") as csv_file, \
-                        json_path.open("w", encoding="utf-8") as json_file:
-                    writer = csv.writer(csv_file)
-                    writer.writerow([column.name for column in columns])
-                    json_file.write("[")
-                    query = select(*columns).select_from(table)
-                    if company_id:
-                        if table.name == "companies":
-                            query = query.where(Company.id == company_id)
-                        elif company_column is not None:
-                            query = query.where(company_column == company_id)
-                    for row in db.execute(query).mappings():
-                        values = {}
-                        for column in columns:
-                            value = _json_value(row[column.name])
-                            if table.name == "actividad":
-                                if column.name == "metadata":
-                                    value = minimizar_metadata(value)
-                                elif isinstance(value, str):
-                                    value = minimizar_texto(value)
-                            values[column.name] = value
-                        writer.writerow([_csv_value(values[column.name]) for column in columns])
-                        if count:
-                            json_file.write(",")
-                        json.dump(values, json_file, ensure_ascii=False, default=str)
-                        count += 1
-                    json_file.write("]")
-                package.write(csv_path, f"csv/{table.name}.csv")
-                package.write(json_path, f"json/{table.name}.json")
-                manifest["contenido"].append({"tabla": table.name, "filas": count})
+            _create_summary_zip(db, root, package, generated, manifest)
             package.writestr("manifest.json",
                              json.dumps(manifest, ensure_ascii=False, indent=2))
         return zip_path, "application/zip", tmp
@@ -152,6 +84,274 @@ def _csv_value(value):
         if first.startswith(("=", "+", "-", "@")):
             return "'" + value
     return value
+
+
+def _create_summary_zip(db: Session, root: Path, package: ZipFile,
+                        generated: datetime, manifest: dict) -> None:
+    now = generated
+    today = now.date()
+    month_start = today.replace(day=1)
+    monthly_from = (month_start - timedelta(days=335)).replace(day=1)
+    activity_from = now - timedelta(days=30)
+    incident_from = now - timedelta(days=90)
+    availability_from = today - timedelta(days=89)
+
+    def count(model, *conditions) -> int:
+        statement = select(func.count()).select_from(model)
+        if conditions:
+            statement = statement.where(*conditions)
+        return int(db.scalar(statement) or 0)
+
+    def grouped(column, model, *conditions):
+        statement = select(column, func.count()).select_from(model)
+        if conditions:
+            statement = statement.where(*conditions)
+        return db.execute(statement.group_by(column).order_by(column)).all()
+
+    def add_dataset(name: str, columns: tuple[str, ...], rows: list[dict]) -> None:
+        csv_path = root / f"{name}.csv"
+        json_path = root / f"{name}.json"
+        with csv_path.open("w", newline="", encoding="utf-8-sig") as csv_file:
+            writer = csv.DictWriter(csv_file, fieldnames=columns)
+            writer.writeheader()
+            for row in rows:
+                writer.writerow({
+                    column: _csv_value(_json_value(row.get(column)))
+                    for column in columns
+                })
+        json_rows = [
+            {column: _json_value(row.get(column)) for column in columns}
+            for row in rows
+        ]
+        json_path.write_text(
+            json.dumps(json_rows, ensure_ascii=False, default=str),
+            encoding="utf-8")
+        package.write(csv_path, f"csv/{name}.csv")
+        package.write(json_path, f"json/{name}.json")
+        manifest["contenido"].append({"conjunto": name, "filas": len(rows)})
+
+    latest_metric = db.scalars(
+        select(MetricasMensuales)
+        .where(MetricasMensuales.mes >= monthly_from)
+        .order_by(MetricasMensuales.mes.desc())
+        .limit(1)).first()
+    companies_status = dict(grouped(Company.status, Company))
+    subscription_states = dict(grouped(Suscripcion.estado, Suscripcion))
+    contract_states = dict(grouped(Contrato.estado, Contrato))
+    user_groups = db.execute(
+        select(User.role, User.status, User.activo, func.count())
+        .group_by(User.role, User.status, User.activo)
+        .order_by(User.role, User.status, User.activo)).all()
+    document_states = dict(db.execute(
+        select(Documento.estado_calc, func.count())
+        .where(Documento.obligatorio.is_(True),
+               Documento.es_emsipor.is_(False))
+        .group_by(Documento.estado_calc)
+        .order_by(Documento.estado_calc)).all())
+    compliance_rows = db.execute(
+        select(
+            func.count(Documento.id).label("total"),
+            func.count(Documento.id).filter(
+                Documento.estado_calc == "ok").label("ok"),
+        )
+        .select_from(Company)
+        .join(Documento, Documento.company_id == Company.id)
+        .where(Company.status == "approved",
+               Documento.obligatorio.is_(True),
+               Documento.es_emsipor.is_(False))
+        .group_by(Company.id)).all()
+    compliance_rates = [
+        100 * int(row.ok) / int(row.total)
+        for row in compliance_rows if row.total
+    ]
+    document_total = sum(document_states.values())
+    document_ok = int(document_states.get("ok", 0))
+    account_health = dict(db.execute(text("""
+        SELECT ops_estado_cuenta(c.id), count(*)
+          FROM companies c
+         WHERE c.status = 'approved'
+         GROUP BY 1
+         ORDER BY 1
+    """)).all())
+    usage_rows = db.execute(text(
+        "SELECT usuarios, activos, sin_acceso_90d "
+        "FROM ops_usuarios_por_empresa(30)")).all()
+    recent_activity = count(Actividad, Actividad.created_at >= activity_from)
+    open_incidents = count(OpsIncidente, OpsIncidente.estado != "resuelto")
+    recent_incidents = count(
+        OpsIncidente, OpsIncidente.abierto_at >= incident_from)
+    active_components = count(OpsComponente, OpsComponente.activo.is_(True))
+
+    indicators = [
+        {"indicador": "empresas_total", "valor": count(Company)},
+        {"indicador": "empresas_demo", "valor": count(Company, Company.es_demo.is_(True))},
+        {"indicador": "empresas_aprobadas", "valor": companies_status.get("approved", 0)},
+        {"indicador": "usuarios_total", "valor": count(User)},
+        {"indicador": "usuarios_aprobados_activos", "valor": count(
+            User, User.activo.is_(True), User.status == "approved")},
+        {"indicador": "contratos_total", "valor": count(Contrato)},
+        {"indicador": "suscripciones_total", "valor": count(Suscripcion)},
+        {"indicador": "documentos_obligatorios_evaluables", "valor": document_total},
+        {"indicador": "documentos_obligatorios_al_dia", "valor": document_ok},
+        {"indicador": "cumplimiento_global_pct",
+         "valor": 100 * document_ok / document_total if document_total else None},
+        {"indicador": "cumplimiento_promedio_empresa_pct",
+         "valor": sum(compliance_rates) / len(compliance_rates)
+         if compliance_rates else None},
+        {"indicador": "empresas_bajo_70_pct",
+         "valor": sum(rate < 70 for rate in compliance_rates)},
+        {"indicador": "empresas_sin_usuarios_activos",
+         "valor": sum(1 for row in usage_rows if row.usuarios == 0)},
+        {"indicador": "empresas_sin_actividad_30d",
+         "valor": sum(1 for row in usage_rows if row.usuarios > 0 and row.activos == 0)},
+        {"indicador": "usuarios_sin_acceso_90d",
+         "valor": sum(int(row.sin_acceso_90d or 0) for row in usage_rows)},
+        {"indicador": "mrr_clp_ultimo_periodo",
+         "valor": latest_metric.mrr_clp if latest_metric else None},
+        {"indicador": "clientes_activos_ultimo_periodo",
+         "valor": latest_metric.clientes_activos if latest_metric else None},
+        {"indicador": "churn_clientes_pct_ultimo_periodo",
+         "valor": latest_metric.churn_clientes_pct if latest_metric else None},
+        {"indicador": "servicios_monitoreados", "valor": active_components},
+        {"indicador": "incidentes_abiertos", "valor": open_incidents},
+        {"indicador": "incidentes_ultimos_90d", "valor": recent_incidents},
+        {"indicador": "actividad_ultimos_30d", "valor": recent_activity},
+        {"indicador": "generado_at", "valor": generated.isoformat()},
+    ]
+    add_dataset("indicadores", ("indicador", "valor"), indicators)
+
+    distributions = [
+        {"categoria": "empresa", "estado": str(status), "detalle": "",
+         "cantidad": total}
+        for status, total in companies_status.items()
+    ]
+    distributions.extend(
+        {"categoria": "suscripcion", "estado": str(status), "detalle": "",
+         "cantidad": total}
+        for status, total in subscription_states.items())
+    distributions.extend(
+        {"categoria": "contrato", "estado": str(status), "detalle": "",
+         "cantidad": total}
+        for status, total in contract_states.items())
+    distributions.extend(
+        {"categoria": "usuario", "estado": str(status),
+         "detalle": f"{role}; {'activo' if active else 'deshabilitado'}",
+         "cantidad": total}
+        for role, status, active, total in user_groups)
+    distributions.extend(
+        {"categoria": "documento_obligatorio", "estado": str(status),
+         "detalle": "", "cantidad": total}
+        for status, total in document_states.items())
+    distributions.extend(
+        {"categoria": "estado_cuenta", "estado": str(status),
+         "detalle": "", "cantidad": total}
+        for status, total in account_health.items())
+    add_dataset("distribuciones", ("categoria", "estado", "detalle", "cantidad"),
+                distributions)
+
+    metrics = list(db.scalars(
+        select(MetricasMensuales)
+        .where(MetricasMensuales.mes >= monthly_from)
+        .order_by(MetricasMensuales.mes)))
+    metric_columns = (
+        "mes", "mrr_clp", "clientes_activos", "altas", "bajas",
+        "churn_clientes_pct", "churn_ingresos_pct", "nrr_pct",
+        "usuarios_activos", "usuarios_totales", "valor_uf", "cerrado",
+    )
+    add_dataset("metricas_mensuales", metric_columns, [
+        {column: getattr(row, column) for column in metric_columns}
+        for row in metrics
+    ])
+
+    availability = db.execute(
+        select(
+            OpsDisponibilidadDiaria.componente,
+            func.avg(OpsDisponibilidadDiaria.uptime_pct),
+            func.max(OpsDisponibilidadDiaria.latencia_p95_ms),
+            func.sum(OpsDisponibilidadDiaria.checks_total),
+            func.sum(OpsDisponibilidadDiaria.checks_fallidos),
+            func.max(OpsDisponibilidadDiaria.fecha),
+        )
+        .where(OpsDisponibilidadDiaria.fecha >= availability_from,
+               OpsDisponibilidadDiaria.fecha <= today)
+        .group_by(OpsDisponibilidadDiaria.componente)).all()
+    availability_by_component = {row[0]: row[1:] for row in availability}
+    service_rows = []
+    for component in db.scalars(
+            select(OpsComponente).where(OpsComponente.activo.is_(True))
+            .order_by(OpsComponente.orden)):
+        aggregate = availability_by_component.get(component.clave)
+        latest = db.scalars(
+            select(OpsDisponibilidadDiaria)
+            .where(OpsDisponibilidadDiaria.componente == component.clave)
+            .order_by(OpsDisponibilidadDiaria.fecha.desc()).limit(1)).first()
+        service_rows.append({
+            "servicio": component.nombre,
+            "ultimo_estado": latest.estado if latest else "sin medición",
+            "uptime_promedio_pct": aggregate[0] if aggregate else None,
+            "p95_maximo_ms": aggregate[1] if aggregate else None,
+            "checks": int(aggregate[2] or 0) if aggregate else 0,
+            "checks_fallidos": int(aggregate[3] or 0) if aggregate else 0,
+            "ultimo_dia": aggregate[4] if aggregate else None,
+        })
+    add_dataset("salud_servicios", (
+        "servicio", "ultimo_estado", "uptime_promedio_pct", "p95_maximo_ms",
+        "checks", "checks_fallidos", "ultimo_dia",
+    ), service_rows)
+
+    jobs = list(db.scalars(select(OpsJob).order_by(OpsJob.clave)))
+    process_rows = []
+    for job in jobs:
+        latest = db.scalars(
+            select(OpsJobRun).where(OpsJobRun.job_clave == job.clave)
+            .order_by(OpsJobRun.created_at.desc(), OpsJobRun.id.desc())
+            .limit(1)).first()
+        status_counts = dict(db.execute(
+            select(OpsJobRun.status, func.count())
+            .where(OpsJobRun.job_clave == job.clave,
+                   OpsJobRun.created_at >= now - timedelta(days=7))
+            .group_by(OpsJobRun.status)).all())
+        total_runs = sum(status_counts.values())
+        completed_runs = sum(status_counts.get(status, 0)
+                             for status in ("ok", "error", "timeout"))
+        last_at = (latest.finished_at or latest.started_at or latest.created_at) \
+            if latest else None
+        process_rows.append({
+            "proceso": job.nombre,
+            "estado_programacion": "Activo" if job.activo else "Pausado",
+            "cron_o_tipo": job.cron_expr or job.tipo,
+            "ultimo_estado": latest.status if latest else "sin ejecuciones",
+            "ultima_ejecucion": last_at.astimezone(
+                generated.tzinfo).isoformat(timespec="minutes") if last_at else None,
+            "exito_7d_pct": (
+                100 * status_counts.get("ok", 0) / completed_runs
+                if completed_runs else None),
+            "ejecuciones_7d": total_runs,
+        })
+    add_dataset("procesos", (
+        "proceso", "estado_programacion", "cron_o_tipo", "ultimo_estado",
+        "ultima_ejecucion", "exito_7d_pct", "ejecuciones_7d",
+    ), process_rows)
+
+    incident_rows = db.execute(
+        select(OpsIncidente.severidad, OpsIncidente.estado, func.count())
+        .where(OpsIncidente.abierto_at >= incident_from)
+        .group_by(OpsIncidente.severidad, OpsIncidente.estado)
+        .order_by(OpsIncidente.severidad, OpsIncidente.estado)).all()
+    add_dataset("incidentes", ("severidad", "estado", "cantidad"), [
+        {"severidad": severity, "estado": state, "cantidad": total}
+        for severity, state, total in incident_rows
+    ])
+
+    activity_rows = db.execute(
+        select(Actividad.tipo, Actividad.modulo, func.count())
+        .where(Actividad.created_at >= activity_from)
+        .group_by(Actividad.tipo, Actividad.modulo)
+        .order_by(Actividad.tipo, Actividad.modulo)).all()
+    add_dataset("actividad", ("tipo", "modulo", "eventos"), [
+        {"tipo": kind, "modulo": module, "eventos": total}
+        for kind, module, total in activity_rows
+    ])
 
 
 def _create_pdf(db: Session, path: Path, generated: datetime) -> None:
@@ -230,32 +430,114 @@ def _create_pdf(db: Session, path: Path, generated: datetime) -> None:
         ]))
         return table
 
-    def bar_chart(title, labels, values, width=760, height=205):
+    def pie_chart(title, labels, values, width=760, height=205):
         if not labels:
             return Paragraph(f"{safe_text(title)}: sin datos disponibles.", styles["ReportCell"])
         drawing = Drawing(width, height)
         drawing.add(String(2, height - 14, title, fontName="Helvetica-Bold",
                            fontSize=10, fillColor=colors.HexColor("#153052")))
-        chart = VerticalBarChart()
-        chart.x, chart.y = 42, 42
-        chart.width, chart.height = width - 58, height - 72
-        chart.data = [list(values)]
-        chart.categoryAxis.categoryNames = list(labels)
+        categories = [
+            (str(label), float(value or 0))
+            for label, value in zip(labels, values)
+            if float(value or 0) > 0
+        ]
+        if not categories:
+            return Paragraph(f"{safe_text(title)}: sin datos disponibles.", styles["ReportCell"])
+        total = sum(value for _, value in categories)
+        chart = Pie()
+        chart.x, chart.y = width / 2 - 78, 20
+        chart.width, chart.height = 156, height - 48
+        chart.data = [value for _, value in categories]
+        chart.labels = [
+            f"{label}: {n(value)} ({100 * value / total:.1f}%)".replace(".", ",")
+            for label, value in categories
+        ]
+        chart.sideLabels = True
+        chart.checkLabelOverlap = True
+        chart.innerRadiusFraction = 0.45
+        palette = [
+            colors.HexColor("#2F6B9A"), colors.HexColor("#B56E43"),
+            colors.HexColor("#4C8C72"), colors.HexColor("#D2A63C"),
+            colors.HexColor("#8064A2"), colors.HexColor("#5D788F"),
+        ]
+        for index, _ in enumerate(categories):
+            chart.slices[index].fillColor = palette[index % len(palette)]
+            chart.slices[index].strokeColor = colors.white
+            chart.slices[index].strokeWidth = 0.8
+        drawing.add(chart)
+        return drawing
+
+    def line_chart(title, labels, values, value_format=None, width=760, height=205):
+        if not labels:
+            return Paragraph(f"{safe_text(title)}: sin datos disponibles.", styles["ReportCell"])
+        points = [
+            (index, float(value or 0))
+            for index, value in enumerate(values[:len(labels)])
+        ]
+        if not points:
+            return Paragraph(f"{safe_text(title)}: sin datos disponibles.", styles["ReportCell"])
+        drawing = Drawing(width, height)
+        drawing.add(String(2, height - 14, title, fontName="Helvetica-Bold",
+                           fontSize=10, fillColor=colors.HexColor("#153052")))
+        chart = LinePlot()
+        chart.x, chart.y = 48, 38
+        chart.width, chart.height = width - 68, height - 66
+        chart.data = [points]
+        chart.joinedLines = True
+        chart.lines[0].strokeColor = colors.HexColor("#2F6B9A")
+        chart.lines[0].strokeWidth = 2
+        chart.lines[0].symbol = makeMarker("FilledCircle")
+        chart.lines[0].symbol.size = 4
+        chart.lines[0].symbol.fillColor = colors.HexColor("#2F6B9A")
+        chart.xValueAxis.valueMin = 0
+        chart.xValueAxis.valueMax = max(len(labels) - 1, 1)
+        chart.xValueAxis.valueSteps = list(range(len(labels)))
+        chart.xValueAxis.labelTextFormat = lambda value: (
+            labels[int(round(value))]
+            if 0 <= int(round(value)) < len(labels)
+            and abs(value - round(value)) < 0.01 else ""
+        )
+        chart.xValueAxis.labels.fontName = "Helvetica"
+        chart.xValueAxis.labels.fontSize = 7
+        chart.xValueAxis.labels.angle = 25
+        chart.yValueAxis.valueMin = 0
+        maximum = max(value for _, value in points)
+        axis_max = maximum * 1.15 if maximum else 1
+        chart.yValueAxis.valueMax = axis_max
+        chart.yValueAxis.valueStep = axis_max / 4
+        chart.yValueAxis.labels.fontSize = 7
+        chart.yValueAxis.labelTextFormat = value_format or (
+            lambda value: f"{value:,.0f}".replace(",", "."))
+        drawing.add(chart)
+        return drawing
+
+    def horizontal_bar_chart(title, labels, values, width=760, height=None):
+        if not labels:
+            return Paragraph(f"{safe_text(title)}: sin datos disponibles.", styles["ReportCell"])
+        height = height or max(180, min(340, 70 + 18 * len(labels)))
+        drawing = Drawing(width, height)
+        drawing.add(String(2, height - 14, title, fontName="Helvetica-Bold",
+                           fontSize=10, fillColor=colors.HexColor("#153052")))
+        chart = HorizontalBarChart()
+        chart.x, chart.y = 155, 34
+        chart.width, chart.height = width - 178, height - 58
+        chart.data = [[float(value or 0) for value in values]]
+        chart.categoryAxis.categoryNames = [
+            str(label) if len(str(label)) <= 32 else f"{str(label)[:29]}..."
+            for label in labels
+        ]
         chart.categoryAxis.labels.fontName = "Helvetica"
         chart.categoryAxis.labels.fontSize = 7
-        chart.categoryAxis.labels.angle = 25
-        chart.categoryAxis.labels.dx = -2
-        chart.categoryAxis.labels.dy = -2
+        chart.categoryAxis.labels.boxAnchor = "e"
         chart.valueAxis.valueMin = 0
         maximum = max((float(value or 0) for value in values), default=0)
-        chart.valueAxis.valueMax = maximum * 1.15 if maximum else 1
-        chart.valueAxis.valueStep = (maximum / 4) if maximum else 1
+        axis_max = maximum * 1.15 if maximum else 1
+        chart.valueAxis.valueMax = axis_max
+        chart.valueAxis.valueStep = axis_max / 4
         chart.valueAxis.labels.fontSize = 7
         chart.valueAxis.labelTextFormat = "%0.0f"
-        chart.bars[0].fillColor = colors.HexColor("#B56E43")
-        chart.bars[0].strokeColor = colors.HexColor("#8F4F2D")
-        chart.barSpacing = 3
-        chart.groupSpacing = 7
+        chart.bars[0].fillColor = colors.HexColor("#2F6B9A")
+        chart.bars[0].strokeColor = colors.HexColor("#214D70")
         drawing.add(chart)
         return drawing
 
@@ -311,27 +593,25 @@ def _create_pdf(db: Session, path: Path, generated: datetime) -> None:
     document_ok = int(document_states.get("ok", 0))
     compliance_rows = db.execute(
         select(
-            Company.nombre,
             func.count(Documento.id).label("total"),
             func.count(Documento.id).filter(
                 Documento.estado_calc == "ok").label("ok"),
         )
+        .select_from(Company)
         .join(Documento, Documento.company_id == Company.id)
         .where(Company.status == "approved",
                Documento.obligatorio.is_(True),
                Documento.es_emsipor.is_(False))
-        .group_by(Company.id, Company.nombre)).all()
+        .group_by(Company.id)).all()
     compliance_by_company = [
-        (name, int(ok), int(total), round(100 * int(ok) / int(total)))
-        for name, total, ok in compliance_rows if total
+        round(100 * int(row.ok) / int(row.total))
+        for row in compliance_rows if row.total
     ]
-    all_compliance_risks = sorted(
-        (row for row in compliance_by_company if row[3] < 70),
-        key=lambda row: (row[3], row[0]))[:20]
-    compliance_risk_count = sum(1 for row in compliance_by_company if row[3] < 70)
     compliance_average = (
-        sum(row[3] for row in compliance_by_company) / len(compliance_by_company)
+        sum(compliance_by_company) / len(compliance_by_company)
         if compliance_by_company else None)
+    compliance_risk_count = sum(
+        1 for percentage in compliance_by_company if percentage < 70)
     weighted_compliance = (
         100 * document_ok / document_totals if document_totals else None)
     subject_types = grouped(Sujeto.tipo, Sujeto)
@@ -439,12 +719,11 @@ def _create_pdf(db: Session, path: Path, generated: datetime) -> None:
     incident_from = now - timedelta(days=90)
     incident_count = count(OpsIncidente, OpsIncidente.abierto_at >= incident_from)
     open_incidents = count(OpsIncidente, OpsIncidente.estado != "resuelto")
-    incidents = list(db.scalars(
-        select(OpsIncidente).where(OpsIncidente.abierto_at >= incident_from)
-        .order_by(OpsIncidente.abierto_at.desc()).limit(30)))
-    incident_component_names = {
-        component.clave: component.nombre for component in components
-    }
+    incident_groups = db.execute(
+        select(OpsIncidente.severidad, OpsIncidente.estado, func.count())
+        .where(OpsIncidente.abierto_at >= incident_from)
+        .group_by(OpsIncidente.severidad, OpsIncidente.estado)
+        .order_by(OpsIncidente.severidad, OpsIncidente.estado)).all()
 
     activity_from = now - timedelta(days=30)
     activity_total = count(Actividad, Actividad.created_at >= activity_from)
@@ -456,10 +735,6 @@ def _create_pdf(db: Session, path: Path, generated: datetime) -> None:
         select(Actividad.modulo, func.count())
         .where(Actividad.created_at >= activity_from)
         .group_by(Actividad.modulo).order_by(func.count().desc()).limit(12)).all()
-
-    counts = []
-    for table, _ in _tables():
-        counts.append([table.name, n(db.scalar(select(func.count()).select_from(table)))])
 
     def kpi(value, label):
         return [Paragraph(safe_text(value), styles["ReportKpi"]),
@@ -495,7 +770,7 @@ def _create_pdf(db: Session, path: Path, generated: datetime) -> None:
     ]))
 
     story = [
-        Paragraph("Reporte integral de consola ADMIN", styles["Title"]),
+        Paragraph("Resumen general de consola ADMIN", styles["Title"]),
         Paragraph(f"Fecha y hora exacta de generación: {safe_text(generated_label)}",
                   styles["Heading3"]),
         Paragraph(
@@ -510,10 +785,10 @@ def _create_pdf(db: Session, path: Path, generated: datetime) -> None:
             f"Los indicadores incluyen {n(companies_demo)} empresa(s) de demostración. "
             "Los datos operativos reflejan las ventanas de tiempo indicadas en cada sección.",
             styles["ReportCell"]),
-        Paragraph("Empresas y suscripciones", styles["ReportSection"]),
-        bar_chart("Empresas por estado", list(companies_status),
+        Paragraph("Indicadores generales", styles["ReportSection"]),
+        pie_chart("Empresas por estado", list(companies_status),
                   [companies_status[key] for key in companies_status]),
-        bar_chart("Suscripciones por estado", list(subscription_states),
+        pie_chart("Suscripciones por estado", list(subscription_states),
                   [subscription_states[key] for key in subscription_states]),
         PageBreak(),
         Paragraph("Indicadores de negocio", styles["ReportSection"]),
@@ -522,9 +797,15 @@ def _create_pdf(db: Session, path: Path, generated: datetime) -> None:
             "El mes en curso puede ser parcial; se identifica en la tabla.",
             styles["ReportCell"]),
         Spacer(1, 2 * mm),
-        bar_chart("MRR mensual (CLP)", month_labels, mrr_values),
-        bar_chart("Clientes activos por mes", month_labels, client_values),
-        bar_chart("Churn de clientes por mes (%)", month_labels, churn_values),
+        line_chart("MRR mensual (millones CLP)", month_labels,
+                   [value / 1_000_000 for value in mrr_values],
+                   value_format=lambda value: (
+                       f"{value:,.1f}".replace(",", "X")
+                       .replace(".", ",").replace("X", "."))),
+        line_chart("Clientes activos por mes", month_labels, client_values),
+        line_chart(
+            "Churn de clientes por mes (%)", month_labels, churn_values,
+            value_format=lambda value: f"{value:.1f}".replace(".", ",")),
         Spacer(1, 2 * mm),
         Paragraph("Detalle mensual", styles["ReportSubsection"]),
     ]
@@ -592,23 +873,24 @@ def _create_pdf(db: Session, path: Path, generated: datetime) -> None:
             ["Empresas con actividad menor al 50% (30d)", n(usage_risks["baja_actividad_30d"])],
             ["Usuarios sin acceso 90d", n(usage_risks["sin_acceso_90d"])],
         ]),
-        bar_chart("Documentos requeridos por estado",
+        pie_chart("Documentos requeridos por estado",
                   sorted(document_states),
                   [document_states[key] for key in sorted(document_states)]),
-        bar_chart("Empresas aprobadas por estado de cuenta",
+        pie_chart("Empresas aprobadas por estado de cuenta",
                   sorted(account_health),
                   [account_health[key] for key in sorted(account_health)]),
-        bar_chart("Usuarios habilitados por industria",
-                  [str(key or "sin industria") for key in industry_users],
-                  [industry_users[key] for key in industry_users]),
-        bar_chart("Revisiones IA por estado",
+        horizontal_bar_chart(
+            "Usuarios habilitados por industria",
+            [str(key or "sin industria") for key, _ in sorted(
+                industry_users.items(), key=lambda item: item[1], reverse=True)],
+            [value for _, value in sorted(
+                industry_users.items(), key=lambda item: item[1], reverse=True)]),
+        pie_chart("Revisiones IA por estado",
                   sorted(ai_statuses),
                   [ai_statuses[key] for key in sorted(ai_statuses)]),
-        Paragraph("Empresas con cumplimiento bajo 70%", styles["ReportSubsection"]),
-        report_table([["Empresa", "Documentos al día", "Evaluables", "Cumplimiento"], *[
-            [name, n(ok), n(total), pct(percent)]
-            for name, ok, total, percent in all_compliance_risks
-        ]]),
+        Paragraph(
+            f"Empresas bajo 70% de cumplimiento: {n(compliance_risk_count)}.",
+            styles["ReportCell"]),
         Paragraph(
             f"Sujetos registrados: {n(sum(subject_types.values()))} · "
             + " · ".join(f"{safe_text(kind)}: {n(total)}"
@@ -616,8 +898,12 @@ def _create_pdf(db: Session, path: Path, generated: datetime) -> None:
             styles["ReportCell"]),
         PageBreak(),
         Paragraph("Clientes, usuarios y contratos", styles["ReportSection"]),
-        bar_chart("Empresas aprobadas por industria", list(industries),
-                  [industries[key] for key in industries]),
+        horizontal_bar_chart(
+            "Empresas aprobadas por industria",
+            [str(key or "sin industria") for key, _ in sorted(
+                industries.items(), key=lambda item: item[1], reverse=True)],
+            [value for _, value in sorted(
+                industries.items(), key=lambda item: item[1], reverse=True)]),
         Paragraph("Estado de empresas", styles["ReportSubsection"]),
         report_table([["Estado", "Empresas"], *[
             [key, n(value)] for key, value in sorted(companies_status.items())
@@ -642,9 +928,10 @@ def _create_pdf(db: Session, path: Path, generated: datetime) -> None:
             "90 días hasta la fecha de generación. La latencia corresponde al mayor "
             "p95 diario observado en esa ventana.",
             styles["ReportCell"]),
-        bar_chart("Disponibilidad promedio por componente (90 días)",
-                  [row[0] for row in component_rows],
-                  [row[2] or 0 for row in component_rows]),
+        horizontal_bar_chart(
+            "Disponibilidad promedio por componente (90 días)",
+            [row[0] for row in component_rows],
+            [row[2] or 0 for row in component_rows]),
         report_table([["Componente", "Último estado", "Uptime promedio", "P95 máx. ms",
                        "Checks", "Fallidos", "Último día"], *[
             [name, state, pct(uptime), n(p95) if p95 is not None else "—",
@@ -654,16 +941,12 @@ def _create_pdf(db: Session, path: Path, generated: datetime) -> None:
         Spacer(1, 3 * mm),
         Paragraph(
             f"Incidentes abiertos actualmente: {n(open_incidents)}. "
-            f"Incidentes abiertos durante los últimos 90 días: {n(incident_count)}. "
-            "Se muestran hasta 30 eventos recientes.",
+            f"Incidentes abiertos durante los últimos 90 días: {n(incident_count)}.",
             styles["ReportCell"]),
-        Paragraph("Incidentes recientes", styles["ReportSubsection"]),
-        report_table([["Fecha/hora", "Componente", "Severidad", "Estado", "Título"], *[
-            [
-                incident.abierto_at.astimezone(generated.tzinfo).isoformat(timespec="minutes"),
-                incident_component_names.get(incident.componente, incident.componente),
-                incident.severidad, incident.estado, (incident.titulo or "")[:140],
-            ] for incident in incidents
+        Paragraph("Incidentes por severidad y estado", styles["ReportSubsection"]),
+        report_table([["Severidad", "Estado", "Incidentes"], *[
+            [severity, state, n(total)]
+            for severity, state, total in incident_groups
         ]]),
         PageBreak(),
         Paragraph("Procesos programados", styles["ReportSection"]),
@@ -671,7 +954,7 @@ def _create_pdf(db: Session, path: Path, generated: datetime) -> None:
             "Tasa de éxito y volumen calculados sobre las últimas 7 jornadas; "
             "los estados de ejecuciones se agrupan en los últimos 30 días.",
             styles["ReportCell"]),
-        bar_chart("Ejecuciones por estado (30 días)", list(run_status_counts),
+        pie_chart("Ejecuciones por estado (30 días)", list(run_status_counts),
                   [run_status_counts[key] for key in run_status_counts]),
         report_table([["Proceso", "Programación", "Cron/tipo", "Último estado",
                        "Última ejecución", "Éxito 7d", "Ejecuciones 7d"], *[
@@ -685,20 +968,19 @@ def _create_pdf(db: Session, path: Path, generated: datetime) -> None:
             "El reporte presenta agregados por categoría y módulo, sin copiar "
             "descripciones libres ni datos de credenciales.",
             styles["ReportCell"]),
-        bar_chart("Eventos por módulo (30 días)",
-                  [str(module)[:22] for module, _ in activity_modules],
-                  [total for _, total in activity_modules]),
+        horizontal_bar_chart("Eventos por módulo (30 días)",
+                             [str(module) for module, _ in activity_modules],
+                             [total for _, total in activity_modules]),
         Paragraph("Eventos por tipo", styles["ReportSubsection"]),
         report_table([["Tipo de actividad", "Eventos"], *[
             [kind, n(total)] for kind, total in activity_types
         ]]),
-        Paragraph("Inventario de conjuntos exportables", styles["ReportSubsection"]),
-        report_table([["Conjunto de datos", "Registros"], *counts]),
         Spacer(1, 3 * mm),
         Paragraph(
-            "Alcance y privacidad: este PDF no incluye archivos documentales, "
-            "credenciales, tokens ni secretos. Para descargar los registros tabulares "
-            "permitidos use el paquete ZIP CSV + JSON.",
+            "Alcance y privacidad: este informe presenta solo indicadores agregados "
+            "y datos operativos generales; no incluye registros identificables de "
+            "empresas, usuarios, contratos, documentos o actividad individual, ni "
+            "archivos, credenciales, tokens o secretos. El ZIP aplica el mismo alcance.",
             styles["ReportCell"]),
     ])
     document.build(story, onFirstPage=draw_page, onLaterPages=draw_page)

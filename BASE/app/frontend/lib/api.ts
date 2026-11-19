@@ -182,6 +182,7 @@ export type Opciones = {
   body?: unknown;
   query?: Query;
   accessGrantScope?: AlcanceConcesionLectura;
+  accessGrantId?: string;
 };
 
 function concesionLectura(
@@ -249,7 +250,7 @@ export async function api<T = any>(
   const companyId = typeof window !== "undefined"
     ? sessionStorage.getItem("impersonar") : null;
   if (companyId) headers["X-Company-Id"] = companyId;
-  const accessGrant = concesionLectura(
+  const accessGrant = opts.accessGrantId ?? concesionLectura(
     path, method, companyId, opts.accessGrantScope);
   if (accessGrant) headers["X-Access-Grant"] = accessGrant;
 

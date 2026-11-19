@@ -12,12 +12,16 @@ py -3.12 --version# Estructura del Repositorio Unificado y Estándar Tecnológic
 
 ## Estado del diseño: objetivo, no estado actual
 
-La estructura y las versiones descritas en este documento corresponden al
-repositorio unificado a construir. Al 04-11-2026, `CIA-ACREDITTIA-main` conserva
-la estructura `BASE/app/` y el esquema local en versión `15`; por tanto, la
-numeración `19`..`22` y la estructura raíz son migraciones previstas, no hechos
-ya ejecutados. El frontend actual tiene Next.js 14.2.5 y React 18.3.1, pero no
-declara `sonner`, scripts de test ni rutas de consola bajo Route Groups.
+> Documento histórico de arquitectura objetivo; no sustituye la configuración
+> vigente ni la validación actual.
+
+La estructura y las versiones descritas originalmente correspondían al
+repositorio unificado a construir. El corte vigente al 18-11-2026 conserva
+`BASE/app/`, `BASE/modelo_datos/` y la versión esperada de esquema `20`.
+Por tanto, la numeración `19`..`22`, la estructura raíz propuesta y otros
+elementos descritos como objetivos no deben interpretarse como migraciones ya
+ejecutadas. El frontend actual usa Next.js 14.2.5 y React 18.3.1 y sí contiene
+las rutas `(app)` y `ops/`; no declara `sonner` ni un script frontend de pruebas.
 
 ---
 

@@ -11,6 +11,7 @@ from __future__ import annotations
 from datetime import date, timedelta
 
 import pytest
+import sqlalchemy as sa
 
 from tests.conftest import API, patente_valida, rut_valido, subir_archivo
 
@@ -303,6 +304,45 @@ def test_admin_debe_tener_concesion_acotada_para_leer_documentos(
     assert autorizada.json()["id"] == documento["id"]
 
 
+def test_lectura_de_metadatos_documentales_queda_auditada(
+        app_cliente, empresa_a, documento, motor_admin):
+    response = app_cliente.get(
+        f"{API}/documentos/{documento['id']}",
+        headers=empresa_a["headers"])
+    assert response.status_code == 200, response.text
+
+    with motor_admin.connect() as connection:
+        audit = connection.execute(
+            sa.text(
+                'SELECT "metadata" FROM actividad '
+                "WHERE modulo = 'documentos' AND entidad_tipo = 'documento' "
+                "AND entidad_id = :document_id ORDER BY id DESC LIMIT 1"),
+            {"document_id": documento["id"]},
+        ).scalar_one()
+    assert audit["accion"] == "lectura_metadatos"
+    assert audit["resultado"] == "permitida"
+    assert audit["motivo"] is None
+
+
+def test_lectura_denegada_de_metadatos_queda_auditada(
+        app_cliente, admin, empresa_a, documento, motor_admin):
+    response = app_cliente.get(
+        f"{API}/documentos/{documento['id']}",
+        headers={**admin["headers"], "X-Company-Id": empresa_a["company_id"]},
+    )
+    assert response.status_code == 403
+    with motor_admin.connect() as connection:
+        audit = connection.execute(
+            sa.text(
+                'SELECT "metadata" FROM actividad '
+                "WHERE modulo = 'documentos' AND entidad_tipo = 'documento' "
+                "AND entidad_id = :document_id ORDER BY id DESC LIMIT 1"),
+            {"document_id": documento["id"]},
+        ).scalar_one()
+    assert audit["accion"] == "lectura_metadatos"
+    assert audit["resultado"] == "denegada"
+
+
 def test_admin_concesion_de_documentos_no_cruza_empresa(
         app_cliente, admin, empresa_a, empresa_b, documento):
     headers = _concesion_documentos(app_cliente, admin, empresa_b)
@@ -313,7 +353,8 @@ def test_admin_concesion_de_documentos_no_cruza_empresa(
     assert response.json()["error"]["code"] == "PERMISO_INFORMACION_INVALIDO"
 
 
-def test_download_url_firmada_funciona(app_cliente, empresa_a, admin, documento):
+def test_download_url_firmada_funciona(
+        app_cliente, empresa_a, admin, documento, motor_admin):
     salida = subir_archivo(app_cliente, empresa_a, documento["id"],
                            filename="certificado.pdf", contenido=CONTENIDO)
     fid = salida["archivo"]["id"]
@@ -326,6 +367,16 @@ def test_download_url_firmada_funciona(app_cliente, empresa_a, admin, documento)
     dl = r.json()
     assert dl["filename"] == "certificado.pdf"
     assert dl["size_bytes"] == len(CONTENIDO)
+    with motor_admin.connect() as connection:
+        metadata = connection.execute(
+            sa.text(
+                'SELECT "metadata" FROM actividad '
+                "WHERE modulo = 'documentos' AND entidad_tipo = 'documento' "
+                "AND entidad_id = :document_id ORDER BY id DESC LIMIT 1"),
+            {"document_id": documento["id"]},
+        ).scalar_one()
+    assert metadata["accion"] == "emision_url_descarga"
+    assert metadata["resultado"] == "url_emitida"
 
     audit = app_cliente.get(f"{API}/admin/audit", headers=admin["headers"],
                             params={"search": "Descarga de archivo", "page_size": 10})
