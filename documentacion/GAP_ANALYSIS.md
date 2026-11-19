@@ -93,13 +93,14 @@ criticidad o aceptación aprobado.
    Siguen fuera del cierre funcional local el destino externo, el procedimiento
    externo de claves y la recuperación ante pérdida total; no se exige una
    prueba separada en staging.
-2. **Regresión (`RNF-VAL-01`).** La ejecución completa más reciente registró
-   517 aprobadas y 3 fallidas antes de corregir las rutas de migración. El
-   19-11-2026, `tests/test_esquema.py` y `tests/test_admin_backups.py` pasaron
-   41/41 tras agregar la migración 23 al fixture, actualizar la versión
-   esperada y probar la actualización de respaldos v22 durante la restauración.
-   Falta repetir la suite completa y validar con `citext`/`pg_trgm` reales en un
-   entorno reproducible.
+2. **Regresión (`RNF-VAL-01`).** Tras corregir las rutas de migración, el
+   19-11-2026 la suite backend completa pasó **526/526**, con un warning no
+   bloqueante, en 1200.50 s. `tests/test_esquema.py` y
+   `tests/test_admin_backups.py` también pasaron 41/41 tras agregar la migración
+   23 al fixture y probar la actualización de respaldos v22 durante la
+   restauración. La suite usa PostgreSQL temporal y el fixture sustituye
+   `citext` y neutraliza `pg_trgm`; queda validar esas extensiones reales y
+   conservar evidencia reproducible del entorno.
 3. **Dependencias y reproducibilidad (`RNF-REP-01`).** Confirmar con auditoría
    actual si siguen vigentes las vulnerabilidades reportadas anteriormente;
    actualizar lo que corresponda, fijar dependencias/lockfiles para builds
@@ -164,7 +165,8 @@ de:
 - habilitación y monitoreo del respaldo diario; destino externo y procedimiento
   de claves para preparación productiva (no requeridos para cerrar el alcance
   funcional local);
-- suite completa posterior a las correcciones y auditoría actual de dependencias;
+- validación reproducible con `citext`/`pg_trgm` reales y auditoría actual de
+  dependencias;
 - URL HTTPS, correo productivo y validación de los flujos desde el entorno de
   aceptación.
 

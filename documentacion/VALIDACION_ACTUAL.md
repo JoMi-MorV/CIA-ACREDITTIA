@@ -1,5 +1,14 @@
 # Validación funcional — actualizado al 19 de noviembre de 2026
 
+## Suite backend completa — 19 de noviembre de 2026
+
+Desde `BASE/app/backend`, `python -m pytest -q` finalizó en **1200.50 s**
+(20 min) con **526 aprobadas, 0 fallidas y 1 warning** no bloqueante de
+deprecación Starlette/httpx. Esta ejecución incluye las correcciones de las
+migraciones y respaldos. Se usó PostgreSQL temporal; el fixture sustituye
+`citext` y neutraliza `pg_trgm`, por lo que el resultado no valida esas
+extensiones reales ni certifica el entorno productivo.
+
 ## Recuperación de respaldos — 19 de noviembre de 2026
 
 El objetivo funcional acordado es RPO ≤24 horas y RTO ≤30 minutos, con respaldos

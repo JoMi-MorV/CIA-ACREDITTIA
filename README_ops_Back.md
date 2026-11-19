@@ -1,6 +1,17 @@
 # Consola Interna de Administración — código backend
 
-Actualizado al 03-11-2026, 19:40 -03:00: cinco regresiones focalizadas de
+### Suite backend completa — 19-11-2026
+
+`python -m pytest -q` desde `BASE/app/backend` pasó **526 pruebas, 0 fallidas
+y 1 warning** no bloqueante de Starlette/httpx en **1200.50 s**. La suite se
+ejecutó en PostgreSQL temporal; el fixture sustituye `citext` y neutraliza
+`pg_trgm`, por lo que este resultado no certifica producción ni valida esas
+extensiones reales. El detalle está en
+[Validación actual](documentacion/VALIDACION_ACTUAL.md).
+
+### Contexto del corte del 03-11-2026
+
+Cinco regresiones focalizadas de
 salud operacional pasaron en ejecución aislada (API inaccesible con workers
 activos, heartbeat vencido/recuperación, umbral p95, Redis caído, worker ausente
 y profundidad de cola). La suite completa no se ejecutó en este corte: su

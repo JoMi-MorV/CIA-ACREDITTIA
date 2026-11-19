@@ -34,14 +34,15 @@ Actualizado al 18-11-2026.
   729,5 ms y cero errores HTTP. No es SLA ni certificación de producción;
   resultados y límites en [Validación actual](documentacion/VALIDACION_ACTUAL.md).
 - Las suites focalizadas de roles/configuración/tenants/esquema pasaron
-  **76/76**; las de documentos/búsqueda/backups/privacidad, **88/88**. El build
-  frontend pasó. El 16-11-2026 se volvió a ejecutar la suite backend completa:
-  **492 aprobadas, 0 fallidas**, con un warning no bloqueante de Starlette/httpx.
-  También pasaron el build frontend y `docker compose config --quiet`.
+  **76/76**; las de documentos/búsqueda/backups/privacidad, **88/88**. El 19-11
+  se ejecutó la suite backend completa después de las correcciones: **526
+  aprobadas, 0 fallidas y 1 warning** no bloqueante de Starlette/httpx, en
+  **1200.50 s**. La ejecución usa PostgreSQL temporal y el fixture sustituye
+  `citext` y neutraliza `pg_trgm`; no es certificación productiva.
 - El 17-11 se corrigieron hallazgos de auditoría en estados de pago, límites de
   cuerpos de webhooks/subidas/importación de respaldos y contención de rutas
-  locales. La regresión focalizada posterior pasó **14/14**; la suite completa
-  492/492 del día anterior no se reejecutó. Detalle en
+  locales. La regresión focalizada posterior pasó **14/14**. La suite completa
+  se ejecutó el 19-11 tras las correcciones y pasó **526/526**. Detalle en
   [Validación actual](documentacion/VALIDACION_ACTUAL.md).
 - RF-CLI-01 está en 80% por el cambio seguro de correo; RF-SAL-03, en 95% por
   el progreso medible y la actualización automática de procesos. La entrega
@@ -91,14 +92,16 @@ Documentos vigentes:
 
 | Fecha | Ejecución | Resultado | Observaciones |
 |---|---|---|---|
-| 16-11-2026 | Suite completa: `cd BASE/app/backend; python -m pytest -q` | **492 aprobadas, 0 fallidas** | PostgreSQL temporal; 1 warning no bloqueante Starlette/httpx. El fixture sustituye `citext` y neutraliza `pg_trgm`; no es validación productiva. |
-| 14-10-2026 | Suite completa: `cd BASE/app/backend; python -m pytest -q` | **399 aprobadas, 0 fallidas** | 1 warning de compatibilidad Starlette/httpx. Corte histórico, sustituido por la ejecución del 16-11. |
+| 19-11-2026 | Suite completa: `cd BASE/app/backend; python -m pytest -q` | **526 aprobadas, 0 fallidas** | 1200.50 s; 1 warning no bloqueante Starlette/httpx. PostgreSQL temporal; el fixture sustituye `citext` y neutraliza `pg_trgm`; no es validación productiva. |
+| 16-11-2026 | Suite completa: `cd BASE/app/backend; python -m pytest -q` | **492 aprobadas, 0 fallidas** | Corte histórico; 1 warning no bloqueante Starlette/httpx. El fixture sustituye `citext` y neutraliza `pg_trgm`. |
+| 14-10-2026 | Suite completa: `cd BASE/app/backend; python -m pytest -q` | **399 aprobadas, 0 fallidas** | 1 warning de compatibilidad Starlette/httpx. Corte histórico, sustituido por la ejecución del 19-11. |
 | 01-10-2026 | Suite completa | **363 aprobadas, 0 fallidas** | PostgreSQL temporal; las pruebas relacionadas de autenticación/registro/perfil fueron 34/34. |
 
 En la ejecución del 16-11 también pasaron `npm run build` en
-`BASE/app/frontend` y `docker compose config --quiet` en `BASE/app`. Estos
-resultados verifican código y configuración; no equivalen a pruebas en
-producción ni cierran RNF-VAL-01.
+`BASE/app/frontend` y `docker compose config --quiet` en `BASE/app`. La suite
+del 19-11 acredita la regresión backend posterior a las correcciones, pero no
+valida las extensiones reales ni equivale a pruebas en producción o a la
+aceptación integral de RNF-VAL-01.
 
 La producción no queda declarada como cerrada ni lista para go-live con datos
 reales. La política interna DEC-08 quedó acordada el 09-11-2026 y sus controles
@@ -815,17 +818,15 @@ RNF-PER-01 queda IV/100% para la carga local sintética acordada: siete rutas
 cumplieron p95 ≤ 800 ms y cero errores, con p95 máximo de 729,5 ms. Esta prueba
 no es SLA ni certificación de producción. Las suites focalizadas de seguridad
 (76/76), acceso sensible (46/46) y las cargas sintéticas RF-AUD-03 (2/2)
-pasaron; la suite backend completa anterior del 18-11 pasó 517 pruebas y falló
-3 pruebas de migración/esquema en `test_esquema.py`. Las rutas de migración y
-las pruebas se corrigieron; la suite focalizada de esquema pasó 18/18, aunque
-falta repetir la suite completa. Otros controles de seguridad,
-privacidad/retención, auditoría, SMTP real, recuperación y continuidad siguen
-pendientes; producción permanece **NO-GO**.
+pasaron. Tras corregir las rutas de migración, la suite backend completa del
+19-11 pasó 526 pruebas, sin fallos y con un warning no bloqueante. Otros
+controles de seguridad, privacidad/retención, auditoría, SMTP real, recuperación
+y continuidad siguen pendientes; producción permanece **NO-GO**.
 
 El 17-11 se corrigieron hallazgos de la auditoría general: clasificación
 fail-closed de pagos, límites de lectura para webhooks y carga de archivos, tope
 en importación multipart y validación de rutas locales. La regresión focalizada
-de estos cambios pasó 14/14; no se repitió la suite completa tras el cambio.
+pasó 14/14 y la suite completa posterior, ejecutada el 19-11, pasó 526/526.
 
 ### Funcionalidad y cambios recientes
 

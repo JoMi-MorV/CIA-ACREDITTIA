@@ -23,6 +23,15 @@ El proyecto presenta una base técnica sólida para desarrollo y validación foc
 
 La evaluación actual se mantiene en **NO GO** para producción. La mejora más importante desde el último corte es que el código y la documentación han convergido hacia una visión más realista: el proyecto no se presenta como “listo para producción”, sino como una plataforma con avances relevantes y con bloqueadores específicos todavía abiertos.
 
+### Suite backend completa — 19 de noviembre de 2026
+
+Tras corregir las rutas de migración y actualizar las pruebas de respaldos, la
+suite completa ejecutada con `python -m pytest -q` desde `BASE/app/backend`
+pasó **526 pruebas, 0 fallidas y 1 warning** no bloqueante de Starlette/httpx,
+en **1200.50 s**. Se utilizó PostgreSQL temporal; el fixture sustituye
+`citext` y neutraliza `pg_trgm`. Esta evidencia no certifica producción ni
+valida las extensiones reales.
+
 ### Actualización documental — 18 de noviembre de 2026
 
 Se verificó una compilación de Next.js y se confirmó que la suite backend
@@ -73,7 +82,7 @@ y continuidad. El detalle y los límites de evidencia están en
 
 | Área | Estado | Evaluación |
 |---|---|---|
-| Backend | 🟢 Verde | Evidencia funcional sólida y pruebas relevantes aprobadas. |
+| Backend | 🟢 Verde | Suite completa del 19-11: **526 aprobadas, 0 fallidas, 1 warning** en PostgreSQL temporal; `citext`/`pg_trgm` reales y validación productiva fuera de alcance. |
 | Frontend | 🟡 Amarillo | Build funcional; sin embargo, persisten dependencias con vulnerabilidades reportadas. |
 | Docker / composición | 🟢 Verde | Validación de configuración y ejecución en entorno local consistente. |
 | Seguridad técnica | 🟡 Amarillo | RNF-SEG-01 queda IV/100% por confirmación en el entorno destino; continúan pendientes otros controles de RF-SEG-01/02/03 y preparación productiva. |

@@ -17,6 +17,11 @@ separada en staging para cerrar el alcance funcional local. La programación
 diaria permanece pausada hasta configurar y habilitar el respaldo; el resultado
 local no certifica producción ni recuperación ante pérdida total.
 
+La suite backend completa posterior a las correcciones pasó **526/526**, con
+un warning no bloqueante, en 1200.50 s sobre PostgreSQL temporal. El fixture
+sustituye `citext` y neutraliza `pg_trgm`; la aprobación no sustituye la
+validación productiva ni los demás bloqueadores del plan.
+
 ## Semana 1 — seguridad y evidencia técnica
 
 ### 5-6 de noviembre
