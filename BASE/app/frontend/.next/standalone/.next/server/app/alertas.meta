@@ -1,5 +1,15 @@
 {
   "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
     "x-next-cache-tags": "_N_T_/layout,_N_T_/(app)/layout,_N_T_/(app)/alertas/layout,_N_T_/(app)/alertas/page,_N_T_/alertas"
+  },
+  "routeCache": {
+    "key": "/route-cache/APP_PAGE/04f4b47c6406baf2cd54b39fcbded8dee5b6b5de3558b8798fa3535cf52c0cff/$/alertas",
+    "owner": {
+      "kind": "APP_PAGE",
+      "sourceRoute": "/(app)/alertas/page"
+    },
+    "isFallback": false
   }
 }

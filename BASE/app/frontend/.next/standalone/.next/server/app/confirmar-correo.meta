@@ -1,5 +1,15 @@
 {
   "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
     "x-next-cache-tags": "_N_T_/layout,_N_T_/confirmar-correo/layout,_N_T_/confirmar-correo/page,_N_T_/confirmar-correo"
+  },
+  "routeCache": {
+    "key": "/route-cache/APP_PAGE/c857e7ce031a7c7fabb36f2e3c22327ab1ab96447698803e1a3ae1ec07288585/$/confirmar-correo",
+    "owner": {
+      "kind": "APP_PAGE",
+      "sourceRoute": "/confirmar-correo/page"
+    },
+    "isFallback": false
   }
 }

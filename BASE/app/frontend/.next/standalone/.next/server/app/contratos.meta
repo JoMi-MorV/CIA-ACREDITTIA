@@ -1,5 +1,15 @@
 {
   "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
     "x-next-cache-tags": "_N_T_/layout,_N_T_/(app)/layout,_N_T_/(app)/contratos/layout,_N_T_/(app)/contratos/page,_N_T_/contratos"
+  },
+  "routeCache": {
+    "key": "/route-cache/APP_PAGE/ba034415a729e83fab960a5d883208b627194f5bcae3c2c737e53a7ccb5d9d10/$/contratos",
+    "owner": {
+      "kind": "APP_PAGE",
+      "sourceRoute": "/(app)/contratos/page"
+    },
+    "isFallback": false
   }
 }

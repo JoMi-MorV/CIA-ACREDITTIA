@@ -1,18 +1,18 @@
 # Gap Analysis — Acredittia
 
-**Corte vigente:** 18-11-2026  
+**Corte vigente:** 19-11-2026  
 **Estado:** funcionalmente avanzado; **NO-GO** para producción con datos reales.
 
 Este análisis refleja la implementación y la evidencia documentada en el SRS
-v1.03 y en [VALIDACION_ACTUAL.md](./VALIDACION_ACTUAL.md). Distingue entre
+v1.09 y en [VALIDACION_ACTUAL.md](./VALIDACION_ACTUAL.md). Distingue entre
 funcionalidad local, validación en el entorno destino y aceptación para
 producción; una no sustituye a las otras.
 
 ## 1. Resumen ejecutivo
 
-- Cobertura estimada de las 37 fichas SRS: **84,8% (3.138/37)**.
-- Promedio estimado de las ocho prioridades ADMIN: **82,7%**.
-- Promedios estimados P0/P1/P2: **86,1% / 84,7% / 83,3%**.
+- Cobertura estimada actual de las 37 fichas SRS: **87,6% (3.243/37)**.
+- Promedio estimado de las ocho prioridades ADMIN: **89,3%**.
+- Promedios estimados P0/P1/P2: **90,0% / 86,3% / 89,2%**.
 - Son promedios documentales de avance por requisito, no un porcentaje
   ponderado del producto, aceptación contractual ni preparación productiva.
 - El proyecto sigue **NO-GO** hasta cerrar los bloqueos P0 de privacidad,
@@ -41,21 +41,23 @@ producción; una no sustituye a las otras.
 
 ## 2. Matriz de prioridades ADMIN
 
-Los porcentajes se conservan según el corte vigente del SRS; los recortes de
-alcance no se usan para inflarlos.
+Cada porcentaje de área es el promedio simple de las estimaciones de las fichas
+SRS asociadas, sin ponderar por tamaño de grupo. En Seguridad y aislamiento se
+incluyen RF-SEG-01/02/03 y RNF-SEG-01. Los recortes de alcance no se usan para
+inflar el avance.
 
 | Prioridad | Avance estimado | Funcionamiento actual | Brecha mínima restante |
 |---|---:|---|---|
-| Dashboard global | 90% | `RF-DAS-01` al 100%; KPI y universos acordados. | `RF-DAS-02`: completar/aceptar las series de actividad y crecimiento incluidas en el alcance de producto. |
-| Gestión global de empresas | 90% | Listado y ficha agregada; datos de empresa, usuarios y contratos disponibles. | Validar rechazo y transiciones/casos límite del flujo de empresa. |
-| Buscador global | 100% | `RF-BUS-01/02` validados en las rutas y operaciones probadas. | Ninguna para este requisito. El listado ADMIN de usuarios se mantiene en `RF-USU`. |
-| Métricas SaaS | 60% histórico | Telemetría de sesiones/uso implementada para `RF-MET-02`. | Cerrar definiciones y series de `RF-MET-01/03`; distinguir documentos únicos de revisiones IA. |
-| Alertas y salud | 83,3% | Alertas, sondas, historial y progreso medible de procesos disponibles. | Validar umbrales, totales/paginación y fallos/recuperación distribuida. |
-| Usuarios, roles y permisos | 70% histórico | Gestión de usuarios e invitaciones para cuentas nuevas dentro de una empresa. | Validar integralmente permisos y lecturas sensibles. La transferencia de una cuenta existente entre empresas queda fuera de la primera salida. |
-| Auditoría y trazabilidad | 86,7% | `RF-AUD-03` al 100% funcional local; `RF-AUD-01` 90%; `RF-AUD-02` 70%. | Revisar anterior/nuevo en eventos pendientes; completar retención, integridad, acceso y revocación administrativa de auditoría. |
-| Seguridad y aislamiento | 81,3% | `RNF-SEG-01` al 100% en el entorno destino; concesiones sensibles implementadas. | Completar matriz de operaciones empresa/contrato, inventario de lecturas sensibles y controles de despliegue (`RF-SEG-01/02/03`). |
+| Dashboard global | 90,0% | `RF-DAS-01` al 100%; `RF-DAS-02` al 80%; KPI y universos acordados. | Completar/aceptar las series de actividad y crecimiento incluidas en el alcance de `RF-DAS-02`. |
+| Gestión global de empresas | 100,0% | `RF-EMP-01/02` con 100% en las fichas; el 100% de `RF-EMP-02` cubre el flujo normal de registro/aprobación. | Validar rechazo y transiciones/casos límite; el valor de las fichas no significa que esos casos estén cerrados. |
+| Buscador global | 100,0% | `RF-BUS-01/02` validados en las rutas y operaciones probadas. | Ninguna para estos requisitos. El listado ADMIN de usuarios se mantiene en `RF-USU`. |
+| Métricas SaaS | 86,7% | Promedio de `RF-MET-01` 75%, `RF-MET-02` 100% y `RF-MET-03` 85%. | Cerrar definiciones/series pendientes de `RF-MET-01/03`; distinguir documentos únicos de revisiones IA. |
+| Alertas y salud | 83,3% | Promedio de `RF-SAL-01` 75%, `RF-SAL-02` 80% y `RF-SAL-03` 95%; alertas, sondas, historial y progreso medible disponibles. | Validar umbrales, totales/paginación y fallos/recuperación distribuida. |
+| Usuarios, roles y permisos | 77,5% | Promedio de `RF-USU-01` 75% y `RF-USU-02` 80%; gestión e invitaciones para cuentas nuevas dentro de una empresa. | Validar integralmente permisos y lecturas sensibles. La transferencia de una cuenta existente entre empresas queda fuera de la primera salida. |
+| Auditoría y trazabilidad | 86,7% | Promedio de `RF-AUD-01` 90%, `RF-AUD-02` 70% y `RF-AUD-03` 100% funcional local. | Revisar anterior/nuevo en eventos pendientes; completar retención, integridad, acceso y revocación administrativa de auditoría. |
+| Seguridad y aislamiento | 90,0% | Promedio de `RF-SEG-01` 100%, `RF-SEG-02` 95%, `RF-SEG-03` 65% y `RNF-SEG-01` 100%. | Completar inventario de lecturas sensibles, RF-SEG-02 y validación de producción RF-SEG-03. |
 
-El promedio ADMIN de 82,7% y el promedio SRS de 84,8% no son métricas de
+El promedio ADMIN de 89,3% y el promedio SRS de 87,6% no son métricas de
 preparación para producción. No hay un modelo de ponderación por esfuerzo,
 criticidad o aceptación aprobado.
 
@@ -101,11 +103,12 @@ criticidad o aceptación aprobado.
    restauración. La suite usa PostgreSQL temporal y el fixture sustituye
    `citext` y neutraliza `pg_trgm`; queda validar esas extensiones reales y
    conservar evidencia reproducible del entorno.
-3. **Dependencias y reproducibilidad (`RNF-REP-01`).** Confirmar con auditoría
-   actual si siguen vigentes las vulnerabilidades reportadas anteriormente;
-   actualizar lo que corresponda, fijar dependencias/lockfiles para builds
-   reproducibles y repetir build/regresión. El hallazgo histórico de npm no se
-   presenta como vulnerabilidad confirmada en el corte actual.
+3. **Dependencias y reproducibilidad (`RNF-REP-01`).** Cerrado al 100% en el
+   alcance de locks Python con hashes, `npm ci` y builds reproducibles; la
+   regresión backend pasó 532/532 con el lock de pruebas. La auditoría npm se
+   gestiona por separado de RNF-REP-01 y quedó resuelta el 19-11-2026: las
+   auditorías completa y de producción reportaron cero vulnerabilidades tras
+   actualizar las dependencias del frontend.
 4. **Operación (`RNF-OPE-01`, `RF-SAL-02/03`).** Probar caída y recuperación de
    API, worker y base de datos; verificar reintentos, heartbeat vencido,
    recuperación distribuida y alertas con umbrales acordados.

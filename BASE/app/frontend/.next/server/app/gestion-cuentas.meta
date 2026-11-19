@@ -1,5 +1,15 @@
 {
   "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
     "x-next-cache-tags": "_N_T_/layout,_N_T_/(app)/layout,_N_T_/(app)/gestion-cuentas/layout,_N_T_/(app)/gestion-cuentas/page,_N_T_/gestion-cuentas"
+  },
+  "routeCache": {
+    "key": "/route-cache/APP_PAGE/5cb5af3fa7d33e95a3ba0cbd973e55d961288b9d30671caf15a9c33e411589f8/$/gestion-cuentas",
+    "owner": {
+      "kind": "APP_PAGE",
+      "sourceRoute": "/(app)/gestion-cuentas/page"
+    },
+    "isFallback": false
   }
 }

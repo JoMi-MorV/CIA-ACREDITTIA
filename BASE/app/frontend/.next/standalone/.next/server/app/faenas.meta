@@ -1,5 +1,15 @@
 {
   "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
     "x-next-cache-tags": "_N_T_/layout,_N_T_/(app)/layout,_N_T_/(app)/faenas/layout,_N_T_/(app)/faenas/page,_N_T_/faenas"
+  },
+  "routeCache": {
+    "key": "/route-cache/APP_PAGE/968215c6a62ed9907675de524e48ef5613b7619f742fe5ff96a62ab3cbc626a6/$/faenas",
+    "owner": {
+      "kind": "APP_PAGE",
+      "sourceRoute": "/(app)/faenas/page"
+    },
+    "isFallback": false
   }
 }

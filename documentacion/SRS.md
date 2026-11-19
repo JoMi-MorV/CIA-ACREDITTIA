@@ -1,12 +1,18 @@
 # SRS — Acredittia
 
-Especificación de requisitos de software · versión 1.06 · 19-11-2026
+Especificación de requisitos de software · versión 1.09 · 19-11-2026
 
 **Estado documental:** validado con pruebas focalizadas y suite backend completa en PostgreSQL temporal, además de ejecución local distribuida de Celery; permanecen pendientes criterios funcionales, de seguridad y aceptación integral. DEC-08 queda acordada como política interna funcional; esto no constituye aprobación legal ni certificación de producción.
+
+> **Cierre RNF-REP-01 — 19-11-2026 (versión 1.08):** se añadieron locks de ejecución y pruebas para Python con versiones exactas y hashes, y Docker instala el lock de ejecución con `--require-hashes`. Frontend usa `npm ci` en Docker. Los locks se compilaron en Python 3.12/Linux para resolver también dependencias específicas de despliegue, y la instalación del lock de pruebas se validó en un entorno virtual Windows. La regresión con ese lock pasó **532 pruebas, 0 fallidas y 1 warning** no bloqueante en 1297.33 s; los builds de frontend y las imágenes frontend/backend finalizaron correctamente. RNF-REP-01 queda **IV/100% para el control reproducible de dependencias de aplicación**. La suma de las 37 fichas sube a **3.243/37 (87,6%)** y P1 a **86,3%**; ADMIN permanece en 81,8%, P0 en 90,0% y P2 en 89,2%. Se conservan las etiquetas actuales de imágenes base; no se incluyen digest, paquetes APT ni auditoría de vulnerabilidades. `npm ci` reportó 4 avisos de auditoría, que requieren seguimiento separado y no se consideran resueltos por este cierre.
+
+> **Reconciliación de avance ADMIN — 19-11-2026 (versión 1.09):** se recalcularon las ocho áreas ADMIN como promedio simple de las estimaciones de sus fichas SRS asociadas, sin ponderarlas por tamaño del área: Dashboard 90,0%; Gestión de empresas 100,0%; Buscador 100,0%; Métricas SaaS 86,7%; Alertas y salud 83,3%; Usuarios y permisos 77,5%; Auditoría 86,7%; Seguridad y aislamiento 90,0% (incluye RF-SEG-01/02/03 y RNF-SEG-01). El promedio de las ocho áreas es **89,3%**, que reemplaza el 81,8% publicado antes, incompatible con las estimaciones actuales de las fichas. La media global de las 37 fichas permanece **3.243/37 (87,6%)** y los promedios P0/P1/P2 permanecen **90,0% / 86,3% / 89,2%**. Estos valores son estimaciones, no aceptación ni preparación para producción; las fichas que conservan etiquetas de propuesta inicial requieren revisión de vigencia. El 100% de RF-EMP-02 se refiere al flujo normal de aprobación y no cierra el rechazo ni los casos límite.
 
 > **Objetivos de recuperación — 19-11-2026 (versión 1.05):** se acuerdan RPO ≤24 horas y RTO ≤30 minutos. La última restauración local informó RPO 13,659 s, RTO 7,815 s, estado `restored` y esquema 23; cumple ambos objetivos para esa ejecución. Se descarta una prueba separada en staging para cerrar el alcance funcional local. Para sostener el RPO, el job se programa diariamente a las 02:00 `America/Santiago`; permanece pausado hasta configurar y habilitar el respaldo, y requiere monitoreo. La medición local no certifica el cumplimiento en producción ni una recuperación ante pérdida total del entorno.
 
 > **Suite backend completa — 19-11-2026 (versión 1.06):** `python -m pytest -q` desde `BASE/app/backend` pasó **526 pruebas, 0 fallidas y 1 warning** no bloqueante de Starlette/httpx en **1200.50 s**. Se ejecutó tras las correcciones de migraciones y respaldos, usando PostgreSQL temporal. El fixture sustituye `citext` y neutraliza `pg_trgm`; el resultado acredita la regresión ejecutada, pero no valida esas extensiones reales ni certifica producción.
+
+> **Cierre RF-CLI-09 en alcance reducido — 19-11-2026 (versión 1.07):** por decisión del usuario, el requisito cubre la gestión segura de credenciales de integración y el SMTP transaccional. Se difieren las sincronizaciones externas de SIGA, WorkMate, MetaContratas, Webcontrol y Google Drive, WhatsApp saliente y el despacho de notificaciones por evento; no se consideran entregables de este alcance. El usuario confirmó que producción usa Key Vault y que la identidad de API puede escribir/rotar y eliminar credenciales. La regresión focalizada pasó **70 pruebas, 0 fallidas y 1 warning** no bloqueante. RF-CLI-09 queda IV/100% solo para el alcance reducido, no como certificación de conectores externos.
 
 > **Actualización DEC-14 — 18-11-2026 (versión 1.03):** la exportación de consola ADMIN se limita a resúmenes globales agregados y datos generales de salud/procesos. PDF y ZIP CSV+JSON ya no contienen filas identificables de empresas, usuarios, contratos, documentos o actividad individual; la exportación de negocio con alcance por empresa/contrato/persona/equipo y archivos permanece separada bajo RF-AUD-03/DEC-11.
 
@@ -595,7 +601,7 @@ separado y puede mostrar el payback calculable con el CAC guardado.
 - **Avance estimado:** 75 % (reevaluado el 03-11-2026).
 - **Fundamento del avance:** El listado y la administración de cuentas asociadas, edición de perfil, cambios de rol/alcance, revocación/reactivación y asignación de responsables tienen implementación y pruebas focalizadas; siguen pendientes invitación y aceptación de cuentas existentes, canal de activación y navegación sobre 100 usuarios en la consola ADMIN.
 - **Comportamiento esperado:** Ciclo de vida desde la consola. Cumplir las condiciones detalladas en el criterio de aceptación.
-- **Estado actual:** botón Reactivar para cuentas revocadas, con confirmación y bloqueo durante la petición; usa PATCH administrativo con `activo=true`. Conserva rol/alcance y exige nuevo login: revocar o cambiar activo desde ADMIN incrementa `auth_version` y revoca refresh tokens. La autenticación rechaza JWT de versiones previas. `auth_version` se incorporó en la migración de esquema 9 y se probó en base temporal; la API actualmente requiere esquema 12. La versión efectiva de cada entorno debe comprobarse durante su despliegue. Se solicitan 100 usuarios sin paginación visible.
+- **Estado actual:** botón Reactivar para cuentas revocadas, con confirmación y bloqueo durante la petición; usa PATCH administrativo con `activo=true`. Conserva rol/alcance y exige nuevo login: revocar o cambiar activo desde ADMIN incrementa `auth_version` y revoca refresh tokens. La autenticación rechaza JWT de versiones previas. `auth_version` se incorporó en la migración histórica de esquema 10 y fue verificado en base temporal; el esquema vigente exigido por la API es **23**. La versión efectiva de cada entorno debe comprobarse durante su despliegue. Se solicitan 100 usuarios sin paginación visible.
 - **Pendientes / mejoras:** completar altas y navegación de más de 100 usuarios; validar reactivación en navegador y auditoría integral. Extender invalidación uniforme a los demás mecanismos de desactivación/cambio de credenciales; esta entrega cubre operaciones ADMIN. Reactivar no aprueba solicitudes pendientes o rechazadas.
 - **Validación:** Parcial: consultar evidencia de la sección 4; no se acredita el cierre de todos los criterios.
 - **Criterio de aceptación:** crear/invitar según el flujo existente, listar más de 100 usuarios sin omisiones, revocar y reactivar con autorización; no exponer contraseñas/tokens; cuentas revocadas no acceden a API ni renuevan sesión. Reutilizar reglas de empresa cuando correspondan.
@@ -665,14 +671,27 @@ separado y puede mostrar el payback calculable con el CAC guardado.
 
 **RF-SEG-01 — Aislamiento por empresa/contrato**
 
-- **Estado técnico:** PAR.
+- **Estado técnico:** IV.
 - **Prioridad:** P0.
-- **Avance estimado:** 65 % (propuesta inicial).
-- **Fundamento del avance:** Filtros, dependencias y RLS definidos; faltan roles reales y pruebas cruzadas completas.
+- **Avance estimado:** 100 % para el alcance acordado.
+- **Fundamento del avance:** DEC-10 acuerda que el aislamiento contractual se cumple
+  en la API y que RLS de empresa más credenciales PostgreSQL de mínimo privilegio
+  forman la defensa por motor. No se adopta RLS contractual independiente.
+  Los filtros entre contratos, el alcance de `contract_admin`, RLS empresarial,
+  denegaciones cruzadas, archivos y exportaciones están cubiertos por pruebas
+  focalizadas y por validación de roles PostgreSQL.
 - **Comportamiento esperado:** Aislamiento por empresa/contrato. Cumplir las condiciones detalladas en el criterio de aceptación.
-- **Estado actual:** filtros de aplicación, dependencias y políticas RLS. El usuario confirmó RLS activo con roles reales de API/worker y denegaciones entre empresas/contratos en el entorno destino. El Compose local de desarrollo conserva superusuario PostgreSQL y no demuestra RLS efectivo en ese entorno. Las políticas revisadas en 04_rls.sql se basan en empresa/ADMIN; el alcance contractual se comprueba principalmente en la API. No se identificó una política RLS independiente por contrato en los scripts revisados.
-- **Pendientes / mejoras:** Completar la validación de la matriz de operaciones por empresa/contrato: listados, detalle, cambios, archivos y exportaciones. Mantener autorización API y credenciales mínimas como obligatorias; evaluar RLS contractual como defensa adicional solo si el contexto se propaga de forma confiable y se prueba con API, workers, ADMIN y agregados.
-- **Validación:** Parcial. El usuario confirmó las denegaciones generales en el entorno destino, pero no queda acreditada en la evidencia la matriz completa de operaciones exigida por el criterio.
+- **Estado actual:** filtros de aplicación, dependencias y políticas RLS empresarial
+  están implementados. `contract_admin` queda limitado a su contrato mediante
+  `require_contrato()` y `contrato_scope()`; los contratos ajenos devuelven 404.
+  Las pruebas cubren empresas cruzadas, contratos dentro de una empresa,
+  personal, documentos, archivos, exportaciones y roles PostgreSQL inseguros.
+- **Pendientes / mejoras:** mantener regresiones ante nuevos endpoints o recursos;
+  no queda pendiente una defensa RLS contractual independiente según DEC-10.
+- **Validación:** Suite backend completa en PostgreSQL temporal; suites focalizadas
+  de tenants, esquema, runtime role y exportaciones. RNF-SEG-01 conserva la
+  validación separada del entorno destino. El Compose local conserva superusuario
+  solo para desarrollo y no sustituye la evidencia de producción.
 - **Criterio de aceptación:** con empresas A/B y dos contratos de A, probar listado, detalle, modificación, borrado, archivos y exportación; actor de B no accede a A y administrador de un contrato no accede al otro. La API autoriza cada operación en servidor y aplicación/worker conectan con credenciales de mínimo privilegio, sin superusuario ni BYPASSRLS. Pruebas usan credenciales equivalentes a despliegue. Si se adopta RLS contractual, comprobar también mediante SQL directo con el rol de aplicación que A1 no puede leer ni modificar A2, incluso sin filtros explícitos de API, así como aislamiento entre transacciones/conexiones reutilizadas y el alcance de workers, ADMIN y agregados.
 - **Nota:** para recursos ajenos se mantiene la respuesta de no existencia donde el contrato actual lo establece; no filtrar metadatos en mensajes de error.
 
@@ -806,15 +825,15 @@ Esta sección requiere profundización posterior. Las fuentes principales son EV
 
 **RF-CLI-09 — Integraciones, credenciales y notificaciones**
 
-- **Estado técnico:** PAR.
+- **Estado técnico:** IV en el alcance reducido acordado.
 - **Prioridad:** P2.
-- **Avance estimado:** 65 % (reevaluado el 04-11-2026).
-- **Fundamento del avance:** El vault local/Key Vault gestiona credenciales de integraciones y el SMTP entrega correo de restablecimiento. Los conectores externos siguen sin implementación protocolaria real.
-- **Comportamiento esperado:** Integraciones, credenciales y notificaciones.
-- **Estado actual:** Crear, rotar y desconectar integraciones persiste credenciales fuera de PostgreSQL. SMTP configurable entrega correo sin incluir el secreto en el registro.
-- **Pendientes / mejoras:** Implementar los protocolos acordados, WhatsApp y sincronización; agregar reintentos, idempotencia y secretos de producción validados.
-- **Validación:** Parcial: revisión e inventario de la línea base; falta acreditar el flujo completo con los criterios indicados.
-- **Criterio de aceptación:** Documentar por conector si es simulado/configurado/real; verificar cifrado, rol de lectura de secretos, reintentos y errores sin exponer credenciales. No declarar integración productiva solo por seeds.
+- **Avance estimado:** 100 % del alcance reducido acordado el 19-11-2026.
+- **Fundamento del avance:** La API crea, rota y elimina credenciales mediante `SecretWriter`, conserva en PostgreSQL solo la referencia lógica y no devuelve el secreto. Producción ahora exige `JWE_BACKEND=keyvault` y `AZURE_KEYVAULT_URL`; el usuario confirmó Key Vault y los permisos de la identidad de API en el entorno destino. El SMTP implementa los correos transaccionales de autenticación y activación; sus flujos tienen pruebas con dobles y validación local reportada.
+- **Comportamiento esperado:** Gestionar credenciales de integraciones fuera de PostgreSQL y entregar correos transaccionales de acceso/activación, sin exponer secretos en respuestas ni registros.
+- **Estado actual:** El backend local de secretos guarda un archivo sin cifrar y solo se permite fuera de producción. En producción, Key Vault es obligatorio. La API responde `CONECTOR_NO_DISPONIBLE` para sincronizaciones aún no implementadas y no las anuncia como disponibles. El webhook de WhatsApp entrante solo registra metadatos de eventos firmados; no envía mensajes.
+- **Pendientes / mejoras:** Fuera del alcance aceptado, para una fase futura: protocolos reales SIGA, WorkMate, MetaContratas, Webcontrol y Google Drive; WhatsApp saliente; notificaciones por evento; y reintentos/idempotencia asociados a esos conectores. No atribuirles estado productivo por las integraciones sintéticas de seeds.
+- **Validación:** `test_config_seguridad.py`, `test_integraciones.py` y `test_auth.py`: **70 aprobadas, 0 fallidas, 1 warning** no bloqueante de Starlette/httpx. El usuario confirmó el backend Key Vault y sus permisos para la API en producción; esta validación no ejecuta sincronizaciones reales con proveedores externos.
+- **Criterio de aceptación:** Crear, rotar y eliminar un secreto mediante el backend configurado; guardar en la base solo su referencia; no incluir valores secretos en respuestas; conservar la integración si falla el borrado del secreto; impedir que producción arranque con el backend local o sin URL de Key Vault; enviar correos transaccionales configurados y controlar sus fallos. Los protocolos externos y notificaciones salientes por evento quedan expresamente diferidos y no forman parte del 100 % de este alcance.
 
 ## 7. Requisitos no funcionales
 
@@ -846,26 +865,26 @@ Esta sección requiere profundización posterior. Las fuentes principales son EV
 
 **RNF-REP-01 — Reproducibilidad**
 
-- **Estado técnico:** PAR.
+- **Estado técnico:** IV.
 - **Prioridad:** P1.
-- **Avance estimado:** 65 % (reevaluado el 03-11-2026).
-- **Fundamento del avance:** Compose construye y ejecuta los servicios, la migración v12 se aplicó/verificó y el build frontend pasó; siguen pendientes lockfile reproducible en Docker, restricciones de versiones backend y evaluación de dependencias.
+- **Avance estimado:** 100 % para el alcance de dependencias de aplicación (reevaluado el 19-11-2026).
+- **Fundamento del avance:** Las dependencias runtime y de pruebas de Python están bloqueadas por versión y hash; Docker las instala con verificación de hashes. Frontend instala desde `package-lock.json` con `npm ci`. Los dos builds Docker y el build local del frontend pasaron.
 - **Comportamiento esperado:** Construcciones reproducibles y control de dependencias.
-- **Estado actual:** Frontend tiene lockfile, pero Docker instala sin copiarlo; backend usa rangos abiertos. Build limpio debe usar dependencias fijadas y registro de versiones; evaluar aviso npm sobre Next.js antes de despliegue.
-- **Pendientes / mejoras:** Frontend tiene lockfile, pero Docker instala sin copiarlo; backend usa rangos abiertos. Build limpio debe usar dependencias fijadas y registro de versiones; evaluar aviso npm sobre Next.js antes de despliegue.
-- **Validación:** Parcial: revisión e inventario de la línea base; falta acreditar el flujo completo con los criterios indicados.
-- **Criterio de aceptación:** Construcciones reproducibles y control de dependencias. Frontend tiene lockfile, pero Docker instala sin copiarlo; backend usa rangos abiertos. Build limpio debe usar dependencias fijadas y registro de versiones; evaluar aviso npm sobre Next.js antes de despliegue.
+- **Estado actual:** `requirements.in` y `requirements-test.in` mantienen rangos fuente; sus locks incluyen versiones exactas y hashes. `package-lock.json` se copia en la imagen frontend y se instala con `npm ci`. Se conservaron las etiquetas acordadas de las imágenes base.
+- **Pendientes / mejoras:** Sin pendientes dentro del alcance acordado. La fijación por digest de imágenes, el bloqueo de paquetes APT y la auditoría/corrección de vulnerabilidades se gestionan por separado y no forman parte de este cierre.
+- **Validación:** `pip install --dry-run --require-hashes` validó ambos locks; la imagen backend instaló el lock runtime con `--require-hashes`; la suite backend ejecutada en entorno virtual pasó **532/532**. `npm ci`, `npm run build` y la construcción de la imagen frontend pasaron.
+- **Criterio de aceptación:** CA-01: locks runtime y de pruebas Python fijan versiones y hashes, se instalan con `--require-hashes` y se generan desde `BASE/app/backend/requirements.in` y `requirements-test.in`. CA-02: la imagen frontend instala desde `package-lock.json` mediante `npm ci`. CA-03: build frontend, build de imagen frontend y build de imagen backend terminan correctamente. CA-04: no se exige fijar imágenes base por digest, paquetes APT ni completar auditoría de vulnerabilidades en este requisito. CA-01 a CA-04 están verificados para el alcance acordado.
 
 **RNF-VAL-01 — Validación repetible**
 
 - **Estado técnico:** PAR.
 - **Prioridad:** P1.
 - **Avance estimado:** 80 % (reevaluado el 03-11-2026).
-- **Fundamento del avance:** la suite completa del 19-11 pasó **526/526** después de corregir las rutas de migración que habían causado 3 fallos el 18-11. Las pruebas focalizadas de esquema y respaldos pasaron 41/41. Se mantiene la estimación del 80%: todavía falta validar `citext`/`pg_trgm` reales y fortalecer la evidencia reproducible y de aceptación operativa.
+- **Fundamento del avance:** la suite completa del 19-11 pasó **532/532** con el lock de pruebas, después de corregir las rutas de migración que habían causado 3 fallos el 18-11. Las pruebas focalizadas de esquema y respaldos pasaron 41/41. Se mantiene la estimación del 80%: todavía falta validar `citext`/`pg_trgm` reales y fortalecer la evidencia de aceptación operativa.
 - **Comportamiento esperado:** Suite actualizada, aislada y repetible; no debilitar aserciones para ocultar defectos.
-- **Estado actual:** el 19-11-2026, tras incluir la migración 23 y actualizar la versión esperada, `python -m pytest -q` pasó **526/526** en PostgreSQL temporal. Las pruebas `test_esquema.py` y `test_admin_backups.py` pasaron 41/41, incluyendo actualización de respaldos v22 en la restauración aislada. El fixture sustituye `citext` y neutraliza `pg_trgm`, por lo que su validación con las extensiones reales y la evidencia del entorno de entrega continúan pendientes.
+- **Estado actual:** el 19-11-2026, tras incluir la migración 23 y actualizar la versión esperada, `python -m pytest -q` pasó **532/532** en PostgreSQL temporal con el lock de pruebas. Las pruebas `test_esquema.py` y `test_admin_backups.py` pasaron 41/41, incluyendo actualización de respaldos v22 en la restauración aislada. El fixture sustituye `citext` y neutraliza `pg_trgm`, por lo que su validación con las extensiones reales y la evidencia del entorno de entrega continúan pendientes.
 - **Pendientes / mejoras:** Validar con citext/pg_trgm reales y automatizar ejecución con versión de código, entorno e informe identificables; cubrir los escenarios funcionales todavía abiertos.
-- **Validación:** Suite backend completa del 19-11: **526 aprobadas, 0 fallidas, 1 warning**, 1200.50 s. Suite focalizada de esquema y respaldos: **41/41**. Persiste la limitación del fixture respecto de `citext`/`pg_trgm` reales, además de la cobertura funcional/operativa pendiente.
+- **Validación:** Suite backend completa del 19-11: **532 aprobadas, 0 fallidas, 1 warning**, 1297.33 s. Suite focalizada de esquema y respaldos: **41/41**. Persiste la limitación del fixture respecto de `citext`/`pg_trgm` reales, además de la cobertura funcional/operativa pendiente.
 - **Criterio de aceptación:** La suite se ejecuta de forma aislada y repetible sobre la versión entregada; las pruebas del alcance aceptado pasan sin debilitar aserciones; se verifican extensiones reales y se conserva informe por caso con versión y entorno.
 
 **RNF-PER-01 — Rendimiento**
@@ -989,7 +1008,7 @@ La siguiente tabla conserva el cierre declarado de las actividades técnicas y d
 | 6 — Inicio del informe de propuesta | 100% declarado; evidencia por adjuntar | Entregable de gestión, no requisito funcional | La actividad compromete el inicio, no el cierre del informe completo. Adjuntar borrador o registro de elaboración. |
 | 8 — Planificación del proyecto | 100% declarado, con observaciones | Este cronograma y PLAN_DE_TRABAJO.md | La tabla aportada acredita existencia del cronograma. El plan técnico es complementario; falta enlazar cambios aprobados sin sustituir automáticamente fechas/pesos originales. |
 | 11 — Organización de repositorios, documentos y accesos | 100% declarado, con observaciones | RNF-REP-01, RNF-VAL-01 | Hay documentos y configuración. Adjuntar inventario de repositorios, responsables y accesos; no incluir secretos en la documentación. |
-| 13 — Ejecución local de frontend, backend y PostgreSQL | 100% declarado; funcionamiento local corroborado | RNF-OPE-01, RNF-REP-01 | Servicios y build comprobados el 29-09-2026. Esto acredita operación local actual, no fecha original ni preparación productiva. Dependencias reproducibles quedan como ajuste. |
+| 13 — Ejecución local de frontend, backend y PostgreSQL | 100% declarado; funcionamiento local corroborado | RNF-OPE-01, RNF-REP-01 | Servicios y build comprobados el 29-09-2026. Esto acredita operación local actual, no fecha original ni preparación productiva. La reproducibilidad de dependencias se cerró posteriormente en RNF-REP-01. |
 | 15 — Revisión de compatibilidad | 100% declarado, con observaciones | RNF-VAL-01, RF-MET-03, RF-SAL-03 | Mantener revisión como realizada; adjuntar resultados originales. Los errores UF/inproc se gestionan como incidencias, sin afirmar compatibilidad total. |
 | 16 — Correcciones de informe/presentación | 100% declarado; evidencia por adjuntar | Entregable de gestión | Adjuntar versión corregida y comentarios atendidos. No verificable mediante código. |
 | 20 — Identificación de brechas y riesgos | 100% declarado, con observaciones | EV-01, sección 9, RNF-VAL-01 | Cierre válido para una fecha de corte. Incorporar hallazgos nuevos al registro vivo y conservar la evidencia del análisis original. |
@@ -1019,7 +1038,7 @@ Para las demás actividades declaradas al 100% se mantienen las siguientes obser
 | 71, 75, 79, 82 y 87 — Métricas comprometidas | RF-MET-01/03, RF-DAS-02 | Fuentes, reglas UF, MRR/ARR, altas/bajas/churn y snapshots requieren aceptación con datos conocidos. Mostrar el indicador no prueba su exactitud. |
 | 86 y 89 — Métricas opcionales | RF-SAL-02, RF-MET-01, DEC-03/07 | No convertir p95/Application Insights, expansión/contracción, NRR por plan o LTV/CAC en obligación por aparecer en una pantalla. Registrar decisión antes de incorporarlos a la entrega comprometida. |
 | 93, 95, 99 y 107 — Integración, seguridad, estabilización y aceptación | RF-SEG-*, RF-AUD-*, RNF-VAL-01 y criterios de sección 10 | Validación final pendiente. Los porcentajes previos no sustituyen pruebas de extremo a extremo ni conformidad del cliente. |
-| 100 y 103 — Documentación/manual/demo | Secciones 1–11, EV-08, RNF-REP-01 | Documentación ya iniciada. Completar guía reproducible, manual y datos demo; no considerar terminados por la existencia del SRS. |
+| 100 y 103 — Documentación/manual/demo | Secciones 1–11, EV-08, RNF-REP-01 | La guía reproducible de dependencias/builds está en [README_base.md](../BASE/app/README_base.md); completar manual y datos demo. No considerar terminados por la existencia del SRS. |
 | Ocho prioridades ADMIN posteriores | RF-DAS/EMP/BUS/MET/SAL/USU/AUD/SEG | Origen comunicado: correcciones/recomendaciones del cliente. Relacionar cada detalle con actividad original o cambio; registrar fecha/fuente y aceptación. No reasignar automáticamente los pesos del cronograma. |
 
 ### 12.2 Trazabilidad de requisitos y origen
@@ -1073,7 +1092,7 @@ Para conservar un 100% con observaciones, registrar: número de actividad, alcan
 | Área | Estado general | Qué se reconoce como realizado | Observación / pendiente principal | Seguimiento |
 |---|---|---|---|---|
 | Gestión y actividades iniciales | 100% declarado hasta actividad 37, con observaciones | Cronograma e hitos reportados por el equipo. | Adjuntar actas/entregables y acuerdos; separar cierre de actividad de validación del producto. | Sección 12. |
-| Entorno local | Verificado en alcance acotado y luego detenido | Migración v12 aplicada/verificada; API, web, PostgreSQL y Redis respondieron; frontend compiló. Después de la validación se detuvieron los servicios a solicitud; datos conservados. | Reproducibilidad, credenciales y configuración productiva pendientes. | RNF-REP-01, RNF-OPE-01; PT-03/09. |
+| Entorno local | Verificado en alcance acotado y luego detenido | Evidencias históricas: migración v12 aplicada/verificada el 03-11-2026. El estado documental actual exige esquema 23; API, web, PostgreSQL y Redis fueron validados en su corte correspondiente. | La reproducibilidad de dependencias está cerrada en RNF-REP-01. La migración efectiva a v23 en el entorno actual, credenciales y configuración productiva siguen pendientes. | RNF-REP-01, RNF-OPE-01; PT-03/09. |
 | Consola ADMIN centralizada | Integrada y navegable | Ocho secciones bajo `/admin`, login y detalle agregado probados. | No se validaron todas las mutaciones ni estados de error desde navegador. | EV-01/05; PT-05/08. |
 | Dashboard global | RF-DAS-01 IV/100%; RF-DAS-02 PAR | Contadores, acreditación y estados documentales con universos definidos; revisión visual de RF-DAS-01 confirmada. | Completar actividad y crecimiento de adopción de RF-DAS-02; reservar MRR/crecimiento comercial a Métricas SaaS. | RF-DAS-01/02; PT-07. |
 | Gestión de empresas | Lectura validada; aprobación del registro verificada; rechazo/casos límite por validar | Listado y ficha agregada operativos. El registro queda pendiente y ADMIN puede aprobar; empresa y usuario inicial quedan aprobados y conservan rol `company`. | Validar rechazo, transiciones repetidas y auditoría; distinguir ficha agregada del detalle comercial, cuya conversión UF ya fue corregida. | RF-EMP-01/02, RF-MET-03; PT-02/08. |
@@ -1081,7 +1100,7 @@ Para conservar un 100% con observaciones, registrar: número de actividad, alcan
 | Métricas SaaS | Parcial; defecto UF corregido | Series e indicadores visibles. | Fecha/fuente UF, definiciones, datos demo y medición estimada de sesiones. | RF-MET-01/02/03; PT-02/07. |
 | Salud de clientes | Parcial | Riesgos de acreditación, vencimientos y alertas. | Empresas sin usuarios habilitados, totales/paginación de bandeja e impacto por empresa no determinado. | RF-SAL-01; PT-06. |
 | Sistemas, procesos e incidentes | Integrado; validación distribuida local parcial | Celery Beat despachó heartbeat y reportes por Redis; el worker los procesó y el historial registró corridas `ok`. Seis componentes sondeados; impacto por empresa no se atribuye sin vínculo verificable. | Fallos/recuperación, trazabilidad integral y proveedores externos pendientes. Servicios locales detenidos tras validación. | RF-SAL-02/03; PT-02/06; VALIDACION_ACTUAL.md. |
-| Usuarios y permisos | Parcial; reactivación y cambios auditables de alcance implementados | Listado, roles/alcance, revocación, reactivación y último acceso; cambios de rol/empresa/contrato requieren confirmación y motivo, registran valores anteriores/nuevos e invalidan sesiones. | Creación global, paginación, edición consistente del alcance, validación integral del flujo y recorrido visual. El código de la API espera esquema 13; el entorno Compose verificado se detuvo con esquema 12 y no se ha actualizado con esta entrega. | RF-USU-01/02; PT-04/05. |
+| Usuarios y permisos | Parcial; reactivación y cambios auditables de alcance implementados | Listado, roles/alcance, revocación, reactivación y último acceso; cambios de rol/empresa/contrato requieren confirmación y motivo, registran valores anteriores/nuevos e invalidan sesiones. | Creación global, paginación, edición consistente del alcance, validación integral del flujo y recorrido visual. El estado actual exige esquema 23; las referencias históricas a esquemas 12/13 corresponden a cortes anteriores del entorno Compose. | RF-USU-01/02; PT-04/05. |
 | Auditoría | Parcial; RF-AUD-01 al 90% | Mutaciones acordadas registradas según verificación del usuario y 71 pruebas aprobadas; queda comprobar anterior/nuevo en permisos/estados y pausa de procesos cuando corresponda. | Acceso sensible/descargas uniformes; retención, revisión histórica y aprobación de DEC-08 siguen pendientes en requisitos relacionados. | RF-AUD-01/02/03; PT-04; EV-09. |
 | Seguridad y aislamiento | Parcial; RNF-SEG-01 IV/100% | El usuario confirmó roles separados, RLS efectivo con roles reales, denegaciones en el entorno destino, gestión externa de secretos y cumplimiento de la condición RLS de DEC-10. También confirmó el recorrido ADMIN de concesión temporal con auditoría. | Lecturas sensibles restantes y validación integral de RF-SEG-01/02/03; el Compose de desarrollo conserva rol elevado. | RF-SEG-01/02/03, RNF-SEG-01; PT-03/04. |
 | Portal de empresa | Implementado en parte y con validación focalizada | Reportes, programación, cuentas, contratos y operaciones relacionadas cuentan con suites focalizadas; el build frontend pasó. El scheduling distribuido de reportes también se verificó en Compose. | Invitaciones/activación de cuentas, recorridos visuales y aceptación integral siguen pendientes. No implica nueva obligación de reconstrucción del portal. | RF-CLI-01 a RF-CLI-09; PT-08; VALIDACION_ACTUAL.md. |

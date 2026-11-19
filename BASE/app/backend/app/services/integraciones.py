@@ -4,9 +4,9 @@ Tres piezas y una tarea:
 
 * `SecretWriter` — escritura y borrado de secretos. La API **nunca** guarda las
   credenciales de una integración en la base: `integraciones.credenciales_ref`
-  solo contiene una referencia lógica (`kv://<company_id>/<tipo>`) y el secreto
-  vive en Azure Key Vault. Backends por `JWE_BACKEND` (keyvault | local), igual
-  que el resto de la infraestructura de secretos.
+  solo contiene una referencia lógica (`kv://<company_id>/<tipo>`). Producción
+  exige Azure Key Vault; el backend local, que guarda secretos en un archivo sin
+  cifrar, solo se permite fuera de producción.
 * `Conector` — interfaz común de sincronización. Cada corrida devuelve
   `(registros_procesados, mensaje)`. Los seis conectores del enum
   `integracion_tipo` están declarados pero **no implementados**: levantan
@@ -122,20 +122,30 @@ class KeyVaultSecretWriter(SecretWriter):
                                      credential=DefaultAzureCredential())
 
     def write(self, ref: str, secreto: dict) -> None:
+        from azure.core.exceptions import AzureError
+
         # El valor va serializado en JSON: una integración puede necesitar
         # varias piezas (usuario, clave, api_key, refresh_token) y Key Vault
         # guarda un único string por secreto.
-        self._cliente.set_secret(nombre_secreto(ref),
-                                 json.dumps(secreto, separators=(",", ":")))
+        try:
+            self._cliente.set_secret(nombre_secreto(ref),
+                                     json.dumps(secreto, separators=(",", ":")))
+        except AzureError as exc:
+            raise CredencialError(
+                "No se pudieron almacenar las credenciales en Key Vault") from exc
         logger.info("secreto escrito en Key Vault (ref=%s)", ref)
 
     def delete(self, ref: str) -> None:
+        from azure.core.exceptions import AzureError, ResourceNotFoundError
+
         try:
             self._cliente.begin_delete_secret(nombre_secreto(ref)).wait()
-            logger.info("secreto borrado de Key Vault (ref=%s)", ref)
-        except Exception as e:      # noqa: BLE001  — puede no existir ya
-            logger.warning("no se pudo borrar el secreto %s: %s", ref,
-                           type(e).__name__)
+        except ResourceNotFoundError:
+            return
+        except AzureError as exc:
+            raise CredencialError(
+                "No se pudieron eliminar las credenciales de Key Vault") from exc
+        logger.info("secreto borrado de Key Vault (ref=%s)", ref)
 
 
 class LocalSecretWriter(SecretWriter):

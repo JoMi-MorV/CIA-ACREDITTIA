@@ -22,9 +22,10 @@ el botón ADMIN de autoconcesión por empresa; 88 pruebas focalizadas y el build
 frontend pasaron. El usuario confirmó el recorrido UI/API completo y que queda
 auditado, por lo que RF-SEG-02 sube a 95%; revisar otras lecturas sensibles y
 las credenciales del despliegue sigue pendiente. El promedio de las ocho
-prioridades ADMIN es **81,0% (81% redondeado)** y la cobertura media de los 37
-requisitos SRS es **81,4% (81% redondeado)**; RNF-SEG-01 alcanza IV/100% según
-la confirmación de roles, denegaciones y secretos en el entorno destino.
+prioridades ADMIN es **81,8% (82% redondeado)** después de cerrar RF-SEG-01.
+La cobertura media vigente de los 37 requisitos SRS es
+**87,6% (88% redondeado)** después del cierre de RNF-REP-01; RNF-SEG-01 alcanza
+IV/100% según la confirmación de roles, denegaciones y secretos en el entorno destino.
 RNF-REC-01 alcanza 100% para su
 ciclo funcional local.
 Ninguna cifra mide preparación productiva.
@@ -80,18 +81,20 @@ producción.
 | 5 | Alertas y salud de clientes | **83,3%** | **Mixto:** RF-SAL-01 **PAR**; RF-SAL-02 **ISV**; RF-SAL-03 **ISV** | Promedio de RF-SAL-01 (75%), RF-SAL-02 (80%) y RF-SAL-03 (95%). Seguimiento de procesos validado en pruebas focalizadas; continúan pendientes recuperación distribuida real, validar riesgos de clientes y totales/paginación. |
 | 6 | Usuarios, roles y permisos | **70%** | **PAR** — RF-USU-01/02 | El listado ADMIN pagina usuarios y los cambios de alcance invalidan sesiones. El portal permite convertir `company` en `contract_admin` si queda otro `company` activo e invita cuentas nuevas con rol y contrato mediante activación por correo. Sigue pendiente la transferencia de cuentas existentes entre empresas, el historial completo de acceso y la validación integral. El porcentaje es el estimado histórico del 13-10. |
 | 7 | Auditoría y trazabilidad | **73,3%** | **PAR** — RF-AUD-01/02/03 | RF-AUD-01 está al 90%; el usuario confirmó revisión y registro de las mutaciones acordadas. Queda comprobar valores anterior/nuevo para permisos/estados y pausa de procesos. RF-AUD-02 registra autenticación, cierre y rotación. RF-AUD-03 conserva pendientes de integridad, retención y autorización/exportación. |
-| 8 | Seguridad y aislamiento | **81,3%** | **PAR** — RF-SEG-01/02/03; RNF-SEG-01 **IV (100%)** | RNF-SEG-01 queda validado en el entorno destino por confirmación del usuario: roles separados, RLS efectivo con roles reales, denegaciones entre empresas/contratos y secretos externos; se cumple la condición de DEC-10 para RLS contractual. Las pruebas focalizadas actuales pasaron 76/76. RF-SEG-02 está al 95%; quedan lecturas sensibles y controles de los requisitos RF-SEG-01/02/03. Compose local de desarrollo conserva rol elevado. |
+| 8 | Seguridad y aislamiento | **87,5%** | **RF-SEG-01 IV (100%)**; RF-SEG-02 PAR (95%); RF-SEG-03 PAR (65%); RNF-SEG-01 IV (100%) | RF-SEG-01 queda cerrado para DEC-10: aislamiento contractual en API, RLS empresarial y mínimo privilegio PostgreSQL. Compose local conserva rol elevado solo para desarrollo. RF-SEG-02 y RF-SEG-03 conservan sus pendientes. |
 
 ### Estimación global del corte
 
-**Avance funcional ADMIN estimado: 81,0% (81% redondeado)**. Incluye la
+**Avance funcional ADMIN estimado: 81,8% (82% redondeado)**. Incluye la
 actualización de RF-BUS-01 y RF-BUS-02 al 100%, RF-SEG-03 al 65% y los
 avances documentados de salud, auditoría, privacidad, respaldos e integraciones. No hay
 ponderaciones acordadas por criticidad o esfuerzo. No es porcentaje de pruebas
 aprobadas, aceptación contractual ni preparación para producción.
 
 La cobertura estimada actual de los 37 requisitos (29 funcionales y 8 no funcionales)
-es **81,4% (81% redondeado)** (`3013 / 37`). La suma anterior publicada
+es **87,6% (88% redondeado)** (`3243 / 37`) tras cerrar RF-SEG-01, RF-CLI-09
+y RNF-REP-01 en sus alcances acordados.
+La suma anterior publicada
 (`2888`) no coincidía con los valores de las 37 fichas; la suma previa vigente
 era 2958 (79,9%) antes del botón de autoconcesión. Este es el porcentaje de avance de código más
 amplio que se puede reportar con el inventario actual del SRS; no incluye una
@@ -306,15 +309,16 @@ que la prioridad Métricas SaaS sigue PAR y su 60% histórico no se recalcula.
 
 ## 8. Seguridad y aislamiento de datos
 
-**Estado:** PAR — RF-SEG-01/02/03; RNF-SEG-01 IV/100%.
+**Estado:** RF-SEG-01 IV/100%; RF-SEG-02 PAR/95%; RF-SEG-03 PAR/65%;
+RNF-SEG-01 IV/100%.
 
 **Lo que hace hoy**
 
-- Hay filtros de autorización en la aplicación, dependencias y políticas RLS definidas.
+- Hay filtros de autorización en la aplicación, dependencias y políticas RLS empresariales definidas.
 - Las pruebas focalizadas incluyen aislamiento. El usuario confirmó en el entorno destino roles separados y denegaciones; la configuración Compose de desarrollo aún usa superusuario PostgreSQL y no prueba ese entorno.
-- El alcance contractual se comprueba principalmente en la API; no se identificó política RLS contractual independiente en los scripts revisados.
+- El alcance contractual se comprueba en la API según DEC-10; no se adopta una política RLS contractual independiente.
 - ADMIN conserva privilegio global; no hay flujo completo de acceso excepcional temporal/limitado a documentos sensibles.
-- RNF-SEG-01 está validado para el entorno destino; quedan pendientes otros controles de despliegue, aislamiento y secretos incluidos en RF-SEG-01/02/03.
+- RNF-SEG-01 está validado para el entorno destino. RF-SEG-01 queda cerrado; RF-SEG-02 y RF-SEG-03 conservan sus pendientes.
 - Emisión de URL documental requiere motivo y controles de pertenencia, pero la auditoría de toda lectura sensible/exportación sigue parcial.
 
 **Sugerencias y criterios a considerar**

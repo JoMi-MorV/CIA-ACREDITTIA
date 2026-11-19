@@ -383,6 +383,43 @@ def test_contract_admin_no_ve_sujetos_de_otro_contrato(
     assert ajeno not in duenos
 
 
+def test_contract_admin_no_modifica_sujeto_de_otro_contrato(
+        app_cliente, empresa_a, contrato_a, faena_pelambres):
+    segundo = crear_contrato(app_cliente, empresa_a, faena_pelambres["id"],
+                             nombre="Contrato no autorizado")
+    ajeno = _crear_personal(app_cliente, empresa_a, segundo)
+    jefe = crear_contract_admin(app_cliente, empresa_a, contrato_a["id"])
+
+    r = app_cliente.patch(
+        f"{API}/personal/{ajeno}",
+        headers=jefe["headers"],
+        json={"nombre": "Intento cruzado"},
+    )
+    assert r.status_code == 404
+    assert r.json()["error"]["code"] == "NO_ENCONTRADO"
+
+
+def test_contract_admin_no_modifica_exporta_o_borra_recurso_de_otro_contrato(
+        app_cliente, empresa_a, contrato_a, faena_pelambres):
+    segundo = crear_contrato(app_cliente, empresa_a, faena_pelambres["id"],
+                             nombre="Contrato protegido")
+    jefe = crear_contract_admin(app_cliente, empresa_a, contrato_a["id"])
+
+    r = app_cliente.patch(
+        f"{API}/contratos/{segundo['id']}",
+        headers=jefe["headers"],
+        json={"nombre": "Intento cruzado"},
+    )
+    assert r.status_code == 404
+    assert r.json()["error"]["code"] == "NO_ENCONTRADO"
+
+    r = app_cliente.delete(
+        f"{API}/contratos/{segundo['id']}",
+        headers=jefe["headers"],
+    )
+    assert r.status_code in (404, 410)
+
+
 def test_contract_admin_no_ve_alertas_de_alcance_empresa(
         app_cliente, empresa_a, contrato_a):
     """Una alerta sin `contrato_id` es de la empresa: el contract_admin no la ve."""

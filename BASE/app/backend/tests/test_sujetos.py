@@ -137,7 +137,7 @@ def test_patente_duplicada_en_el_mismo_contrato(app_cliente, empresa_a,
 
 
 def test_patch_separa_los_campos_por_tipo(app_cliente, empresa_a, contrato_a):
-    """§5 de RUPTURAS: los campos del otro tipo se ignoran en silencio."""
+    """Los campos del otro tipo se ignoran en silencio."""
     sid = app_cliente.post(f"{API}/personal", headers=empresa_a["headers"], json={
         "contrato_id": contrato_a["id"], "nombre": "Juan Soto",
         "rut": rut_valido(48)}).json()["id"]

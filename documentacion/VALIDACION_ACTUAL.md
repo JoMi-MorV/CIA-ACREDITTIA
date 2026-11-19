@@ -1,6 +1,6 @@
 # Validación funcional — actualizado al 19 de noviembre de 2026
 
-## Suite backend completa — 19 de noviembre de 2026
+## Ejecución previa de suite backend — 19 de noviembre de 2026
 
 Desde `BASE/app/backend`, `python -m pytest -q` finalizó en **1200.50 s**
 (20 min) con **526 aprobadas, 0 fallidas y 1 warning** no bloqueante de
@@ -8,6 +8,36 @@ deprecación Starlette/httpx. Esta ejecución incluye las correcciones de las
 migraciones y respaldos. Se usó PostgreSQL temporal; el fixture sustituye
 `citext` y neutraliza `pg_trgm`, por lo que el resultado no valida esas
 extensiones reales ni certifica el entorno productivo.
+
+## RNF-REP-01 — reproducibilidad — 19 de noviembre de 2026
+
+Los locks runtime y de pruebas de Python se generaron con pip-tools 7.7.0 en
+Python 3.12/Linux para incluir dependencias específicas de plataforma, con
+versiones exactas y hashes. La instalación con verificación de hashes pasó en
+la imagen backend y se validaron ambos locks con `pip install
+--dry-run --require-hashes`. La regresión ejecutada desde un entorno virtual
+instalado con el lock de pruebas pasó **532/532**, con 1 warning no bloqueante,
+en **1297.33 s**.
+
+En frontend, `npm ci` y `npm run build` pasaron; la construcción Docker también
+pasó. Se añadió `.dockerignore`, reduciendo el contexto de build de 424.2 MB a
+780.8 kB y evitando copiar dependencias y artefactos generados por el host.
+Durante `npm ci`, npm reportó 4 avisos de auditoría (1 moderado, 2 altos y 1
+crítico); su evaluación y remediación están fuera de RNF-REP-01 y requieren
+seguimiento independiente antes del despliegue.
+
+## Cierre focalizado RF-SEG-01 — 19 de noviembre de 2026
+
+Se ejecutaron las suites de aislamiento de tenants, exportaciones administrativas
+y privilegios PostgreSQL. Resultado: **54 aprobadas, 0 fallidas y 1 warning**
+no bloqueante de deprecación Starlette/httpx.
+
+RF-SEG-01 queda cerrado al 100% bajo DEC-10 con el alcance acordado:
+aislamiento contractual en la autorización API, RLS empresarial para defensa
+en motor y credenciales PostgreSQL de mínimo privilegio. No se adopta RLS
+contractual independiente. Las pruebas cubren denegaciones entre empresas,
+dos contratos dentro de una empresa, personal, documentos, archivos,
+exportaciones y rechazo de roles PostgreSQL inseguros.
 
 ## Recuperación de respaldos — 19 de noviembre de 2026
 
@@ -569,6 +599,29 @@ RF-CLI-09 permanece parcial hasta acreditar conectores externos reales,
 WhatsApp, sincronización distribuida, reintentos, idempotencia y credenciales
 de producción.
 
+### Cierre RF-CLI-09 — 19 de noviembre de 2026
+
+El usuario acordó limitar el requisito a la gestión segura de credenciales y al
+SMTP transaccional. Se difieren los conectores reales SIGA, WorkMate,
+MetaContratas, Webcontrol y Google Drive, WhatsApp saliente y el despacho de
+notificaciones por evento.
+
+- Producción ahora rechaza `JWE_BACKEND=local` o una `AZURE_KEYVAULT_URL` vacía.
+- La API no expone secretos; si falla su eliminación, responde 503 y conserva
+  la integración para permitir un reintento.
+- Las sincronizaciones cuyos conectores siguen siendo stubs se identifican como
+  no disponibles y no se encolan.
+- El usuario confirmó que el entorno productivo usa Key Vault y que la identidad
+  de API puede escribir/rotar y eliminar credenciales. No se probaron aquí
+  operaciones contra Azure ni conectores externos reales.
+- Evidencia focalizada de esta revisión: `test_config_seguridad.py`,
+  `test_integraciones.py` y `test_auth.py`: **70 aprobadas, 0 fallidas y 1
+  warning** no bloqueante de Starlette/httpx, en 132,01 s. Se probó en
+  PostgreSQL temporal; no se ejecutaron operaciones contra Azure.
+
+RF-CLI-09 queda IV/100% únicamente para el alcance reducido aceptado; no implica
+que estén implementados los conectores o notificaciones diferidos.
+
 ## RF-BUS-02 — permisos por información — 4 de noviembre de 2026
 
 El buscador administrativo distingue categorías ordinarias de información
@@ -702,10 +755,12 @@ externos.
 
 ## Despliegue local de procesos programados — 3 de noviembre de 2026
 
-Se aplicó en el Compose local la migración de esquema 12, que ajusta el cron de
-`reportes_programados` a cada minuto. El comando de verificación del migrador
-confirmó versión 12. Se reconstruyeron y levantaron API, worker, Celery Beat y
-web; PostgreSQL y Redis también quedaron activos durante la comprobación.
+**Registro histórico — 3 de noviembre de 2026:** se aplicó en ese momento la
+migración de esquema 12, que ajustaba el cron de `reportes_programados` a cada
+minuto. El migrador confirmó versión 12 en ese entorno. Esta referencia describe
+solo ese corte; el estado vigente requiere esquema 23.
+En esa ejecución se reconstruyeron y levantaron API, worker, Celery Beat y web;
+PostgreSQL y Redis también quedaron activos durante la comprobación.
 
 Evidencia de funcionamiento distribuido: API `/health` y la página
 `/ops/sistemas` respondieron HTTP 200; Celery Beat despachó `ops-heartbeat` y
@@ -1214,7 +1269,7 @@ Validación ejecutada: 54/54 pruebas aprobadas en
 ADMIN, confirmación exacta, exportación ZIP/PDF y columnas excluidas, cifrado y
 detección de alteración, protección CSV contra fórmulas, migración/esquema y
 registro de procesos. `npm run build`, compilación de módulos Python y
-`docker compose config --quiet` finalizaron correctamente. En esta actualización
+`docker compose config --quiet` finalizaron correctamente. En esta actualización histórica
 se reconstruyeron y desplegaron los contenedores API y frontend; el build
 frontend pasó, el esquema Compose informa versión 13 y la descarga autenticada
 final del PDF retornó HTTP 200, 16 páginas y metadata con timestamp exacto
@@ -1455,10 +1510,10 @@ lint y generación de 22 rutas completados. No se realizó recorrido manual de
 navegador en esta validación.
 
 Al corte de esta validación (01-10-2026), Compose local estaba en modo
-demostración y esquema 9. Esta ejecución de pruebas usó una base temporal
+demostración y el entorno temporal estaba en esquema 9. Esta ejecución de pruebas usó una base temporal
 aislada y no aplicó migraciones ni modificaciones a la base habitual. El esquema
-requerido por la API actual es v12; la anotación anterior no describe el estado
-actual de cada entorno. Estados de requisitos relacionados permanecen PAR/ISV cuando sus
+requerido por la API actual al 19-11-2026 es **v23**. Este registro histórico
+no describe el estado actual de cada entorno. Estados de requisitos relacionados permanecen PAR/ISV cuando sus
 criterios integrales siguen pendientes; ver SRS v0.15.
 
 ## Registros anteriores

@@ -2,12 +2,13 @@
 
 ## Estado actual verificado
 
-Actualizado al 18-11-2026.
+Actualizado al 19-11-2026; métricas reconciliadas con el SRS v1.09.
 
-- Avance estimado vigente: **84,8%** para las 37 fichas SRS (`3138 / 37`),
-  tras RF-AUD-03 en 100%. El promedio de las ocho prioridades ADMIN es **82,7%**;
-  P0/P1/P2: 86,1%, 84,7% y 83,3%. Son estimaciones de cobertura, no aceptación
-  integral ni preparación productiva.
+- Avance estimado vigente: **87,6%** para las 37 fichas SRS (`3.243 / 37`).
+  El promedio de las ocho áreas ADMIN, recalculado desde sus fichas asociadas,
+  es **89,3%**; P0/P1/P2: 90,0%, 86,3% y 89,2%. Son estimaciones de cobertura,
+  no aceptación integral ni preparación productiva; el nuevo promedio ADMIN
+  sustituye el 81,8% publicado en el corte anterior.
 - RF-AUD-03 queda **IV/100% en alcance funcional local**: exportación ZIP de
   negocio por alcance, documentos asociados, motivo y auditoría implementados;
   lecturas de metadatos y emisión de URL documental también se registran.
@@ -47,9 +48,14 @@ Actualizado al 18-11-2026.
 - RF-CLI-01 está en 80% por el cambio seguro de correo; RF-SAL-03, en 95% por
   el progreso medible y la actualización automática de procesos. La entrega
   SMTP se probó con dobles y se confirmó un servidor Gmail real con envío exitoso.
-- En la auditoría de dependencias reportada el 04-11, `npm audit --omit=dev`
-  encontró **1 vulnerabilidad crítica y 2 altas** en Next.js/PostCSS/source-map-js;
-  confirmar el estado actual con una nueva ejecución de auditoría.
+- **Auditoría npm del frontend — 19-11-2026:** se resolvieron los cuatro
+  paquetes vulnerables reportados: `next` 14.2.5 → 15.5.29, `postcss`
+  8.4.38/8.4.31 → 8.5.23, `source-map-js` 1.2.1 → 1.2.4 y
+  `postcss-selector-parser` 6.1.4 → 6.1.6. Un override asegura que Next use el
+  PostCSS corregido. `npm ci`, `npm audit`, `npm audit --omit=dev`, el build
+  frontend y `docker compose build web` pasaron; ambas auditorías reportaron
+  **0 vulnerabilidades**. El detalle está en
+  [Estado de salud general](documentacion/ESTADO_SALUD_GENERAL.md).
 - Gmail SMTP quedó configurado localmente con `smtp.gmail.com:587` y una
   contraseña de aplicación. El servicio fue recargado y el envío de prueba
   a `lp7901341@gmail.com` finalizó correctamente.
@@ -72,9 +78,10 @@ Actualizado al 18-11-2026.
   configurarse y habilitarse. Esto no certifica producción ni recuperación ante
   pérdida total del entorno.
 - Producción con datos reales: **NO-GO** por privacidad/retención, otros
-  controles de seguridad y auditoría, dependencias, infraestructura y
-  recuperación pendientes. RNF-SEG-01 está validado en el entorno destino;
-  el Compose local de desarrollo conserva un rol elevado.
+  controles de seguridad y auditoría, infraestructura y recuperación
+  pendientes. Las vulnerabilidades npm reportadas quedaron resueltas y las
+  auditorías actuales están en cero. RNF-SEG-01 está validado en el entorno
+  destino; el Compose local de desarrollo conserva un rol elevado.
 
 Estos porcentajes son estimaciones de cobertura de código/evidencia, no
 mediciones de esfuerzo, cumplimiento contractual ni preparación certificada
@@ -109,8 +116,8 @@ de aplicación de privacidad/retención están implementados. El usuario confirm
 la migración y el job `ops_retencion` activo; reportó una ejecución local `ok`
 el 10-11-2026 a las 00:18:52, con cero filas podadas. Falta verificar Log
 Analytics, documentar la revisión histórica y obtener aprobación del responsable
-de producción, junto con permisos granulares, dependencias vulnerables y
-restauración efectiva.
+de producción, junto con permisos granulares y restauración efectiva. La
+auditoría npm del frontend se actualizó el 19-11-2026 y no reporta vulnerabilidades.
 
 El estado de producción continúa **NO-GO**. El aumento de avance no cierra los
 bloqueos P0 de privacidad, seguridad/aislamiento, auditoría y continuidad.
@@ -222,11 +229,12 @@ no crea automáticamente un administrador productivo ni elimina cuentas demo exi
 Para el modo producción, definir `APP_ENV=production`, un `JWT_SECRET` propio y
 aleatorio de al menos 32 bytes, `DB_RLS_ENABLED=true`,
 `DB_APPLY_SCHEMA_ON_START=false`, `SEED_DEMO_ENABLED=false` y
-`AUTH_DEV_RESET_TOKEN_ENABLED=false`. La aplicación rechaza combinaciones inseguras
-al cargar la configuración. Esto no comprueba todavía los privilegios reales del
-rol PostgreSQL; el Compose base sigue siendo de desarrollo y no es una plantilla
-productiva. El overlay ngrok hereda ese entorno demo: un túnel no lo convierte en
-despliegue productivo seguro.
+`AUTH_DEV_RESET_TOKEN_ENABLED=false`, `JWE_BACKEND=keyvault` y
+`AZURE_KEYVAULT_URL`. La aplicación rechaza combinaciones inseguras al cargar
+la configuración. Esto no comprueba todavía los privilegios reales del rol
+PostgreSQL; el Compose base sigue siendo de desarrollo y no es una plantilla
+productiva. El overlay ngrok hereda ese entorno demo: un túnel no lo convierte
+en despliegue productivo seguro.
 
 API y Celery instalan además una guarda para conexiones PostgreSQL nuevas en
 `APP_ENV=production`: rechaza superusuario, BYPASSRLS, CREATEDB, CREATEROLE y
@@ -256,9 +264,10 @@ python scripts/provision_admin.py
 ```
 Se agregaron planes Básico, Pro y Enterprise con suscripciones activas, en trial,
 morosas y canceladas, además de facturas de ejemplo con estados variados.
-Se agregaron integraciones SIGA, Workmate, Metacontratas, WebControl, WhatsApp y
-Google Drive con estados activos, con error y desconectados, junto con sus logs de
-sincronización. Las credenciales son referencias ficticias a Key Vault y no secretos.
+Se agregaron registros demo de integraciones SIGA, Workmate, Metacontratas,
+WebControl, WhatsApp y Google Drive con estados y logs sintéticos; no implementan
+ni acreditan conectividad con esos proveedores. Las credenciales de seed son
+referencias ficticias a Key Vault, no secretos.
 La consola Ops ahora incluye disponibilidad variable, historial de jobs exitosos,
 fallidos y con timeout, además de incidentes abiertos/resueltos que representan
 decisiones operativas de producción.
@@ -801,16 +810,19 @@ con enlaces previos. Las rutas Ops antiguas de Plataforma, Usuarios e
 Indicadores también redirigen a sus destinos Admin. `/admin` y la entrada Ops
 abren ahora el Dashboard global.
 
-## Cambios a la fecha — 18-11-2026
+## Cambios a la fecha — 19-11-2026
 
-El documento funcional vigente es el [SRS v1.02](documentacion/SRS.md). Esta
+El documento funcional vigente es el [SRS v1.09](documentacion/SRS.md). Esta
 sección resume los cambios relevantes y el estado conocido a la fecha; no
 sustituye los criterios, pendientes ni evidencias detallados en el SRS y la
 [validación actual](documentacion/VALIDACION_ACTUAL.md).
 
-**Resumen del corte:** la suma de las 37 fichas es **84,8% (3138/37)** y el
-promedio de las ocho prioridades ADMIN, **82,7%**; P0/P1/P2: 86,1%, 84,7% y
-83,3%. RF-AUD-03 queda IV/100% en alcance funcional local; RF-DAS-01 queda
+**Resumen del corte:** la suma de las 37 fichas es **87,6% (3.243/37)** y el
+promedio simple de las ocho áreas ADMIN es **89,3%**; P0/P1/P2: 90,0%, 86,3%
+y 89,2%. La cifra ADMIN reemplaza el 81,8% anterior tras reconciliar los
+promedios de área con las fichas del SRS, sin ponderarlas por tamaño. RF-CLI-09
+queda IV/100% en el alcance reducido aceptado; RF-AUD-03 queda IV/100% en
+alcance funcional local; RF-DAS-01 queda
 IV/100%; RNF-SEG-01, IV/100% en el entorno destino; y RF-SEG-02, PAR/95% tras
 confirmar el recorrido de concesión y su auditoría, incluida la exportación
 global y por empresa.

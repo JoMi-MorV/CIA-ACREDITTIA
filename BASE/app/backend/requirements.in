@@ -1,0 +1,42 @@
+# Runtime dependency inputs. Generate the install lock with pip-tools.
+# --- API ---------------------------------------------------------------
+fastapi>=0.111
+# Keep Uvicorn's standard extras explicit so uvloop remains platform-conditional.
+uvicorn>=0.30
+httptools>=0.6.3
+watchfiles>=0.13
+websockets>=10.4
+python-dotenv>=0.13
+PyYAML>=5.1
+uvloop>=0.15.1; sys_platform != "win32"
+colorama>=0.4.6
+sqlalchemy>=2.0.30
+psycopg[binary]>=3.1
+pydantic>=2.7
+pydantic-settings>=2.2
+pwdlib[argon2]>=0.2
+PyJWT>=2.8
+python-multipart>=0.0.9
+email-validator>=2.1
+
+# --- Cola de trabajos --------------------------------------------------
+# Azure Cache for Redis. Con QUEUE_BACKEND=inproc no se usa, pero se instala
+# igual para que una sola imagen sirva a la API, al worker y al beat.
+celery[redis]>=5.4
+redis>=5.0
+# Cron en proceso para desarrollo (QUEUE_BACKEND=inproc)
+APScheduler>=3.10
+
+# --- Cifrado de credenciales de plataforma (JWE) ------------------------
+cryptography>=42.0
+
+# --- Azure -------------------------------------------------------------
+# Identidad administrada para Blob Storage y Key Vault.
+azure-identity>=1.17
+azure-storage-blob>=12.20
+azure-keyvault-keys>=4.9
+azure-keyvault-secrets>=4.8
+
+# --- Generación de reportes --------------------------------------------
+openpyxl>=3.1
+reportlab>=4.2

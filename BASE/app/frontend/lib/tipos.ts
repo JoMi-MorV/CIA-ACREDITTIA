@@ -1,5 +1,5 @@
 /**
- * Tipos del contrato de la API v1.1 (ver `backend/RUPTURAS.md`).
+ * Tipos vigentes del contrato de la API v1.1.
  *
  * Dos reglas transversales que conviene tener presentes al leer este archivo:
  *
@@ -95,7 +95,7 @@ export type ContratoResumen = {
   codigo: string | null;
 };
 
-/** Forma ampliada de `GET /auth/me` y de `login.user` (§1 de RUPTURAS). */
+/** Forma ampliada de `GET /auth/me` y de `login.user`. */
 export type Usuario = {
   id: string;
   email: string;
@@ -520,7 +520,7 @@ export type TrabajadorIn = {
   es_conductor?: boolean;
 };
 
-/** `PATCH /personal/{id}`: solo estos campos (§5 de RUPTURAS). */
+/** `PATCH /personal/{id}`: campos admitidos por el contrato vigente. */
 export type TrabajadorPatch = {
   nombre?: string;
   cargo_id?: string | null;
@@ -537,7 +537,7 @@ export type EquipoIn = {
   anio?: number | null;
 };
 
-/** `PATCH /equipos/{id}`: solo estos campos (§5 de RUPTURAS). */
+/** `PATCH /equipos/{id}`: campos admitidos por el contrato vigente. */
 export type EquipoPatch = {
   nombre?: string;
   marca?: string | null;

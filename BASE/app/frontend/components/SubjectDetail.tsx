@@ -9,7 +9,7 @@ import { Barra, Chip, Modal, Spinner, useDialog } from "./ui";
 /**
  * Expediente de un trabajador o de un equipo.
  *
- * Concentra el flujo nuevo de archivos (§6 de RUPTURAS): la subida son tres
+ * Concentra el flujo vigente de archivos: la subida son tres
  * pasos con SAS y la revisión IA es asíncrona, así que tras subir el documento
  * sigue en `falta` y hay que sondear el job antes de saber el veredicto. La
  * pantalla lo refleja con dos estados distintos: «Subiendo» y «Analizando».

@@ -1,5 +1,15 @@
 {
   "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
     "x-next-cache-tags": "_N_T_/layout,_N_T_/ops/layout,_N_T_/ops/sistemas/layout,_N_T_/ops/sistemas/page,_N_T_/ops/sistemas"
+  },
+  "routeCache": {
+    "key": "/route-cache/APP_PAGE/fcad1598f8f831c35eca167df4a17e387dd6237de597f2d78e9975fc144265d8/$/ops/sistemas",
+    "owner": {
+      "kind": "APP_PAGE",
+      "sourceRoute": "/ops/sistemas/page"
+    },
+    "isFallback": false
   }
 }

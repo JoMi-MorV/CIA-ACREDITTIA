@@ -146,8 +146,11 @@ Asigna a la identidad de los Container Apps:
   delegado exige pedir la clave de delegación.
 - **Key Vault Crypto User** sobre la clave `plataforma-cred` (operaciones
   `wrapKey` y `unwrapKey`).
-- **Key Vault Secrets User** si se usa `KeyVaultSecretWriter` para las
-  credenciales de integración.
+- **Key Vault Secrets Officer** para la identidad de API si usa
+  `KeyVaultSecretWriter` para crear, rotar y eliminar credenciales de
+  integración. Limite el alcance al vault; no otorgue permisos de administración
+  del vault. La configuración de producción exige `JWE_BACKEND=keyvault` y
+  `AZURE_KEYVAULT_URL`.
 
 `DefaultAzureCredential` las resuelve sin secretos en configuración. En
 desarrollo la misma credencial usa `az login`.

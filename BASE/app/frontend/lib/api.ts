@@ -7,7 +7,7 @@
  * módulo del backend están en `lib/cliente.ts`, que se apoya en esto.
  *
  * Tres cosas que el backend rompió a propósito y que se absorben en este
- * archivo (ver `backend/RUPTURAS.md`):
+ * archivo vigente documentado por el OpenAPI y los tipos compartidos:
  *
  * - **Errores unificados**: toda respuesta de error es `{error:{code,message}}`
  *   y se convierte en `ApiError`. Las pantallas muestran `err.message`, que es
@@ -298,7 +298,7 @@ export function patch<T = any>(path: string, cambios: unknown): Promise<T> {
 }
 
 // ============================================================================
-// Paginación (§0 de RUPTURAS: todos los listados vienen envueltos)
+// Paginación: los listados vigentes vienen envueltos en Pagina<T>.
 // ============================================================================
 export function paginaVacia<T>(page_size = PAGE_SIZE_DEFAULT): Pagina<T> {
   return { items: [], page: 1, page_size, total: 0, total_pages: 0 };

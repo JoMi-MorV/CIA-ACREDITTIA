@@ -1,5 +1,15 @@
 {
   "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
     "x-next-cache-tags": "_N_T_/layout,_N_T_/ops/layout,_N_T_/ops/auditoria/layout,_N_T_/ops/auditoria/page,_N_T_/ops/auditoria"
+  },
+  "routeCache": {
+    "key": "/route-cache/APP_PAGE/bbee0a5c647e08c4e3dc2f7f2020550373c2dc1d3403dbb489aead0cc24d4b02/$/ops/auditoria",
+    "owner": {
+      "kind": "APP_PAGE",
+      "sourceRoute": "/ops/auditoria/page"
+    },
+    "isFallback": false
   }
 }

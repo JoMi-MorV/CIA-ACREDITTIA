@@ -236,7 +236,7 @@ def test_cumplimiento_contratos_lleva_faena_id(app_cliente, empresa_a,
 
 def test_actividad_del_dashboard_ignora_limit(app_cliente, empresa_a,
                                               contrato_a, dotacion):
-    """§8 de RUPTURAS: `limit` desapareció; se pagina como todo lo demás."""
+    """El parámetro `limit` fue reemplazado por paginación estándar."""
     r = app_cliente.get(f"{API}/dashboard/actividad?limit=1&page_size=2",
                         headers=empresa_a["headers"])
     assert r.status_code == 200, r.text

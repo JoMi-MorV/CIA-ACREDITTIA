@@ -25,6 +25,9 @@ class Settings(BaseSettings):
                 raise ValueError("Producción no permite semillas demo ni tokens de recuperación en respuestas")
             if not self.db_rls_enabled or self.db_apply_schema_on_start:
                 raise ValueError("Producción exige RLS habilitado y migraciones separadas del arranque")
+            if self.jwe_backend != "keyvault" or not self.azure_keyvault_url.strip():
+                raise ValueError(
+                    "Producción exige JWE_BACKEND=keyvault y AZURE_KEYVAULT_URL")
         return self
 
     # --- Base de datos -----------------------------------------------------

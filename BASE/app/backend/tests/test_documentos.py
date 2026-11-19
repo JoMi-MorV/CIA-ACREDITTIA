@@ -500,7 +500,7 @@ def test_descarga_documental_exige_motivo(app_cliente, empresa_a, documento):
 
 def test_el_endpoint_de_descarga_antiguo_ya_no_existe(app_cliente, empresa_a,
                                                      documento):
-    """§6.2 de RUPTURAS: `/descarga` está eliminado, no deprecado."""
+    """La ruta antigua `/descarga` debe seguir eliminada."""
     salida = subir_archivo(app_cliente, empresa_a, documento["id"])
     fid = salida["archivo"]["id"]
     r = app_cliente.get(f"{API}/documentos/{documento['id']}/archivos/{fid}/descarga",

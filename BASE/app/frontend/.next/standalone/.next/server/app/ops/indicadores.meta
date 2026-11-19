@@ -1,5 +1,15 @@
 {
   "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
     "x-next-cache-tags": "_N_T_/layout,_N_T_/ops/layout,_N_T_/ops/indicadores/layout,_N_T_/ops/indicadores/page,_N_T_/ops/indicadores"
+  },
+  "routeCache": {
+    "key": "/route-cache/APP_PAGE/abbf5e2e795b42af5b879f61c6811dbbab54a10506d870f52983e48325aa019e/$/ops/indicadores",
+    "owner": {
+      "kind": "APP_PAGE",
+      "sourceRoute": "/ops/indicadores/page"
+    },
+    "isFallback": false
   }
 }

@@ -7,14 +7,11 @@ tipo y empresa** (UNIQUE (company_id, tipo)), así que conectar dos veces el
 mismo tipo es 409 y no una segunda fila.
 
 Las credenciales **no se guardan en la base**. `integraciones.credenciales_ref`
-contiene solo una referencia lógica al secreto (`kv://<company_id>/<tipo>`) y el
-secreto vive en Azure Key Vault, escrito por el `SecretWriter` de
-`services/integraciones.py`. Mientras esa escritura siga pendiente (ver los TODO
-de este módulo), lo que llega en `credenciales` se descarta en cuanto termina el
-request: la integración queda registrada y `desconectada`, con
-`credenciales_pendientes=true` en la respuesta para que la interfaz no dé por
-hecho que ya puede sincronizar. Es preferible a persistir el secreto «temporal»
-en la base, que es exactamente lo que el modelo de datos prohíbe.
+contiene solo una referencia lógica al secreto (`kv://<company_id>/<tipo>`); la
+API escribe y elimina el secreto mediante `SecretWriter`. Producción exige Azure
+Key Vault; el almacenamiento local sin cifrar solo está disponible fuera de
+producción. `credenciales_pendientes` indica que la conexión todavía no se ha
+validado, no que el secreto esté pendiente de escritura.
 
 El estado lo mueve el resultado de las corridas, no el usuario: `activa` cuando
 una sync termina bien, `con_error` cuando falla (con su `Alerta`), y
@@ -174,6 +171,7 @@ def _out(i: Integracion, agregados: dict | None = None,
     """Serializador de una integración. Nunca incluye el secreto ni su valor."""
     ag = agregados or {"syncs_exitosas": 0, "syncs_fallidas": 0,
                        "registros_sincronizados": 0}
+    conector = CONECTORES.get(i.tipo)
     return {
         "id": str(i.id), "tipo": i.tipo,
         "nombre": NOMBRE_PLATAFORMA.get(i.tipo, i.tipo),
@@ -188,7 +186,7 @@ def _out(i: Integracion, agregados: dict | None = None,
         "syncs_fallidas": ag["syncs_fallidas"],
         "registros_sincronizados": ag["registros_sincronizados"],
         "ultimo_error": ultimo_error,
-        "conector_disponible": i.tipo in CONECTORES,
+        "conector_disponible": bool(conector and conector.IMPLEMENTADO),
         "created_at": _iso(i.created_at),
         "updated_at": _iso(i.updated_at),
     }
@@ -301,9 +299,8 @@ def crear(body: IntegracionIn, db: Session = Depends(get_db),
     y la integración nace `desconectada`: hasta que la primera sincronización
     confirme que las credenciales sirven, no hay razón para llamarla activa.
 
-    Las credenciales recibidas se descartan al terminar el request; la respuesta
-    lo dice con `credenciales_pendientes` para que nadie asuma que ya están en
-    el vault (ver el TODO de más abajo).
+    Las credenciales recibidas se escriben en el backend de secretos. La
+    respuesta indica que todavía no se validó una conexión con el proveedor.
     """
     _solo_empresa(user)
     tipo = _valida_tipo(body.tipo)
@@ -451,8 +448,8 @@ def eliminar(integracion_id: uuid.UUID, db: Session = Depends(get_db),
         if ref:
             get_secret_writer().delete(ref)
     except (CredencialError, OSError) as exc:
-        logger.error("No se pudo borrar el secreto huérfano ref=%s: %s",
-                     ref, type(exc).__name__)
+        raise err(503, "VAULT_INDISPONIBLE",
+                  "No se pudieron eliminar las credenciales de la integración") from exc
     integ.credenciales_ref = None
     db.delete(integ)
 
@@ -489,6 +486,10 @@ def sincronizar(integracion_id: uuid.UUID, db: Session = Depends(get_db),
         raise err(409, "INTEGRACION_DESCONECTADA",
                   "La integración está desconectada; actívela antes de "
                   "sincronizar")
+    conector = CONECTORES.get(integ.tipo)
+    if conector is None or not conector.IMPLEMENTADO:
+        raise err(409, "CONECTOR_NO_DISPONIBLE",
+                  "La sincronización externa de esta integración está diferida")
 
     corrida = str(uuid.uuid4())
     integ.config = {**(integ.config or {}), CLAVE_CORRIDA: corrida}

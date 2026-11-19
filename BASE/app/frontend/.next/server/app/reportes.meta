@@ -1,5 +1,15 @@
 {
   "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
     "x-next-cache-tags": "_N_T_/layout,_N_T_/(app)/layout,_N_T_/(app)/reportes/layout,_N_T_/(app)/reportes/page,_N_T_/reportes"
+  },
+  "routeCache": {
+    "key": "/route-cache/APP_PAGE/247fbb53504a3b374af7a01e970e2d16bdc9a5e67bd3f123e602191751c7dee9/$/reportes",
+    "owner": {
+      "kind": "APP_PAGE",
+      "sourceRoute": "/(app)/reportes/page"
+    },
+    "isFallback": false
   }
 }

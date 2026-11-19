@@ -10,7 +10,9 @@ from tests.conftest import API
 def configuracion(**cambios):
     valores = dict(app_env="production", jwt_secret="clave-exclusiva-de-prueba-" * 2,
                    seed_demo_enabled=False, auth_dev_reset_token_enabled=False,
-                   db_rls_enabled=True, db_apply_schema_on_start=False)
+                   db_rls_enabled=True, db_apply_schema_on_start=False,
+                   jwe_backend="keyvault",
+                   azure_keyvault_url="https://vault.example.test")
     valores.update(cambios)
     return Settings(_env_file=None, **valores)
 
@@ -24,6 +26,8 @@ def configuracion(**cambios):
     {"auth_dev_reset_token_enabled": True},
     {"db_rls_enabled": False},
     {"db_apply_schema_on_start": True},
+    {"jwe_backend": "local"},
+    {"azure_keyvault_url": ""},
     {"app_env": "producion"},
 ])
 def test_produccion_rechaza_configuracion_insegura(cambio):

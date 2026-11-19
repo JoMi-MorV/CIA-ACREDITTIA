@@ -1,5 +1,15 @@
 {
   "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
     "x-next-cache-tags": "_N_T_/layout,_N_T_/(app)/layout,_N_T_/(app)/perfil/layout,_N_T_/(app)/perfil/page,_N_T_/perfil"
+  },
+  "routeCache": {
+    "key": "/route-cache/APP_PAGE/4549edc4c2b33f4f66e688d5f928802352b94c08043d82ba3dae5801ef48d739/$/perfil",
+    "owner": {
+      "kind": "APP_PAGE",
+      "sourceRoute": "/(app)/perfil/page"
+    },
+    "isFallback": false
   }
 }

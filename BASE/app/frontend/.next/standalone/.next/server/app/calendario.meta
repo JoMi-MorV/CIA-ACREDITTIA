@@ -1,5 +1,15 @@
 {
   "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
     "x-next-cache-tags": "_N_T_/layout,_N_T_/(app)/layout,_N_T_/(app)/calendario/layout,_N_T_/(app)/calendario/page,_N_T_/calendario"
+  },
+  "routeCache": {
+    "key": "/route-cache/APP_PAGE/b4061593c6c7f7d7e825c5cbd3c96e9ea5961dc49461ff0f6663a2ce2a2ad721/$/calendario",
+    "owner": {
+      "kind": "APP_PAGE",
+      "sourceRoute": "/(app)/calendario/page"
+    },
+    "isFallback": false
   }
 }

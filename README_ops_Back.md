@@ -51,20 +51,21 @@ El módulo operativo sigue siendo una base funcional relevante, pero el estado r
    app.include_router(admin_ops.router, prefix=API)     # sección "Autenticación y administración"
    ```
 
-3. **`app/database.py`** — registrar la migración y la nueva versión:
+3. **`app/database.py`** — registrar las migraciones vigentes y exigir la versión actual:
 
    ```python
-   SCHEMA_SCRIPTS = [..., "06_migracion_v11.sql",
-                     "07_consola_interna.sql", "08_funciones_consola.sql",
-                     "09_indices_consola.sql"]
-   SCHEMA_VERSION = 8
+   SCHEMA_SCRIPTS = [..., "21_baja_invitaciones_pendientes.sql",
+                     "22_normalizar_tipo_token_password.sql",
+                     "23_respaldo_diario_rpo24h.sql"]
+   SCHEMA_VERSION = 23
    ```
 
-   El código actual detecta versiones históricas por estructura y, desde la 8,
-   consulta `app_schema_migrations`. `apply_schema()` aplica el script 09 a
-   una base en versión 7; no basta con cambiar el número esperado.
+   El esquema vigente es la versión 23. `apply_schema()` aplica únicamente las
+   migraciones pendientes y el migrador externo conserva el DDL fuera del
+   arranque de la API. No actualizar solo el número esperado: deben existir
+   todos los scripts desde el estado anterior compatible.
 
-4. **`.env` / config** — `SCHEMA_VERSION_ESPERADA=8` y, cuando existan,
+4. **`.env` / config** — `SCHEMA_VERSION_ESPERADA=23` y, cuando existan,
    los settings financieros: `OPS_VALOR_UF`, `OPS_CAC_CLP`,
    `OPS_MARGEN_BRUTO_PCT`, `OPS_OBJETIVO_CHURN_PCT` (defaults en
    `config_ops.py`; con `OPS_CAC_CLP=0` el endpoint devuelve `ltv_cac: null`

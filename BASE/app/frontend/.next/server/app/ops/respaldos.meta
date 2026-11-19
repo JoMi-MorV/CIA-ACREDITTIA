@@ -1,5 +1,15 @@
 {
   "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
     "x-next-cache-tags": "_N_T_/layout,_N_T_/ops/layout,_N_T_/ops/respaldos/layout,_N_T_/ops/respaldos/page,_N_T_/ops/respaldos"
+  },
+  "routeCache": {
+    "key": "/route-cache/APP_PAGE/1346386393aefd4d31625b4e565c575446efbd3ff5984958d9f85ec504723d41/$/ops/respaldos",
+    "owner": {
+      "kind": "APP_PAGE",
+      "sourceRoute": "/ops/respaldos/page"
+    },
+    "isFallback": false
   }
 }

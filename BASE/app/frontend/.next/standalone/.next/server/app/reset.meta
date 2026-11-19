@@ -1,5 +1,15 @@
 {
   "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
     "x-next-cache-tags": "_N_T_/layout,_N_T_/reset/layout,_N_T_/reset/page,_N_T_/reset"
+  },
+  "routeCache": {
+    "key": "/route-cache/APP_PAGE/255af801abae70c5b0832bc29a27b15c1982f7af37b8b218a633bc7a8752a5e4/$/reset",
+    "owner": {
+      "kind": "APP_PAGE",
+      "sourceRoute": "/reset/page"
+    },
+    "isFallback": false
   }
 }

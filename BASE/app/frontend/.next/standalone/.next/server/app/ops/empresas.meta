@@ -1,5 +1,15 @@
 {
   "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
     "x-next-cache-tags": "_N_T_/layout,_N_T_/ops/layout,_N_T_/ops/empresas/layout,_N_T_/ops/empresas/page,_N_T_/ops/empresas"
+  },
+  "routeCache": {
+    "key": "/route-cache/APP_PAGE/b262e802e5b391904ef64e39fb4f17f08396c9b0d3c03b748c0502c8909d7408/$/ops/empresas",
+    "owner": {
+      "kind": "APP_PAGE",
+      "sourceRoute": "/ops/empresas/page"
+    },
+    "isFallback": false
   }
 }

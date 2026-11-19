@@ -71,22 +71,23 @@ acredittia-monorepo/
 │   ├── 04_rls.sql                      # Políticas Row Level Security multi-tenant
 │   ├── 05_verificacion.sql             # Script de auditoría de integridad
 │   ├── 06_migracion_v11.sql            # Baseline aditivo v1.1 (versión 6)
-│   ├── 07_migracion_v12.sql            # [Plataforma] archivo_ejemplo en requisito_templates
-│   ├── 08_migracion_v13.sql            # [Plataforma] hereda_plataformas en contratos
-│   ├── 09_certificacion_laboral.sql    # [Plataforma] periodos_laborales
-│   ├── 10_add_telefono_email.sql       # [Plataforma] contacto en sujetos
-│   ├── 11_rag_pgvector.sql             # [Plataforma] extensión vector y documento_chunk
-│   ├── 12_vinculo_faena.sql            # [Plataforma] enum vinculo_tipo += 'faena'
-│   ├── 13_rol_visor.sql                # [Plataforma] enum user_role += 'visor'
-│   ├── 14_cascadas_integridad.sql      # [Plataforma] ON DELETE CASCADE
-│   ├── 15_unidad_negocio.sql           # [Plataforma] unidad_negocio en contratos y users
-│   ├── 16_alertas_ia.sql               # [Plataforma] configuración de alertas IA por contrato
-│   ├── 17_gemini_embeddings.sql        # [Plataforma] embeddings 768 dims + índice HNSW
-│   ├── 18_contratos_mandante.sql       # [Plataforma] mandante libre en contratos
-│   ├── 19_consola_interna.sql          # [Administración] tablas ops_* y app_schema_migrations
-│   ├── 20_funciones_consola.sql        # [Administración] procedimientos almacenados de consola
-│   ├── 21_indices_consola.sql          # [Administración] índices FK de ops_jobs
-│   └── 22_sesion_y_ciclo_vida.sql      # [Administración] users.auth_version + contratos.ciclo_* (versión 22)
+│   ├── 07_consola_interna.sql          # [Administración] tablas, procesos y consola
+│   ├── 08_funciones_consola.sql        # [Administración] funciones y procedimientos
+│   ├── 09_indices_consola.sql          # [Administración] índices operativos
+│   ├── 10_version_sesion.sql           # users.auth_version
+│   ├── 11_ciclo_vida_contratos.sql     # estado, motivo y auditoría de ciclo
+│   ├── 12_scheduling_operacional.sql   # cron en ciclo de un minuto
+│   ├── 13_respaldos_admin.sql          # respaldos y exportaciones ADMIN
+│   ├── 14_auditoria_autenticacion.sql  # trazabilidad de autenticación
+│   ├── 15_acceso_excepcional_admin.sql # concesiones temporales
+│   ├── 16_privacidad_retencion.sql     # política y retención
+│   ├── 17_ajustes_negocio.sql          # ajustes comerciales
+│   ├── 18_confirmacion_cambio_email.sql# confirmación de correo
+│   ├── 19_progreso_procesos.sql        # etapa y porcentaje persistidos
+│   ├── 20_telemetria_actividad.sql     # sesión y actividad
+│   ├── 21_baja_invitaciones_pendientes.sql
+│   ├── 22_normalizar_tipo_token_password.sql
+│   └── 23_respaldo_diario_rpo24h.sql   # Esquema vigente
 │
 ├── backend/                            # API FastAPI + Worker Celery
 │   ├── Dockerfile

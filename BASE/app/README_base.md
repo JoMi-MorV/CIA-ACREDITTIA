@@ -17,13 +17,13 @@ app/
 │       ├── models.py      # modelos SQLAlchemy
 │       ├── routers/       # API de portal, administración y operaciones
 │       └── services/      # colas, checklist, storage, IA e integraciones
-├── frontend/              # Next.js 14 + React 18
+├── frontend/              # Next.js 15.5.29 + React 18
 └── ../modelo_datos/       # esquema, RLS, índices, funciones y migraciones
 ```
 
 PostgreSQL no ejecuta el esquema desde su inicialización. El servicio `migrate`
 aplica las migraciones versionadas de `../modelo_datos/` antes de iniciar la
-api y los workers. La versión actual del esquema es **22**, y la API comprueba
+api y los workers. La versión actual del esquema es **23**, y la API comprueba
 la versión requerida al arrancar.
 
 ## Ejecutar en local
@@ -176,7 +176,7 @@ la documentación de las fórmulas, límites y contratos de la API.
 ```powershell
 # API (terminal 1; desde la raíz del proyecto)
 Set-Location .\BASE\app\backend
-python -m pip install -r requirements.txt
+python -m pip install --require-hashes -r requirements.txt
 $env:DATABASE_URL = "postgresql+psycopg://postgres:postgres@localhost:5432/acredittia"
 $env:SCHEMA_DIR = "..\..\modelo_datos"
 $env:STORAGE_DIR = "$env:TEMP\uploads"
@@ -185,7 +185,7 @@ python -m uvicorn app.main:app --reload
 
 # Frontend (terminal 2; desde la raíz del proyecto)
 Set-Location .\BASE\app\frontend
-npm install
+npm ci
 $env:NEXT_PUBLIC_API_URL = "http://localhost:8000"
 npm run dev
 ```
@@ -193,11 +193,19 @@ npm run dev
 La base PostgreSQL debe existir y aceptar la conexión indicada. Ejecuta el
 frontend en una terminal separada mientras la API permanece activa.
 
-La imagen Docker instala solo las dependencias de ejecución desde
-`requirements.txt`. Las dependencias de pruebas están separadas en
-`requirements-test.txt`; la suite usa `pgserver` para levantar un PostgreSQL
-efímero y se ejecuta desde `backend` con `python -m pytest`, tras
-`python -m pip install -r requirements-test.txt`.
+`requirements.in` y `requirements-test.in` declaran los rangos de entrada;
+`requirements.txt` y `requirements-test.txt` son locks compilados con
+`pip-tools==7.7.0` y hashes. Se compilan en Linux para incluir dependencias
+específicas de la imagen de despliegue y se instalan con verificación de hashes.
+Para regenerar ambos locks desde `backend` en PowerShell:
+
+```powershell
+docker run --rm -v "${PWD}:/work" -w /work python:3.12-slim-bookworm sh -c "python -m pip install --no-cache-dir -r requirements-lock-tools.txt && pip-compile --generate-hashes --output-file=requirements.txt requirements.in && pip-compile --generate-hashes --output-file=requirements-test.txt requirements-test.in"
+```
+
+La suite usa la compatibilidad local `pgserver` para levantar PostgreSQL 16 en
+Docker y se ejecuta desde `backend` con `python -m pytest`, tras
+`python -m pip install --require-hashes -r requirements-test.txt`.
 Algunos índices de paquetes/plataformas no ofrecen una distribución compatible
 de `pgserver`; en ese caso falla la instalación de dependencias de prueba, pero
 no la instalación ni la ejecución normal de la imagen de la aplicación.
@@ -225,8 +233,6 @@ no la instalación ni la ejecución normal de la imagen de la aplicación.
 
 - `backend/DESPLIEGUE_AZURE.md`: guía de configuración y despliegue actual para
   Azure Container Apps.
-- `backend/RUPTURAS.md`: registro histórico de cambios incompatibles de API
-  (v1.1); no es un inventario completo de la API actual.
 - `Acredittia_Deploy_Local_Postgres.docx`: guía de despliegue local, alineada
   con el Compose y el esquema actual.
 - OpenAPI generado desde el código: `http://localhost:8000/docs`.

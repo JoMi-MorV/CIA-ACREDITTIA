@@ -14,8 +14,72 @@ migración 23 y la compatibilidad con respaldos v22. No se requiere una prueba
 separada en staging para cerrar el alcance funcional local. La configuración,
 activación y monitoreo del job,
 el almacenamiento externo y la recuperación ante pérdida total siguen sin
-acreditarse para producción. El corte general siguiente permanece fechado al
-18 de noviembre y no se recalculó en su conjunto.
+acreditarse para producción. El cierre RNF-REP-01 actualiza las métricas globales
+de avance; los demás datos del corte del 18 de noviembre no se recalcularon.
+
+### Cierre RNF-REP-01 — 19 de noviembre de 2026
+
+Se generaron locks Python de runtime y pruebas con versiones exactas y hashes,
+compilados desde Linux para cubrir las dependencias de despliegue; Docker
+verifica los hashes al instalar el lock runtime. La imagen frontend usa
+`package-lock.json` y `npm ci`. `npm ci`, el build frontend y ambas imágenes
+Docker pasaron. La suite backend instalada en un entorno virtual desde el lock
+de pruebas pasó **532/532**, con un warning no bloqueante. RNF-REP-01 queda
+IV/100% en el alcance de dependencias de aplicación; imágenes base por digest,
+paquetes APT y auditoría de vulnerabilidades quedan separados.
+
+### Actualización de avance — 19 de noviembre de 2026
+
+Al subir RNF-REP-01 de 65% a 100%, el avance estimado de las 37 fichas queda en
+3.243/37 = **87,6%**. El promedio de ocho prioridades ADMIN permanece en
+**81,8%**; P0 es **90,0%**, P1 **86,3%** y P2 **89,2%**. Las cifras no equivalen
+a aceptación integral ni preparación para producción, que sigue **NO-GO**.
+RF-CLI-09 queda IV/100% en el alcance reducido aceptado; RNF-SEG-01 permanece
+IV/100% para el entorno destino.
+
+### Actualización de auditoría de dependencias npm — 19 de noviembre de 2026
+
+La auditoría completa del árbol frontend reportó **4 paquetes vulnerables**:
+1 crítico, 2 altos y 1 moderado. Es un conteo de paquetes afectados; `next`
+agrupa múltiples avisos. Los hallazgos y su tratamiento recomendado son:
+
+| Paquete observado | Severidad y procedencia | Indicación de resolución |
+|---|---|---|
+| `next@14.2.5` | Crítica; dependencia directa y de ejecución. Agrupa múltiples avisos; [uno documenta RCE bajo ciertas condiciones de servidor Windows](https://github.com/advisories/GHSA-p293-qw3h-jr36). El reporte ofrece `14.2.35` como actualización compatible sin salto major. | Actualizar el pin exacto en `package.json` a `14.2.35` o a una versión corregida compatible que indique una nueva auditoría; regenerar `package-lock.json`. Revisar los avisos agrupados y validar build y rutas afectadas antes de desplegar. |
+| `postcss@8.4.38` y `postcss@8.4.31` | Alta; la primera es directa y la segunda aparece anidada bajo Next. El aviso incluye exposición de archivos al procesar source maps ([GHSA-fxqj-rqcc-2cmp](https://github.com/advisories/GHSA-fxqj-rqcc-2cmp)). | Actualizar la dependencia directa fijada en `package.json` y resolver también la copia anidada. Elegir la versión corregida que indique el aviso vigente de npm; no asumir que actualizar Next basta para corregir el pin directo. Verificar todas las instancias en el árbol final. |
+| `source-map-js@1.2.1` | Alta; dependencia transitiva, con riesgo de denegación de servicio al procesar source maps ([GHSA-68fv-2mgg-jv7q](https://github.com/advisories/GHSA-68fv-2mgg-jv7q)). El rango reportado alcanza `1.2.1`. | Llevar la resolución a `1.2.2` o superior mediante la actualización compatible de su dependencia padre; usar `overrides` solo si se confirma compatibilidad. |
+| `postcss-selector-parser@6.1.4` | Moderada; dependencia transitiva, con riesgo de consumo elevado de CPU por complejidad cuadrática ([GHSA-rj75-hqrm-r3gf](https://github.com/advisories/GHSA-rj75-hqrm-r3gf)). El rango reportado es anterior a `6.1.5`. | Llevar la resolución a `6.1.5` o superior mediante una actualización compatible de su dependencia padre; confirmar que no quede otra copia vulnerable. |
+
+**Estado actual: resuelto el 19 de noviembre de 2026.** La tabla conserva la
+línea base reportada antes de la remediación; las versiones finalmente
+instaladas y las validaciones están registradas a continuación. El reporte por
+sí solo no confirma explotabilidad en la configuración concreta.
+
+### Resolución y validación de npm — 19 de noviembre de 2026
+
+Se actualizaron las dependencias y `package-lock.json`:
+
+- `next`: `14.2.5` → `15.5.29`. La auditoría completa tras probar la
+  actualización compatible a `14.2.35` aún reportó el hallazgo crítico.
+  Aunque `npm audit fix --force` proponía `16.4.6`, se eligió la rama 15
+  compatible con React 18 y se verificó nuevamente el árbol.
+- `postcss`: `8.4.38` y la copia anidada `8.4.31` → `8.5.23`. Se fijó esa
+  versión directa y se añadió un `override` para que Next tampoco instale la
+  copia vulnerable.
+- `source-map-js`: `1.2.1` → `1.2.4`, mediante actualización compatible del
+  árbol.
+- `postcss-selector-parser`: `6.1.4` → `6.1.6`, mediante actualización
+  compatible del árbol.
+
+**Validaciones aprobadas:** `npm ci` instaló el lock limpio; `npm audit` y
+`npm audit --omit=dev` reportaron **0 vulnerabilidades**; `npm ls` confirmó las
+versiones resueltas; `npm run build` pasó con Next.js 15.5.29, incluyendo
+compilación, tipos y generación de 30 rutas; `docker compose build web` pasó y
+su instalación Docker también reportó **0 vulnerabilidades**. Next.js añadió
+`target: ES2017` a `tsconfig.json` durante el build para admitir top-level
+`await`. El frontend no define un script de pruebas unitarias; no se ejecutó
+una suite aparte. Mantener la auditoría completa y de producción en cero en
+futuras actualizaciones.
 
 ## Resumen ejecutivo
 
@@ -54,14 +118,10 @@ avance tras ese cambio era 2.928/37 = 79,1%. Posteriormente, RF-SEG-02 subió de
 Las suites focalizadas de documentos, búsqueda ADMIN, respaldos y privacidad
 pasaron 88/88 y el build frontend pasó. El usuario confirmó el recorrido
 completo de RF-SEG-02, su correcto funcionamiento y auditoría, lo que eleva
-el requisito a 95%. Las cifras actuales
-El usuario confirmó además RNF-SEG-01 en el entorno destino: roles separados,
+el requisito a 95%. Además, confirmó RNF-SEG-01 en el entorno destino: roles separados,
 RLS efectivo con roles reales, denegaciones entre empresas/contratos, secretos
-externos y cumplimiento de DEC-10. Queda IV/100%. Las cifras actuales son
-3.013/37 = **81,4%** para las
-37 fichas y **81,0%** para las ocho prioridades ADMIN; P0 81,7%, P1 84,7% y
-P2 69,2%. RF-DAS-01 queda IV/100%; RF-SEG-02 sigue PAR/95% y quedan
-pendientes otras lecturas sensibles. El
+externos y cumplimiento de DEC-10. Queda IV/100%. RF-DAS-01 queda IV/100%;
+RF-SEG-02 sigue PAR/95% y quedan pendientes otras lecturas sensibles. El
 estado de producción sigue **NO-GO** por las brechas indicadas en la tabla.
 
 ### Actualización de avance — 12 de noviembre de 2026
@@ -83,7 +143,7 @@ y continuidad. El detalle y los límites de evidencia están en
 | Área | Estado | Evaluación |
 |---|---|---|
 | Backend | 🟢 Verde | Suite completa del 19-11: **526 aprobadas, 0 fallidas, 1 warning** en PostgreSQL temporal; `citext`/`pg_trgm` reales y validación productiva fuera de alcance. |
-| Frontend | 🟡 Amarillo | Build funcional; sin embargo, persisten dependencias con vulnerabilidades reportadas. |
+| Frontend | 🟡 Amarillo | Dependencias npm actualizadas; auditoría completa y de producción en 0 vulnerabilidades. Builds local y Docker aprobados; falta validación de comportamiento en el entorno destino. |
 | Docker / composición | 🟢 Verde | Validación de configuración y ejecución en entorno local consistente. |
 | Seguridad técnica | 🟡 Amarillo | RNF-SEG-01 queda IV/100% por confirmación en el entorno destino; continúan pendientes otros controles de RF-SEG-01/02/03 y preparación productiva. |
 | Privacidad / RNF-PRV-01 | 🔴 Rojo / P0 | `ops_retencion` está activo y el usuario reporta ejecución local `ok` el 10-11-2026 00:18:52 (0 filas podadas); faltan Log Analytics, revisión histórica documentada y aprobación de producción. |
@@ -130,11 +190,11 @@ Sin embargo, esta madurez funcional no sustituye:
 
 El frontend compila y la configuración Docker/Next parece estar operativa. Sin embargo, la deuda no es menor:
 
-- `npm audit --omit=dev` reporta vulnerabilidades de dependencias.
-- El riesgo principal se concentra en `next`, `postcss` y `source-map-js`.
-- Aun cuando la aplicación arranca, la dependencia directa con un framework crítico no puede asumirse segura en un entorno externo o público.
+- La auditoría inicial reportó cuatro paquetes vulnerables; el cierre actualizado a Next.js 15.5.29 y las dependencias transitivas corrigió todos: `npm audit` y `npm audit --omit=dev` ahora reportan cero.
+- `npm ci`, el build local y la construcción de la imagen Docker pasaron con el lock actualizado.
+- El salto mayor de Next.js 14 a 15 requiere conservar las validaciones de compatibilidad y auditoría en las siguientes entregas; no se realizó una prueba funcional de extremo a extremo en el entorno destino.
 
-Esto obliga a corregir primero la seguridad de dependencias antes de cerrar cualquier decisión de go-live.
+Esto cierra el hallazgo de dependencias npm revisado aquí, pero no sustituye los demás controles de seguridad ni la validación del frontend en el entorno objetivo.
 
 ### 2.3. Drift de arquitectura y documentación
 
@@ -278,11 +338,10 @@ En otras palabras: existen mecanismos y evidencia local, pero no una demostraci�
 
 ### Riesgos P0
 
-1. Seguridad de dependencias Frontend no cerrada.
-2. Recuperación operativa y continuidad aún no demostrada.
-3. Falta ejecutar/evidenciar el job de retención, verificar Log Analytics y documentar la revisión histórica; la aprobación de aplicabilidad de DEC-08 por producción sigue pendiente.
-4. Validación real de roles PostgreSQL y permisos mínimos insuficiente.
-5. Arquitectura de repositorio y rutas aún con drift y compatibilidad heredada.
+1. Recuperación operativa y continuidad aún no demostrada.
+2. Falta ejecutar/evidenciar el job de retención, verificar Log Analytics y documentar la revisión histórica; la aprobación de aplicabilidad de DEC-08 por producción sigue pendiente.
+3. Validación real de roles PostgreSQL y permisos mínimos insuficiente.
+4. Arquitectura de repositorio y rutas aún con drift y compatibilidad heredada.
 
 ### Riesgos P1
 
@@ -307,7 +366,7 @@ El proyecto está en un estado de **maduración técnica buena para desarrollo y
 
 Se recomienda mantener la decisión de **NO GO** para producción con datos reales, pero con una estrategia de cierre bien definida:
 
-1. Cerrar vulnerabilidades de dependencias del frontend.
+1. Mantener las auditorías npm completa y de producción sin vulnerabilidades en cada actualización del frontend.
 2. Alinear arquitectura y versiones de esquema.
 3. Definir un estándar operativo único para rutas, API y migraciones.
 4. Documentar y ejecutar prueba de recuperación real.
@@ -318,7 +377,7 @@ Se recomienda mantener la decisión de **NO GO** para producción con datos real
 
 ### Inmediato (1-2 semanas)
 
-1. Actualizar `next` y paquetes vulnerables con revisión de build y auditoría.
+1. Mantener el lock frontend reproducible y comprobar con auditorías npm completa y de producción que las actualizaciones futuras no reintroduzcan vulnerabilidades.
 2. Reforzar la consistencia de versiones de esquema y rutas públicas/legacy.
 3. Revalidar backend y frontend en entorno limpio tras la actualización.
 4. Ejecutar una restauración real aislada documentada.
@@ -342,7 +401,7 @@ Se recomienda mantener la decisión de **NO GO** para producción con datos real
 
 Acredittia ya no se encuentra en un estado de inconsciencia técnica ni de simple prototipo. Tiene una base funcional sólida y una documentación de gestión aceptable. DEC-08 ya fija una política interna simplificada, pero la combinación de:
 
-- vulnerabilidades de dependencias,
+- controles de seguridad y operación aún no validados,
 - drift de esquema y rutas,
 - ausencia de validación real de continuidad,
 - controles de privacidad y retención aún no validados,
