@@ -782,11 +782,22 @@ export type Tendencia = {
 // ============================================================================
 // Administración de la plataforma
 // ============================================================================
+export const INDUSTRIAS_EMPRESA = [
+  { value: "mineria", label: "Minería" },
+  { value: "construccion", label: "Construcción" },
+  { value: "energia", label: "Energía" },
+  { value: "industrial", label: "Industrial" },
+  { value: "otras", label: "Otras" },
+] as const;
+
+export type IndustriaEmpresa =
+  (typeof INDUSTRIAS_EMPRESA)[number]["value"];
+
 export type Empresa = {
   id: string;
   nombre: string;
   status: EstadoEmpresa;
-  industria: "mineria" | "construccion" | "energia" | "industrial" | "otras";
+  industria: IndustriaEmpresa;
   estado_cuenta: "al_dia" | "en_riesgo" | "moroso" | null;
   es_demo: boolean;
   rejection_reason: string | null;

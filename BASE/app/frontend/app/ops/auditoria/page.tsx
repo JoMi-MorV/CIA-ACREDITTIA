@@ -1,7 +1,60 @@
 "use client";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Card, CardHead, Estado, Pill, useOps } from "@/components/ops/ui";
 import { opsApi } from "@/lib/ops/api";
+
+type ColumnaAuditoria =
+  | "fecha" | "actor" | "empresa" | "tipo" | "modulo"
+  | "entidad" | "motivo" | "descripcion";
+type DireccionOrden = "asc" | "desc";
+type ValorOrden = string | number | null;
+
+type RegistroAuditoria = {
+  id: number;
+  created_at: string;
+  actor: string;
+  empresa: string;
+  tipo: string;
+  modulo: string;
+  entidad_tipo: string | null;
+  motivo: string | null;
+  descripcion: string;
+};
+
+type PaginaAuditoria = {
+  items: RegistroAuditoria[];
+};
+
+const COMPARADOR_TEXTO = new Intl.Collator("es-CL", {
+  numeric: true,
+  sensitivity: "base",
+});
+
+const valorAuditoriaOrden = (
+  entry: RegistroAuditoria,
+  columna: ColumnaAuditoria,
+): ValorOrden => {
+  switch (columna) {
+    case "fecha": {
+      const timestamp = Date.parse(entry.created_at);
+      return Number.isFinite(timestamp) ? timestamp : null;
+    }
+    case "actor":
+      return entry.actor;
+    case "empresa":
+      return entry.empresa;
+    case "tipo":
+      return entry.tipo;
+    case "modulo":
+      return entry.modulo;
+    case "entidad":
+      return entry.entidad_tipo;
+    case "motivo":
+      return entry.motivo;
+    case "descripcion":
+      return entry.descripcion;
+  }
+};
 
 export default function AuditoriaPage() {
   const [busqueda, setBusqueda] = useState("");
@@ -9,14 +62,66 @@ export default function AuditoriaPage() {
   const [tipo, setTipo] = useState("");
   const [desde, setDesde] = useState("");
   const [hasta, setHasta] = useState("");
-  const auditoria = useOps(
-    () => opsApi("/audit", { query: {
+  const [orden, setOrden] = useState<{
+    columna: ColumnaAuditoria;
+    direccion: DireccionOrden;
+  }>({ columna: "fecha", direccion: "desc" });
+  const auditoria = useOps<PaginaAuditoria>(
+    () => opsApi<PaginaAuditoria>("/audit", { query: {
       page_size: 100, search: busqueda || undefined,
       modulo: modulo || undefined, tipo: tipo || undefined,
       desde: desde || undefined, hasta: hasta || undefined,
     } }),
     [busqueda, modulo, tipo, desde, hasta],
   );
+  const eventosOrdenados = useMemo(() => {
+    return (auditoria.data?.items ?? [])
+      .map((entry, indice) => ({ entry, indice }))
+      .sort((a, b) => {
+        const valorA = valorAuditoriaOrden(a.entry, orden.columna);
+        const valorB = valorAuditoriaOrden(b.entry, orden.columna);
+        if (valorA === null || valorB === null) {
+          if (valorA !== valorB) return valorA === null ? 1 : -1;
+        } else {
+          const comparacion = typeof valorA === "number" && typeof valorB === "number"
+            ? valorA - valorB
+            : COMPARADOR_TEXTO.compare(String(valorA), String(valorB));
+          if (comparacion !== 0) {
+            return orden.direccion === "asc" ? comparacion : -comparacion;
+          }
+        }
+        return a.indice - b.indice;
+      })
+      .map(({ entry }) => entry);
+  }, [auditoria.data?.items, orden]);
+  const alternarOrden = (columna: ColumnaAuditoria) => {
+    setOrden((actual) => ({
+      columna,
+      direccion: actual.columna === columna && actual.direccion === "asc"
+        ? "desc"
+        : "asc",
+    }));
+  };
+  const encabezadoOrdenable = (columna: ColumnaAuditoria, titulo: string) => {
+    const activo = orden.columna === columna;
+    const siguienteDireccion = activo && orden.direccion === "asc"
+      ? "descendente"
+      : "ascendente";
+    return <th aria-sort={activo
+      ? orden.direccion === "asc" ? "ascending" : "descending"
+      : undefined}>
+      <button type="button"
+        className="inline-flex items-center gap-1 rounded-sm text-left hover:text-[var(--ops-ink)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ops-accent)]"
+        aria-label={`Ordenar por ${titulo}, ${siguienteDireccion}`}
+        aria-pressed={activo}
+        onClick={() => alternarOrden(columna)}>
+        {titulo}
+        <span aria-hidden="true">
+          {activo ? orden.direccion === "asc" ? "↑" : "↓" : "↕"}
+        </span>
+      </button>
+    </th>;
+  };
 
   return <div className="space-y-4">
     <Card>
@@ -51,10 +156,16 @@ export default function AuditoriaPage() {
         info="Cada fila representa una acción registrada con fecha, actor, empresa, tipo, módulo y entidad cuando están disponibles. Los filtros se aplican en el servidor. Esta vista permite rastrear acciones; no debe interpretarse como telemetría completa de uso." />
       <Estado cargando={auditoria.cargando} error={auditoria.error} reintentar={auditoria.recargar}>
         <div className="overflow-x-auto"><table className="ops-table"><thead><tr>
-          <th>Fecha</th><th>Actor</th><th>Empresa</th><th>Acción</th>
-          <th>Módulo</th><th>Entidad</th><th>Motivo</th><th>Descripción</th>
+          {encabezadoOrdenable("fecha", "Fecha")}
+          {encabezadoOrdenable("actor", "Actor")}
+          {encabezadoOrdenable("empresa", "Empresa")}
+          {encabezadoOrdenable("tipo", "Acción")}
+          {encabezadoOrdenable("modulo", "Módulo")}
+          {encabezadoOrdenable("entidad", "Entidad")}
+          {encabezadoOrdenable("motivo", "Motivo")}
+          {encabezadoOrdenable("descripcion", "Descripción")}
         </tr></thead><tbody>
-          {(auditoria.data?.items ?? []).map((entry: any) => <tr key={entry.id}>
+          {eventosOrdenados.map((entry) => <tr key={entry.id}>
             <td>{new Date(entry.created_at).toLocaleString("es-CL")}</td>
             <td className="font-semibold">{entry.actor}</td>
             <td>{entry.empresa}</td>

@@ -28,6 +28,7 @@ import type {
   Contrato, ContratoCreado, ContratoIn, ContratoPatch, Credencial,
   CumplimientoContrato, Documento, DocumentoFila, DownloadUrl, Ejemplo, Empresa,
   EmpresaDetalle, EquipoIn, EquipoPatch, EstadoAcceso, Eventos, Faena,
+  IndustriaEmpresa,
   FaenaAdmin, FaenaDetalle, Integracion, JobEncolado, Kpis, LicenciaInterna,
   Matriz, OlvidoPassword, Pagina, ParamsAlertas, ParamsDocumentos, ParamsEquipos,
   ParamsPagina, ParamsPersonal, PerfilActualizado, Persona, PlantillaAdmin,
@@ -181,7 +182,11 @@ export const admin = {
 export const empresa = {
   perfil: () => api<Record<string, unknown>>("/company"),
 
-  editar: (cambios: { nombre?: string; email?: string }) =>
+  editar: (cambios: {
+    nombre?: string;
+    email?: string;
+    industria?: IndustriaEmpresa;
+  }) =>
     patch<Record<string, unknown>>("/company", cambios),
 
   usuarios: (params?: ParamsPagina & { role?: string; activo?: boolean }) =>

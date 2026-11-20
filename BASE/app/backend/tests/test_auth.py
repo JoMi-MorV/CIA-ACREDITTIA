@@ -10,7 +10,8 @@ from sqlalchemy import select
 
 from app.database import worker_session
 from app.models import (
-    Actividad, EmailChangeToken, PasswordResetToken, RefreshToken, User,
+    Actividad, Company, EmailChangeToken, PasswordResetToken, RefreshToken,
+    User,
 )
 
 from tests.conftest import API, CLAVE, crear_contract_admin, rut_valido
@@ -38,6 +39,43 @@ def test_registro_queda_pendiente(app_cliente):
                          json={"email": "nueva@empresa.cl", "password": CLAVE})
     assert r.status_code == 403
     assert r.json()["error"]["code"] == "ACCOUNT_PENDING"
+
+
+def test_empresa_edita_industria_y_la_comparte_con_invitados(
+        app_cliente, empresa_a):
+    perfil = app_cliente.patch(
+        f"{API}/company", headers=empresa_a["headers"],
+        json={"industria": "mineria"})
+    assert perfil.status_code == 200, perfil.text
+    assert perfil.json()["industria"] == "mineria"
+
+    invitacion = app_cliente.post(
+        f"{API}/company/usuarios", headers=empresa_a["headers"],
+        json={"email": "invitado.industrias@empresa.cl",
+              "nombre": "Cuenta invitada", "role": "company"})
+    assert invitacion.status_code == 201, invitacion.text
+
+    with worker_session(is_admin=True) as db:
+        usuario = db.get(User, uuid.UUID(invitacion.json()["id"]))
+        empresa = db.get(Company, uuid.UUID(empresa_a["company_id"]))
+        assert usuario is not None
+        assert usuario.company_id == empresa.id
+        assert empresa.industria == "mineria"
+
+
+def test_editar_industria_restringido_a_admin_de_empresa(
+        app_cliente, empresa_a, contrato_a):
+    invalida = app_cliente.patch(
+        f"{API}/company", headers=empresa_a["headers"],
+        json={"industria": "agro"})
+    assert invalida.status_code == 422
+
+    contract_admin = crear_contract_admin(
+        app_cliente, empresa_a, contrato_a["id"])
+    respuesta = app_cliente.patch(
+        f"{API}/company", headers=contract_admin["headers"],
+        json={"industria": "energia"})
+    assert respuesta.status_code == 403
 
 
 def test_registro_exige_nombre_de_usuario(app_cliente):

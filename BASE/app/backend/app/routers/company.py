@@ -28,6 +28,7 @@ from ..deps import (Page, aplicar_orden, contrato_scope, err, get_company_id,
                     get_current_user, get_db, paginacion, require_company, sobre)
 from ..models import (Company, Contrato, Documento, PasswordResetToken,
                       RefreshToken, Sujeto, User)
+from ..models_ops import IndustriaEmpresa
 from ..security import hash_password
 from ..services import actividad
 from ..services.email import EmailDeliveryError, enviar_email
@@ -52,6 +53,7 @@ class CompanyPatch(BaseModel):
     model_config = ConfigDict(extra="forbid")
     nombre: str | None = None
     email: EmailStr | None = None
+    industria: IndustriaEmpresa | None = None
 
 
 class UsuarioIn(BaseModel):
@@ -114,7 +116,7 @@ def _company_out(db: Session, c: Company, scope: uuid.UUID | None) -> dict:
     m = _cumplimiento_empresa(db, c.id, scope)
     return {
         "id": str(c.id), "nombre": c.nombre, "rut": c.rut, "email": c.email,
-        "status": c.status, "es_demo": c.es_demo,
+        "status": c.status, "es_demo": c.es_demo, "industria": c.industria,
         "created_at": c.created_at.isoformat(),
         "cumplimiento_pct": m["cumplimiento_pct"],
         "docs_ok": m["docs_ok"], "docs_total": m["docs_total"],
@@ -215,12 +217,23 @@ def editar_perfil(body: CompanyPatch, db: Session = Depends(get_db),
     data = body.model_dump(exclude_unset=True)
     if not data:
         raise err(400, "SIN_CAMBIOS", "No se indicó ningún campo a actualizar")
+    if "industria" in data and data["industria"] is None:
+        raise err(400, "INDUSTRIA_INVALIDA",
+                  "Debe seleccionar una industria disponible")
+    cambios = {
+        campo: {"antes": getattr(c, campo), "despues": valor}
+        for campo, valor in data.items()
+        if getattr(c, campo) != valor
+    }
+    if not cambios:
+        return _company_out(db, c, contrato_scope(user))
     for k, v in data.items():
         setattr(c, k, v)
     c.updated_at = datetime.now(timezone.utc)
     actividad.log(db, cid, "actualizacion", "empresa",
                   f"Perfil de empresa actualizado ({', '.join(sorted(data))})",
-                  user_id=user.id, entidad_tipo="empresa", entidad_id=c.id)
+                  user_id=user.id, entidad_tipo="empresa", entidad_id=c.id,
+                  metadata={"cambios": cambios})
     db.commit()
     return _company_out(db, c, contrato_scope(user))
 

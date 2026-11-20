@@ -1,10 +1,56 @@
 "use client";
-import { Fragment, useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import * as Api from "@/lib/cliente";
+import { INDUSTRIAS_EMPRESA } from "@/lib/tipos";
 import type { Empresa, EmpresaDetalle } from "@/lib/tipos";
-import { Chip, Spinner, useDialog } from "@/components/ui";
+import { Chip, ESTADO_LABEL, Spinner, useDialog } from "@/components/ui";
 import { Card, CardHead, InfoButton, Pill } from "@/components/ops/ui";
+
+type ColumnaOrden = "nombre" | "status" | "industria" | "estado_cuenta" | "plan"
+  | "usuarios" | "actividad_pct" | "ultima_actividad_at" | "contratos" | "trabajadores";
+type DireccionOrden = "asc" | "desc";
+type ValorOrden = string | number | null;
+
+const COMPARADOR_TEXTO = new Intl.Collator("es-CL", { numeric: true, sensitivity: "base" });
+const nombreIndustria = (industria: Empresa["industria"]) =>
+  INDUSTRIAS_EMPRESA.find((opcion) => opcion.value === industria)?.label ?? "Otras";
+
+const etiquetaEstadoCuenta = (estado: Empresa["estado_cuenta"]) => {
+  if (estado === "al_dia") return { label: "Al día", tone: "ok" as const };
+  if (estado === "en_riesgo") return { label: "En riesgo", tone: "warn" as const };
+  if (estado === "moroso") return { label: "Moroso", tone: "crit" as const };
+  return null;
+};
+
+const valorEmpresaOrden = (company: Empresa, columna: ColumnaOrden): ValorOrden => {
+  switch (columna) {
+    case "nombre":
+      return company.nombre;
+    case "status":
+      return ESTADO_LABEL[company.status] ?? company.status;
+    case "industria":
+      return nombreIndustria(company.industria);
+    case "estado_cuenta":
+      return etiquetaEstadoCuenta(company.estado_cuenta)?.label ?? "No aplica";
+    case "plan":
+      return company.plan ?? "Sin plan";
+    case "usuarios":
+      return company.usuarios;
+    case "actividad_pct":
+      return company.actividad_pct;
+    case "ultima_actividad_at": {
+      const timestamp = company.ultima_actividad_at
+        ? Date.parse(company.ultima_actividad_at)
+        : NaN;
+      return Number.isFinite(timestamp) ? timestamp : null;
+    }
+    case "contratos":
+      return company.contratos;
+    case "trabajadores":
+      return company.trabajadores;
+  }
+};
 
 export default function EmpresasAdminPage() {
   const dialog = useDialog();
@@ -17,7 +63,30 @@ export default function EmpresasAdminPage() {
   const [cargandoDetalle, setCargandoDetalle] = useState<string | null>(null);
   const [autorizandoEmpresa, setAutorizandoEmpresa] = useState<string | null>(null);
   const [eliminandoInvitacion, setEliminandoInvitacion] = useState<string | null>(null);
+  const [orden, setOrden] = useState<{ columna: ColumnaOrden; direccion: DireccionOrden } | null>(null);
   const solicitudDetalle = useRef(0);
+  const empresasOrdenadas = useMemo(() => {
+    if (!companies || !orden) return companies ?? [];
+    return companies
+      .map((company, indice) => ({ company, indice }))
+      .sort((a, b) => {
+        const valorA = valorEmpresaOrden(a.company, orden.columna);
+        const valorB = valorEmpresaOrden(b.company, orden.columna);
+        if (valorA === null || valorB === null) {
+          if (valorA !== valorB) return valorA === null ? 1 : -1;
+        } else {
+          const comparacion = typeof valorA === "number" && typeof valorB === "number"
+            ? valorA - valorB
+            : COMPARADOR_TEXTO.compare(String(valorA), String(valorB));
+          if (comparacion !== 0) {
+            return orden.direccion === "asc" ? comparacion : -comparacion;
+          }
+        }
+        return COMPARADOR_TEXTO.compare(a.company.nombre, b.company.nombre)
+          || a.indice - b.indice;
+      })
+      .map(({ company }) => company);
+  }, [companies, orden]);
 
   const cargar = useCallback(() => {
     Api.paginarTodo<Empresa>((page, pageSize) => Api.admin.empresas({ page, page_size: pageSize }))
@@ -161,18 +230,31 @@ export default function EmpresasAdminPage() {
   if (!companies) return error ? <p className="text-sm text-red-600">{error}</p> : <Spinner />;
   const pendientes = companies.filter((company) => company.status === "pending");
   const fmt = (value: number) => new Intl.NumberFormat("es-CL").format(value);
-  const industrias: Record<Empresa["industria"], string> = {
-    mineria: "Minería",
-    construccion: "Construcción",
-    energia: "Energía",
-    industrial: "Industrial",
-    otras: "Otras",
+  const alternarOrden = (columna: ColumnaOrden) => {
+    setOrden((actual) => ({
+      columna,
+      direccion: actual?.columna === columna && actual.direccion === "asc" ? "desc" : "asc",
+    }));
   };
-  const estadoCuenta = (estado: Empresa["estado_cuenta"]) => {
-    if (estado === "al_dia") return { label: "Al día", tone: "ok" as const };
-    if (estado === "en_riesgo") return { label: "En riesgo", tone: "warn" as const };
-    if (estado === "moroso") return { label: "Moroso", tone: "crit" as const };
-    return null;
+  const encabezadoOrdenable = (
+    columna: ColumnaOrden,
+    titulo: string,
+    clase = "",
+  ) => {
+    const activo = orden?.columna === columna;
+    const siguienteDireccion = activo && orden.direccion === "asc" ? "descendente" : "ascendente";
+    return <th className={clase} aria-sort={activo
+      ? orden.direccion === "asc" ? "ascending" : "descending"
+      : undefined}>
+      <button type="button"
+        className="inline-flex items-center gap-1 rounded-sm text-left hover:text-[var(--ops-ink)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ops-accent)]"
+        aria-label={`Ordenar por ${titulo}, ${siguienteDireccion}`}
+        aria-pressed={activo}
+        onClick={() => alternarOrden(columna)}>
+        {titulo}
+        <span aria-hidden="true">{activo ? orden.direccion === "asc" ? "↑" : "↓" : "↕"}</span>
+      </button>
+    </th>;
   };
 
   return <div className="space-y-4">
@@ -206,17 +288,25 @@ export default function EmpresasAdminPage() {
       <CardHead titulo="Empresas (cuentas)" sub={`${companies.length} cuentas · sin RUT ni email en este listado`}
         info="Cada fila representa una empresa y muestra sus agregados operativos. «Uso 30 días» es la proporción de usuarios con actividad reciente; el estado de cuenta refleja pagos: al día (sin facturas impagas vencidas), en riesgo (una vencida impaga o trial vencido hace menos de 15 días) o moroso (dos o más vencidas impagas o más de 30 días de atraso). «No aplica» indica que no corresponde evaluar la cuenta." />
       <div className="overflow-x-auto"><table className="ops-table"><thead><tr>
-        <th>Empresa</th><th>Estado</th><th>Industria</th><th>Estado de cuenta</th><th>Plan</th><th className="num">Usuarios</th>
-        <th>Uso 30 días</th><th>Última actividad</th><th className="num">Contratos</th>
-        <th className="num">Trabajadores</th><th />
+      {encabezadoOrdenable("nombre", "Empresa")}
+      {encabezadoOrdenable("status", "Estado")}
+      {encabezadoOrdenable("industria", "Industria")}
+      {encabezadoOrdenable("estado_cuenta", "Estado de cuenta")}
+      {encabezadoOrdenable("plan", "Plan")}
+      {encabezadoOrdenable("usuarios", "Usuarios", "num")}
+      {encabezadoOrdenable("actividad_pct", "Uso 30 días")}
+      {encabezadoOrdenable("ultima_actividad_at", "Última actividad")}
+      {encabezadoOrdenable("contratos", "Contratos", "num")}
+      {encabezadoOrdenable("trabajadores", "Trabajadores", "num")}
+      <th aria-label="Acciones" />
       </tr></thead><tbody>
-        {companies.map((company) => <Fragment key={company.id}>
+      {empresasOrdenadas.map((company) => <Fragment key={company.id}>
           <tr>
             <td className="font-semibold">{company.nombre}{company.es_demo && <span className="ops-sub ml-2">Demo</span>}</td>
             <td><Chip estado={company.status} /></td>
-            <td>{industrias[company.industria] ?? "Otras"}</td>
+            <td>{nombreIndustria(company.industria)}</td>
             <td>{(() => {
-              const estado = estadoCuenta(company.estado_cuenta);
+              const estado = etiquetaEstadoCuenta(company.estado_cuenta);
               return estado ? <Pill tono={estado.tone}>{estado.label}</Pill>
                 : <span className="ops-sub">No aplica</span>;
             })()}</td>

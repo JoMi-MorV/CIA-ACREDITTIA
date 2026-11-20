@@ -37,6 +37,38 @@ def test_listado_usuarios_paginado(app_cliente, admin, empresa_a, empresa_b):
     assert primera["items"][0]["id"] != segunda["items"][0]["id"]
 
 
+def test_listado_usuarios_ordenamiento_por_columnas_y_paginacion(
+        app_cliente, admin, empresa_a, empresa_b):
+    ruta = f"{API}/admin/users"
+
+    for sort in ("nombre", "role", "empresa", "contrato",
+                 "last_login_at", "activo"):
+        respuesta = app_cliente.get(
+            ruta, headers=admin["headers"],
+            params={"page": 1, "page_size": 1, "sort": sort})
+        assert respuesta.status_code == 200, respuesta.text
+
+    def roles_en_orden(sort):
+        primera = app_cliente.get(
+            ruta, headers=admin["headers"],
+            params={"page": 1, "page_size": 1, "sort": sort})
+        assert primera.status_code == 200, primera.text
+        datos = primera.json()
+        roles = [datos["items"][0]["role"]]
+        for pagina in range(2, datos["total_pages"] + 1):
+            respuesta = app_cliente.get(
+                ruta, headers=admin["headers"],
+                params={"page": pagina, "page_size": 1, "sort": sort})
+            assert respuesta.status_code == 200, respuesta.text
+            roles.append(respuesta.json()["items"][0]["role"])
+        return roles
+
+    ascendente = roles_en_orden("role")
+    descendente = roles_en_orden("-role")
+    assert ascendente == sorted(ascendente)
+    assert descendente == sorted(descendente, reverse=True)
+
+
 def test_cambio_de_alcance_exige_motivo(app_cliente, admin, empresa_a,
                                          contrato_a):
     respuesta = app_cliente.patch(

@@ -161,12 +161,21 @@ empresa ni contrato asignado. Sus funciones incluyen:
 - Salud de clientes con detalle desplegable para riesgos y métricas de
   uso/adopción, incluyendo usuarios por plan e industria.
 - Buscador global con botones desplegables por categoría y filtros de referencia.
+- Auditoría global con filtros de búsqueda, módulo, acción y fechas; permite
+  ordenar los hasta 100 registros mostrados por fecha, actor, empresa, acción,
+  módulo, entidad, motivo o descripción.
 - Ayudas contextuales en gráficos, KPI y tablas para explicar su cálculo y
   significado.
 - Administración de usuarios: cambios de rol, empresa o contrato muestran el
   impacto, exigen un motivo de al menos 12 caracteres y se registran con actor,
   fecha y valores anteriores/nuevos. Estos cambios invalidan las sesiones
   activas del usuario. La auditoría de permisos presenta el motivo y los cambios.
+- Gestión de industria por empresa: ADMIN puede cambiarla en **Usuarios, roles y
+  permisos**, y el rol `company` puede hacerlo desde **Mi perfil → Industria de la
+  empresa**. Las opciones se limitan a Minería, Construcción, Energía, Industrial
+  y Otras. El cambio administrativo exige motivo y queda auditado; las cuentas
+  invitadas comparten la industria de su empresa porque pertenecen al mismo
+  `company_id`.
 
 La ayuda contextual explica los valores que presenta la interfaz; no reemplaza
 la documentación de las fórmulas, límites y contratos de la API.

@@ -31,7 +31,7 @@ from ..deps import (Page, err, get_current_user, paginacion, require_admin,
                     sobre)
 from ..models import Company, Plan, Suscripcion, User
 from ..models_ops import (MetricasMensuales, MetricasMensualesPlan,
-                          OpsAjustesNegocio, OpsComponente,
+                          INDUSTRIAS_EMPRESA, OpsAjustesNegocio, OpsComponente,
                           OpsDisponibilidadDiaria, OpsIncidente, OpsJob,
                           OpsJobRun)
 from ..services import ops
@@ -41,7 +41,7 @@ from ..services.jobs import enqueue
 router = APIRouter(tags=["admin"],
                    dependencies=[Depends(require_admin)])
 
-INDUSTRIAS = ("mineria", "construccion", "energia", "industrial", "otras")
+INDUSTRIAS = INDUSTRIAS_EMPRESA
 ESTADOS_CUENTA = ("al_dia", "en_riesgo", "moroso")
 _MES_RE = re.compile(r"^\d{4}-(0[1-9]|1[0-2])$")
 

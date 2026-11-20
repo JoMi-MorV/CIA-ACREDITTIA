@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import date, datetime
+from typing import Literal
 
 from sqlalchemy import (BigInteger, Boolean, Column, Date, DateTime,
                         ForeignKey, Identity, Integer, Numeric, SmallInteger,
@@ -23,9 +24,16 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .models import Base, Company, User, _uuid
 
+IndustriaEmpresa = Literal[
+    "mineria", "construccion", "energia", "industrial", "otras",
+]
+INDUSTRIAS_EMPRESA: tuple[IndustriaEmpresa, ...] = (
+    "mineria", "construccion", "energia", "industrial", "otras",
+)
+
 # ENUMs creados por 07_consola_interna.sql (create_type=False: ya existen).
 _OPS_ENUMS = {
-    "company_industria": ("mineria", "construccion", "energia", "industrial", "otras"),
+    "company_industria": INDUSTRIAS_EMPRESA,
     "ops_job_tipo": ("programado", "continuo"),
     "ops_run_status": ("queued", "running", "ok", "error", "timeout"),
     "ops_run_trigger": ("cron", "manual", "reintento"),

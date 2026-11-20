@@ -1,7 +1,8 @@
 "use client";
 import { FormEvent, useEffect, useState } from "react";
 import * as Api from "@/lib/cliente";
-import type { Usuario } from "@/lib/tipos";
+import { INDUSTRIAS_EMPRESA } from "@/lib/tipos";
+import type { IndustriaEmpresa, Usuario } from "@/lib/tipos";
 import { Campo, Spinner } from "@/components/ui";
 
 type PerfilEmpresa = {
@@ -10,6 +11,7 @@ type PerfilEmpresa = {
   rut: string;
   email: string;
   status: string;
+  industria: IndustriaEmpresa;
 };
 
 export default function PerfilPage() {
@@ -18,6 +20,8 @@ export default function PerfilPage() {
   const [perfilEmpresa, setPerfilEmpresa] = useState<PerfilEmpresa | null>(null);
   const [nombreEmpresa, setNombreEmpresa] = useState("");
   const [emailEmpresa, setEmailEmpresa] = useState("");
+  const [industriaEmpresa, setIndustriaEmpresa] =
+    useState<IndustriaEmpresa>("otras");
   const [nombre, setNombre] = useState("");
   const [email, setEmail] = useState("");
   const [passwordActual, setPasswordActual] = useState("");
@@ -41,6 +45,7 @@ export default function PerfilPage() {
           setPerfilEmpresa(perfil);
           setNombreEmpresa(perfil.nombre);
           setEmailEmpresa(perfil.email);
+          setIndustriaEmpresa(perfil.industria);
         })
         .catch((e) => {
           if (!cancelado) setError(Api.mensajeError(e));
@@ -52,12 +57,21 @@ export default function PerfilPage() {
     }
 
     Api.auth.me()
-      .then((actual) => {
+      .then(async (actual) => {
         if (cancelado) return;
         setUsuario(actual);
         setNombre(actual.nombre ?? "");
         setEmail(actual.email);
         Api.guardarUsuario(actual);
+        if (actual.role === "company") {
+          const respuesta = await Api.empresa.perfil();
+          if (cancelado) return;
+          const perfil = respuesta as unknown as PerfilEmpresa;
+          setPerfilEmpresa(perfil);
+          setNombreEmpresa(perfil.nombre);
+          setEmailEmpresa(perfil.email);
+          setIndustriaEmpresa(perfil.industria);
+        }
       })
       .catch((e) => {
         if (!cancelado) setError(Api.mensajeError(e));
@@ -78,9 +92,16 @@ export default function PerfilPage() {
         setError("Completa la razón social y el correo de contacto.");
         return;
       }
-      const cambios: { nombre?: string; email?: string } = {};
+      const cambios: {
+        nombre?: string;
+        email?: string;
+        industria?: IndustriaEmpresa;
+      } = {};
       if (nombreLimpio !== perfilEmpresa?.nombre) cambios.nombre = nombreLimpio;
       if (emailLimpio !== perfilEmpresa?.email) cambios.email = emailLimpio;
+      if (industriaEmpresa !== perfilEmpresa?.industria) {
+        cambios.industria = industriaEmpresa;
+      }
       if (!Object.keys(cambios).length) {
         setAviso("No hay cambios para guardar.");
         return;
@@ -92,6 +113,7 @@ export default function PerfilPage() {
         setPerfilEmpresa(actualizado);
         setNombreEmpresa(actualizado.nombre);
         setEmailEmpresa(actualizado.email);
+        setIndustriaEmpresa(actualizado.industria);
         setAviso("El perfil de la empresa se actualizó correctamente.");
       } catch (e) {
         setError(Api.mensajeError(e));
@@ -187,6 +209,21 @@ export default function PerfilPage() {
               <input className="input" type="email" required value={emailEmpresa}
                 onChange={(event) => setEmailEmpresa(event.target.value)} />
             </Campo>
+            <Campo etiqueta="Industria">
+              <select className="input" value={industriaEmpresa}
+                onChange={(event) => {
+                  const seleccionada = INDUSTRIAS_EMPRESA.find(
+                    (industria) => industria.value === event.target.value,
+                  );
+                  if (seleccionada) setIndustriaEmpresa(seleccionada.value);
+                }}>
+                {INDUSTRIAS_EMPRESA.map((industria) => (
+                  <option key={industria.value} value={industria.value}>
+                    {industria.label}
+                  </option>
+                ))}
+              </select>
+            </Campo>
             <div className="grid gap-4 sm:grid-cols-2">
               <Campo etiqueta="RUT (no editable)">
                 <input className="input" value={perfilEmpresa.rut} readOnly />
@@ -253,6 +290,38 @@ export default function PerfilPage() {
           {guardando ? "Guardando..." : "Guardar cambios"}
         </button>
       </form>
+      {usuario.role === "company" && perfilEmpresa && (
+        <form onSubmit={guardarPerfilEmpresa}
+          className="space-y-5 rounded-lg border border-stone-300 bg-white p-5">
+          <section className="space-y-4">
+            <h2 className="font-bold text-brand">Industria de la empresa</h2>
+            <p className="text-sm text-slate-500">
+              La clasificación se comparte con todas las cuentas de esta empresa,
+              incluidas las que invites.
+            </p>
+            <Campo etiqueta="Industria">
+              <select className="input" value={industriaEmpresa}
+                onChange={(event) => {
+                  const seleccionada = INDUSTRIAS_EMPRESA.find(
+                    (industria) => industria.value === event.target.value,
+                  );
+                  if (seleccionada) setIndustriaEmpresa(seleccionada.value);
+                }}>
+                {INDUSTRIAS_EMPRESA.map((industria) => (
+                  <option key={industria.value} value={industria.value}>
+                    {industria.label}
+                  </option>
+                ))}
+              </select>
+            </Campo>
+          </section>
+          {error && <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+          {aviso && <p role="status" className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{aviso}</p>}
+          <button className="btn-primary px-5 py-2.5" disabled={guardando}>
+            {guardando ? "Guardando…" : "Guardar industria"}
+          </button>
+        </form>
+      )}
     </div>
   );
 }

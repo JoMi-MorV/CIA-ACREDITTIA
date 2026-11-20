@@ -13,7 +13,7 @@ import uuid
 from datetime import date, datetime, timedelta, timezone
 
 import pytest
-
+from sqlalchemy import text
 from tests.conftest import API
 
 ENVOLTURA = {"items", "page", "page_size", "total", "total_pages"}
@@ -116,6 +116,63 @@ def test_listado_empresas_incluye_industria_y_estado_cuenta(
     assert empresa["industria"] in {
         "mineria", "construccion", "energia", "industrial", "otras"}
     assert empresa["estado_cuenta"] in {"al_dia", "en_riesgo", "moroso"}
+
+
+def test_admin_cambia_industria_de_empresa_y_audita(
+        app_cliente, admin, empresa_a, motor_admin):
+    respuesta = app_cliente.patch(
+        f"{API}/admin/companies/{empresa_a['company_id']}/industry",
+        headers=admin["headers"],
+        json={"industria": "energia",
+              "motivo": "Clasificación comercial confirmada"},
+    )
+    assert respuesta.status_code == 200, respuesta.text
+    assert respuesta.json() == {
+        "id": empresa_a["company_id"], "industria": "energia",
+    }
+
+    catalogo = app_cliente.get(
+        f"{API}/admin/users/catalog", headers=admin["headers"])
+    assert catalogo.status_code == 200, catalogo.text
+    empresa = next(
+        item for item in catalogo.json()["industry_companies"]
+        if item["id"] == empresa_a["company_id"])
+    assert empresa["industria"] == "energia"
+
+    with motor_admin.connect() as conn:
+        auditoria = conn.execute(text("""
+            SELECT "metadata" FROM actividad
+             WHERE company_id = :company_id
+               AND modulo = 'empresa' AND entidad_tipo = 'empresa'
+             ORDER BY id DESC LIMIT 1
+        """), {"company_id": empresa_a["company_id"]}).scalar_one()
+    assert auditoria["motivo"] == "Clasificación comercial confirmada"
+    assert auditoria["cambios"]["industria"] == {
+        "antes": "otras", "despues": "energia",
+    }
+
+
+def test_admin_industria_rechaza_valores_y_motivos_invalidos(
+        app_cliente, admin, empresa_a):
+    ruta = f"{API}/admin/companies/{empresa_a['company_id']}/industry"
+    respuesta = app_cliente.patch(
+        ruta, headers=admin["headers"],
+        json={"industria": "agro", "motivo": "Clasificación comercial"},
+    )
+    assert respuesta.status_code == 422
+
+    respuesta = app_cliente.patch(
+        ruta, headers=admin["headers"],
+        json={"industria": "energia", "motivo": "cambio"},
+    )
+    assert respuesta.status_code == 422
+
+    respuesta = app_cliente.patch(
+        ruta, headers=empresa_a["headers"],
+        json={"industria": "energia",
+              "motivo": "Clasificación comercial confirmada"},
+    )
+    assert respuesta.status_code == 403
 
 
 # ============================================================================

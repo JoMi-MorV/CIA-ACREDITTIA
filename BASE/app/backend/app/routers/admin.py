@@ -26,7 +26,7 @@ from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, Header, Query
 from pydantic import BaseModel, Field
-from sqlalchemy import (String, and_, cast, delete, func, literal, or_, select,
+from sqlalchemy import (String, and_, case, cast, delete, func, literal, or_, select,
                         text, union_all, update)
 from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.orm import Session
@@ -44,7 +44,7 @@ from ..models import (
     LicenciaInterna, Plan, PlataformaCredencial, RefreshToken,
     RequisitoTemplate, Sujeto, Suscripcion, User,
 )
-from ..models_ops import MetricasMensuales
+from ..models_ops import IndustriaEmpresa, MetricasMensuales
 from ..services import actividad
 from ..services.checklist import (calc_estado_doc, calc_estado_sujeto,
                                   crear_expediente_conductor, instanciar_docs,
@@ -247,6 +247,11 @@ class AdminUserPatch(BaseModel):
 
 class AdminUserRevoke(BaseModel):
     motivo: str | None = None
+
+
+class CompanyIndustryPatch(BaseModel):
+    industria: IndustriaEmpresa
+    motivo: str = Field(min_length=12, max_length=1000)
 
 
 SEARCH_PERMISSIONS = {
@@ -824,7 +829,9 @@ def admin_users(role: str | None = Query(None),
                 p: Page = Depends(paginacion),
                 db: Session = Depends(get_db)):
     """Listado global de usuarios para administradores de plataforma."""
-    q = select(User)
+    q = (select(User)
+         .outerjoin(Company, User.company_id == Company.id)
+         .outerjoin(Contrato, User.contrato_id == Contrato.id))
     if role:
         q = q.where(User.role == role)
     if company_id:
@@ -835,9 +842,29 @@ def admin_users(role: str | None = Query(None),
         like = f"%{p.search}%"
         q = q.where(or_(User.nombre.ilike(like), User.email.ilike(like)))
     total = db.scalar(select(func.count()).select_from(q.subquery())) or 0
-    filas = db.scalars(q.order_by(User.last_login_at.desc().nulls_last(),
-                                  User.created_at.desc())
-                       .offset(p.offset).limit(p.page_size)).all()
+    ordenes = {
+        "nombre": func.coalesce(func.nullif(func.trim(User.nombre), ""), User.email),
+        "role": cast(User.role, String),
+        "empresa": Company.nombre,
+        "contrato": Contrato.nombre,
+        "last_login_at": User.last_login_at,
+        "activo": case((User.activo.is_(True), 0), else_=1),
+    }
+    if p.sort:
+        campo = p.sort.lstrip("-")
+        expresion = ordenes.get(campo)
+        if expresion is None:
+            filas_query = q.order_by(User.last_login_at.desc().nulls_last(),
+                                     User.created_at.desc(), User.id.asc())
+        else:
+            descendente = p.sort.startswith("-")
+            orden = expresion.desc().nulls_last() if descendente else expresion.asc().nulls_last()
+            identidad_orden = ordenes["nombre"].asc()
+            filas_query = q.order_by(orden, identidad_orden, User.id.asc())
+    else:
+        filas_query = q.order_by(User.last_login_at.desc().nulls_last(),
+                                 User.created_at.desc(), User.id.asc())
+    filas = db.scalars(filas_query.offset(p.offset).limit(p.page_size)).all()
     return sobre([_admin_user_out(db, user) for user in filas], total, p)
 
 
@@ -879,6 +906,8 @@ def admin_users_catalog(db: Session = Depends(get_db)):
     companies = db.scalars(select(Company)
                            .where(Company.status == "approved")
                            .order_by(Company.nombre)).all()
+    industry_companies = db.scalars(
+        select(Company).order_by(Company.nombre)).all()
     contratos = db.execute(select(Contrato.id, Contrato.company_id,
                                  Contrato.nombre)
                            .join(Company, Company.id == Contrato.company_id)
@@ -886,6 +915,10 @@ def admin_users_catalog(db: Session = Depends(get_db)):
                            .order_by(Contrato.nombre)).all()
     return {
         "companies": [{"id": str(c.id), "nombre": c.nombre} for c in companies],
+        "industry_companies": [{
+            "id": str(c.id), "nombre": c.nombre, "industria": c.industria,
+            "status": c.status,
+        } for c in industry_companies],
         "contratos": [{"id": str(c.id), "company_id": str(c.company_id),
                        "nombre": c.nombre} for c in contratos],
     }
@@ -1046,6 +1079,39 @@ def list_companies(status: str | None = Query(None),
     q = aplicar_orden(q, Company, p.sort, ORDEN_COMPANIES, "-created_at")
     filas = list(db.scalars(q.offset(p.offset).limit(p.page_size)))
     return sobre([_company_out(db, c) for c in filas], total, p)
+
+
+@router.patch("/companies/{company_id}/industry")
+def editar_industria_empresa(company_id: uuid.UUID, body: CompanyIndustryPatch,
+                             db: Session = Depends(get_db),
+                             admin: User = Depends(require_admin)):
+    motivo = body.motivo.strip()
+    if len(motivo) < 12:
+        raise err(400, "MOTIVO_REQUERIDO",
+                  "Indique un motivo de al menos 12 caracteres")
+    company = db.scalar(
+        select(Company).where(Company.id == company_id).with_for_update())
+    if company is None:
+        raise err(404, "NO_ENCONTRADO", "Empresa inexistente")
+    if company.industria == body.industria:
+        return {"id": str(company.id), "industria": company.industria}
+
+    anterior = company.industria
+    company.industria = body.industria
+    company.updated_at = datetime.now(timezone.utc)
+    actividad.log(
+        db, company.id, "actualizacion", "empresa",
+        f"Industria de empresa modificada: {anterior} → {body.industria}",
+        user_id=admin.id, entidad_tipo="empresa", entidad_id=company.id,
+        metadata={
+            "motivo": motivo,
+            "cambios": {"industria": {
+                "antes": anterior, "despues": body.industria,
+            }},
+        },
+    )
+    db.commit()
+    return {"id": str(company.id), "industria": company.industria}
 
 
 @router.get("/companies/{company_id}")
