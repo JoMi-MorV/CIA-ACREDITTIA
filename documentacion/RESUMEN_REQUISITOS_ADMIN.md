@@ -1,7 +1,7 @@
 # Resumen de requisitos ADMIN
 
-**Corte ADMIN:** 18 de noviembre de 2026  
-**Base documental:** SRS versión 0.90, GAP, `VALIDACION_ACTUAL.md` y el [cronograma de cierre de 2 semanas](CRONOGRAMA_CIERRE_PRODUCCION.md).
+**Corte ADMIN:** 20 de noviembre de 2026  
+**Base documental:** SRS versión 1.10, GAP, `VALIDACION_ACTUAL.md` y el [cronograma de cierre de 2 semanas](CRONOGRAMA_CIERRE_PRODUCCION.md).
 **Propósito:** resumir el estado técnico de las ocho prioridades ADMIN, distinguir lo implementado de lo validado y proponer criterios concretos para revisar su cierre.
 
 Este documento es una guía de revisión, no una aceptación contractual ni una certificación de producción. Los estados reflejan los requisitos y la evidencia descritos en el [SRS](SRS.md) y en [VALIDACION_ACTUAL.md](VALIDACION_ACTUAL.md). `IV` significa implementado y validado dentro del alcance probado; `ISV`, implementado sin validación completa; `PAR`, parcial; `COR`, requiere corrección; y `PEN`, pendiente. Los porcentajes estimados del SRS no equivalen a porcentaje de cumplimiento validado.
@@ -21,14 +21,19 @@ frontend y revisión visual confirmada por el usuario. El 14-11-2026 RF-SEG-02 s
 el botón ADMIN de autoconcesión por empresa; 88 pruebas focalizadas y el build
 frontend pasaron. El usuario confirmó el recorrido UI/API completo y que queda
 auditado, por lo que RF-SEG-02 sube a 95%; revisar otras lecturas sensibles y
-las credenciales del despliegue sigue pendiente. El promedio de las ocho
-prioridades ADMIN es **81,8% (82% redondeado)** después de cerrar RF-SEG-01.
-La cobertura media vigente de los 37 requisitos SRS es
-**87,6% (88% redondeado)** después del cierre de RNF-REP-01; RNF-SEG-01 alcanza
-IV/100% según la confirmación de roles, denegaciones y secretos en el entorno destino.
-RNF-REC-01 alcanza 100% para su
-ciclo funcional local.
+las credenciales del despliegue sigue pendiente. El promedio vigente de las ocho prioridades ADMIN es **89,7% (90%
+redondeado)** y la cobertura media de los 37 requisitos SRS es **87,9% (88%
+redondeado)**, tras la verificación manual de auditoría. RNF-SEG-01 alcanza
+IV/100% según la confirmación de roles, denegaciones y secretos en el entorno
+destino. RNF-REC-01 alcanza 100% para su ciclo funcional local.
 Ninguna cifra mide preparación productiva.
+
+El 20-11-2026 el usuario confirmó el recorrido multiempresa, la auditoría de
+cambios de permisos/roles, estados y pausa/reanudación, además de reintentos y
+alertas. RF-AUD-01 sube de 90% a 100%; Auditoría pasa de 86,7% a 90,0% y el
+promedio ADMIN de 89,3% a **89,7%**. La suma de las 37 fichas aumenta de 3.243 a
+3.253 puntos (**87,9%**). Los porcentajes de RF-SAL-02/03 no se recalculan
+hasta detallar los escenarios/umbrales de las verificaciones operativas.
 
 La ampliación de Reportes del portal documentada el 14-10-2026 no forma parte
 de la estimación de las prioridades ADMIN.
@@ -56,6 +61,8 @@ El corte del 10-11-2026 añade la regresión de 71 pruebas y la confirmación de
 usuario de que las mutaciones acordadas están revisadas y aparecen en auditoría.
 RF-AUD-01 se fija en 90%, PAR/P0, con un único pendiente: revisar valores
 anterior/nuevo para permisos/estados y pausa de procesos cuando corresponda.
+Ese pendiente se cerró con la confirmación manual del 20-11-2026, que elevó
+RF-AUD-01 a 100% IV/P0.
 
 RF-BUS-02 se cierra IV/P0 al 100% para búsqueda, ficha vinculada y
 exportaciones probadas: 83 pruebas focalizadas aprobaron y el build frontend
@@ -77,23 +84,23 @@ producción.
 | 1 | Dashboard global | **90%** | **RF-DAS-01 IV (100%); RF-DAS-02 PAR (80%)** | RF-DAS-01 validado con universos y estados de documentos alineados, N/A sin denominador, pruebas y revisión visual confirmada. RF-DAS-02 aún requiere sus series de adopción. |
 | 2 | Gestión global de empresas | **90%** | **IV en alcance verificado; rechazo/casos límite pendientes** — RF-EMP-01/02 | Tabla «Empresas (cuentas)» con industria y estado de cuenta; detalle de perfiles y responsables por contrato. Flujo normal de registro/aprobación verificado; falta validar rechazo y transiciones repetidas. |
 | 3 | Buscador global | **100%** | **RF-BUS-01 IV (100%); RF-BUS-02 IV/P0 (100%)** | Autorización por categoría, detalle directo y exportación ZIP con concesiones y alcance validados por pruebas focalizadas. El listado administrativo independiente de usuarios queda en RF-USU. |
-| 4 | Métricas SaaS | **60% estimado, no recalculado** | **PAR** — RF-MET-01/03 pendientes; RF-MET-02 implementado y probado | Salud muestra el tiempo activo medido de RF-MET-02; la duración estimada por sesión se retiró de la interfaz. El porcentaje de la prioridad no se recalcula porque los otros requisitos y su ponderación siguen pendientes; revisiones de IA no equivale necesariamente a documentos únicos. |
-| 5 | Alertas y salud de clientes | **83,3%** | **Mixto:** RF-SAL-01 **PAR**; RF-SAL-02 **ISV**; RF-SAL-03 **ISV** | Promedio de RF-SAL-01 (75%), RF-SAL-02 (80%) y RF-SAL-03 (95%). Seguimiento de procesos validado en pruebas focalizadas; continúan pendientes recuperación distribuida real, validar riesgos de clientes y totales/paginación. |
-| 6 | Usuarios, roles y permisos | **70%** | **PAR** — RF-USU-01/02 | El listado ADMIN pagina usuarios y los cambios de alcance invalidan sesiones. El portal permite convertir `company` en `contract_admin` si queda otro `company` activo e invita cuentas nuevas con rol y contrato mediante activación por correo. Sigue pendiente la transferencia de cuentas existentes entre empresas, el historial completo de acceso y la validación integral. El porcentaje es el estimado histórico del 13-10. |
-| 7 | Auditoría y trazabilidad | **73,3%** | **PAR** — RF-AUD-01/02/03 | RF-AUD-01 está al 90%; el usuario confirmó revisión y registro de las mutaciones acordadas. Queda comprobar valores anterior/nuevo para permisos/estados y pausa de procesos. RF-AUD-02 registra autenticación, cierre y rotación. RF-AUD-03 conserva pendientes de integridad, retención y autorización/exportación. |
-| 8 | Seguridad y aislamiento | **87,5%** | **RF-SEG-01 IV (100%)**; RF-SEG-02 PAR (95%); RF-SEG-03 PAR (65%); RNF-SEG-01 IV (100%) | RF-SEG-01 queda cerrado para DEC-10: aislamiento contractual en API, RLS empresarial y mínimo privilegio PostgreSQL. Compose local conserva rol elevado solo para desarrollo. RF-SEG-02 y RF-SEG-03 conservan sus pendientes. |
+| 4 | Métricas SaaS | **86,7%** | **PAR** — RF-MET-01/03 con pendientes; RF-MET-02 implementado y probado | Salud muestra el tiempo activo medido de RF-MET-02; revisar definiciones/series y distinguir documentos únicos de revisiones IA. |
+| 5 | Alertas y salud de clientes | **83,3%** | **Mixto:** RF-SAL-01 **PAR**; RF-SAL-02 **ISV**; RF-SAL-03 **ISV** | Promedio de RF-SAL-01 (75%), RF-SAL-02 (80%) y RF-SAL-03 (95%). El usuario confirma reintentos y alertas manualmente; escenarios y umbrales no detallados, porcentajes sin recalcular. Siguen brechas de riesgos de clientes y totales/paginación. |
+| 6 | Usuarios, roles y permisos | **77,5%** | **PAR** — RF-USU-01/02 | El listado ADMIN pagina usuarios y los cambios de alcance invalidan sesiones. El portal permite convertir `company` en `contract_admin` si queda otro `company` activo e invita cuentas nuevas con rol y contrato mediante activación por correo. Sigue pendiente la transferencia de cuentas existentes entre empresas, el historial completo de acceso y la validación integral. |
+| 7 | Auditoría y trazabilidad | **90,0%** | **RF-AUD-01 IV/P0 (100%); RF-AUD-02/03** | RF-AUD-01 quedó al 100% tras la confirmación manual de valores anterior/nuevo, actor, fecha, objeto, resultado y motivo en permisos/roles, estados y pausas. RF-AUD-02/03 conservan pendientes de integridad, retención y autorización/exportación. |
+| 8 | Seguridad y aislamiento | **90,0%** | **RF-SEG-01 IV (100%)**; RF-SEG-02 PAR (95%); RF-SEG-03 PAR (65%); RNF-SEG-01 IV (100%) | El usuario confirmó recorrido Empresa A/B, `contract_admin`, archivos, exportaciones y concesión ADMIN. RF-SEG-02 conserva el inventario de otras lecturas sensibles y validación del despliegue. |
 
 ### Estimación global del corte
 
-**Avance funcional ADMIN estimado: 81,8% (82% redondeado)**. Incluye la
+**Avance funcional ADMIN estimado: 89,7% (90% redondeado)**. Incluye la
 actualización de RF-BUS-01 y RF-BUS-02 al 100%, RF-SEG-03 al 65% y los
 avances documentados de salud, auditoría, privacidad, respaldos e integraciones. No hay
 ponderaciones acordadas por criticidad o esfuerzo. No es porcentaje de pruebas
 aprobadas, aceptación contractual ni preparación para producción.
 
 La cobertura estimada actual de los 37 requisitos (29 funcionales y 8 no funcionales)
-es **87,6% (88% redondeado)** (`3243 / 37`) tras cerrar RF-SEG-01, RF-CLI-09
-y RNF-REP-01 en sus alcances acordados.
+es **87,9% (88% redondeado)** (`3253 / 37`) tras cerrar RF-SEG-01, RF-CLI-09,
+RNF-REP-01 y RF-AUD-01 en sus alcances acordados.
 La suma anterior publicada
 (`2888`) no coincidía con los valores de las 37 fichas; la suma previa vigente
 era 2958 (79,9%) antes del botón de autoconcesión. Este es el porcentaje de avance de código más
@@ -240,7 +247,7 @@ que la prioridad Métricas SaaS sigue PAR y su 60% histórico no se recalcula.
 - Hay límites en las listas de contratos (25) y alertas (50); la cantidad visible no siempre representa el total global.
 - Salud de clientes presenta uso/adopción, distribución de usuarios por plan e industria y clientes con baja actividad; los detalles de riesgos se despliegan por categoría. No equivale al cierre de la prioridad: faltan validar clasificación, umbrales y tratamiento de listas limitadas.
 - En Compose local se verificaron sondas de API, PostgreSQL, Redis/workers y Storage local, además de heartbeat operativo. Azure Blob no se probó para evitar operaciones facturables; IA simulada no acredita salud SaaS externa.
-- Procesos e incidentes tienen catálogo y acciones; se verificó ejecución distribuida con Celery/Beat. Falta validar fallos, reintentos, recuperación y trazabilidad correlacionable del incidente.
+- Procesos e incidentes tienen catálogo y acciones; se verificó ejecución distribuida con Celery/Beat. El usuario reporta reintentos, alertas y recuperación verificados manualmente, pero no se detallaron los escenarios/umbrales; la trazabilidad correlacionable del incidente sigue pendiente.
 
 **Sugerencias y criterios a considerar**
 

@@ -2,13 +2,17 @@
 
 ## Estado actual verificado
 
-Actualizado al 19-11-2026; métricas reconciliadas con el SRS v1.09.
+Actualizado al 20-11-2026; métricas reconciliadas con el SRS v1.10.
 
-- Avance estimado vigente: **87,6%** para las 37 fichas SRS (`3.243 / 37`).
+- Avance estimado vigente: **87,9%** para las 37 fichas SRS (`3.253 / 37`).
   El promedio de las ocho áreas ADMIN, recalculado desde sus fichas asociadas,
-  es **89,3%**; P0/P1/P2: 90,0%, 86,3% y 89,2%. Son estimaciones de cobertura,
-  no aceptación integral ni preparación productiva; el nuevo promedio ADMIN
-  sustituye el 81,8% publicado en el corte anterior.
+  es **89,7%**; P0/P1/P2: 91,1%, 86,3% y 89,2%. Son estimaciones de cobertura,
+  no aceptación integral ni preparación productiva.
+- RF-AUD-01 sube de **90% a 100% IV/P0** tras la confirmación manual de cambios
+  de permisos/roles, estados y pausa/reanudación con valores anterior/nuevo y
+  metadatos de auditoría. El recorrido multiempresa también fue confirmado por
+  el usuario. Reintentos y alertas se reportaron verificados, pero RF-SAL-02/03
+  conservan sus porcentajes hasta documentar escenarios y umbrales.
 - RF-AUD-03 queda **IV/100% en alcance funcional local**: exportación ZIP de
   negocio por alcance, documentos asociados, motivo y auditoría implementados;
   lecturas de metadatos y emisión de URL documental también se registran.
@@ -810,30 +814,34 @@ con enlaces previos. Las rutas Ops antiguas de Plataforma, Usuarios e
 Indicadores también redirigen a sus destinos Admin. `/admin` y la entrada Ops
 abren ahora el Dashboard global.
 
-## Cambios a la fecha — 19-11-2026
+## Cambios a la fecha — 20-11-2026
 
-El documento funcional vigente es el [SRS v1.09](documentacion/SRS.md). Esta
+El documento funcional vigente es el [SRS v1.10](documentacion/SRS.md). Esta
 sección resume los cambios relevantes y el estado conocido a la fecha; no
 sustituye los criterios, pendientes ni evidencias detallados en el SRS y la
 [validación actual](documentacion/VALIDACION_ACTUAL.md).
 
-**Resumen del corte:** la suma de las 37 fichas es **87,6% (3.243/37)** y el
-promedio simple de las ocho áreas ADMIN es **89,3%**; P0/P1/P2: 90,0%, 86,3%
-y 89,2%. La cifra ADMIN reemplaza el 81,8% anterior tras reconciliar los
-promedios de área con las fichas del SRS, sin ponderarlas por tamaño. RF-CLI-09
+**Resumen del corte:** la suma de las 37 fichas es **87,9% (3.253/37)** y el
+promedio simple de las ocho áreas ADMIN es **89,7%**; P0/P1/P2: 91,1%, 86,3%
+y 89,2%. Las cifras reflejan la verificación manual de RF-AUD-01 y no ponderan
+las áreas por tamaño. RF-CLI-09
 queda IV/100% en el alcance reducido aceptado; RF-AUD-03 queda IV/100% en
 alcance funcional local; RF-DAS-01 queda
 IV/100%; RNF-SEG-01, IV/100% en el entorno destino; y RF-SEG-02, PAR/95% tras
 confirmar el recorrido de concesión y su auditoría, incluida la exportación
-global y por empresa.
+global y por empresa. RF-AUD-01 queda IV/100% tras revisar valores
+anterior/nuevo y metadatos de auditoría en cambios de permisos/roles, estados y
+pausas. El usuario también confirmó el recorrido multiempresa. Reintentos y
+alertas se reportaron validados manualmente, pero sus escenarios/umbrales no
+están detallados y no cambian todavía los porcentajes de RF-SAL-02/03.
 RNF-PER-01 queda IV/100% para la carga local sintética acordada: siete rutas
 cumplieron p95 ≤ 800 ms y cero errores, con p95 máximo de 729,5 ms. Esta prueba
 no es SLA ni certificación de producción. Las suites focalizadas de seguridad
 (76/76), acceso sensible (46/46) y las cargas sintéticas RF-AUD-03 (2/2)
 pasaron. Tras corregir las rutas de migración, la suite backend completa del
 19-11 pasó 526 pruebas, sin fallos y con un warning no bloqueante. Otros
-controles de seguridad, privacidad/retención, auditoría, SMTP real, recuperación
-y continuidad siguen pendientes; producción permanece **NO-GO**.
+controles de seguridad, privacidad/retención, RF-AUD-02/03, SMTP real,
+recuperación y continuidad siguen pendientes; producción permanece **NO-GO**.
 
 El 17-11 se corrigieron hallazgos de la auditoría general: clasificación
 fail-closed de pagos, límites de lectura para webhooks y carga de archivos, tope

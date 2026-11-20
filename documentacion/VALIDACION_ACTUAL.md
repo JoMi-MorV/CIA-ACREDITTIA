@@ -1,4 +1,104 @@
-# Validación funcional — actualizado al 19 de noviembre de 2026
+# Validación funcional — actualizado al 20 de noviembre de 2026
+
+## Smoke test externo de staging temporal vía ngrok — 20 de noviembre de 2026
+
+El smoke test ejecutado por el asistente fue de solo lectura y no inició sesión
+ni creó/modificó registros. Las interrupciones controladas se registran aparte
+de los flujos que el usuario probó y confirmó:
+
+- `GET /login` por HTTPS respondió **200** y la verificación TLS del cliente
+  pasó. La URL HTTP redirigió a HTTPS con **307**.
+- La pantalla de acceso y el formulario de registro se renderizaron. No se
+  enviaron credenciales, formularios ni correos.
+- **Confirmación del usuario (20-11-2026):** autenticación, invitación y
+  recuperación de contraseña funcionaron con los enlaces generados por ngrok.
+  Es evidencia reportada por el usuario; no se reprodujeron aquí las acciones
+  autenticadas ni el envío de correo.
+- `GET /api/v1/auth/me` a través del proxy público respondió **401
+  `TOKEN_AUSENTE`**, comportamiento esperado sin sesión.
+- En el equipo local, `/health` respondió `status=ok`, versión `1.1.0`, y
+  `/health/esquema` respondió `status=ok`, versión de esquema `23`.
+- En PostgreSQL 16 se verificaron `citext=1.6` y `pg_trgm=1.6`; consultas
+  funcionales confirmaron la comparación insensible a mayúsculas de `citext` y
+  `similarity(...)=1` para `pg_trgm`. Se ejecutaron con el rol `postgres` del
+  Compose de desarrollo: acreditan las extensiones del contenedor, no el rol
+  productivo `NOBYPASSRLS` ni el RLS con credenciales de mínimo privilegio.
+- En Compose, API, PostgreSQL y Redis estaban saludables; web, worker, beat y
+  ngrok estaban activos. El contenedor de migración terminó con código `0`,
+  esperado para ese job de una sola ejecución.
+- Antes de las interrupciones de worker, Redis y PostgreSQL se confirmó que
+  Celery no tenía tareas activas/reservadas y la cola estaba vacía. Se detuvo y
+  restauró cada servicio por separado; la API siguió respondiendo durante las
+  caídas de worker y Redis. Redis volvió con `PONG` y el worker respondió al
+  ping de Celery. La API también se detuvo y restauró por separado.
+- Con PostgreSQL detenido, `/health` siguió en **200**, mientras
+  `/health/esquema` respondió **500**; al restaurar la base, ambos volvieron a
+  **200** sin reiniciar la API. Con la API detenida, el proxy público respondió
+  **500**; tras recuperarla, el contenedor quedó saludable y
+  `/api/v1/auth/me` volvió al **401** esperado sin sesión.
+- Al terminar, todos los servicios quedaron activos/saludables y la página
+  pública volvió a responder **200** por HTTPS. No se alteraron registros.
+- La respuesta observada de `/login` incluyó `X-Powered-By: Next.js` y
+  `Cache-Control: s-maxage=31536000`. No se observaron
+  `Strict-Transport-Security`, `Content-Security-Policy`,
+  `X-Content-Type-Options` ni `X-Frame-Options` en esa respuesta. Esto es una
+  observación puntual, no una revisión completa de cabeceras para todas las
+  rutas.
+
+Esta comprobación acredita un smoke test HTTPS temporal, no la configuración
+TLS del origen: ngrok termina HTTPS y reenvía al frontend local. No cierra el
+entorno de aceptación ni producción. El **500** de `/health/esquema` ante caída
+de PostgreSQL es una observación a revisar: detecta la indisponibilidad, pero
+no usa el 503 explícito previsto para una versión de esquema incompatible. El
+usuario confirmó que autenticación, invitación y recuperación funcionaron vía
+ngrok. También reportó el recorrido manual multiempresa y la revisión de
+auditoría, reintentos y alertas; los límites de esa evidencia se detallan abajo.
+Siguen pendientes retención por fuente y Log Analytics, recuperación
+externa/ante pérdida total y validar el rol real del despliegue. La confirmación
+de flujos no acredita un remitente corporativo ni la estabilidad del dominio
+ngrok. No se hicieron restauraciones ni mutaciones en la base ngrok; las
+restauraciones automatizadas usaron la base aislada documentada abajo.
+
+## Recorrido manual reportado por el usuario — 20 de noviembre de 2026
+
+El usuario confirmó que pasaron en ngrok:
+
+- Aislamiento Empresa A/B en listados y detalles, cambios, archivos y
+  exportaciones; acceso de `contract_admin` limitado a su contrato.
+- Concesión ADMIN con motivo y alcance, acceso correspondiente y revocación.
+- Auditoría de cambios de rol/permisos, estado y pausa/reanudación, con valores
+  anterior/nuevo, actor, fecha, objeto, resultado y motivo, sin secretos ni PII
+  innecesaria.
+- Reintentos y alertas. No se detallaron los fallos simulados, condiciones
+  terminales, componentes, umbrales o tiempos revisados; por eso esta
+  confirmación no basta para reevaluar los porcentajes de RF-SAL-02/03.
+
+Esta es evidencia reportada por el usuario; no se reprodujo independientemente
+en esta sesión ni se modificó la base ngrok. RF-AUD-01 sube de 90% a 100% en el
+alcance funcional y el recorrido amplía la evidencia para RF-SEG-01/02, pero
+RF-SEG-02 conserva su pendiente de inventario de otras lecturas sensibles y de
+validación del despliegue.
+
+## Regresión focalizada de seguridad y operación — 20 de noviembre de 2026
+
+Se ejecutaron dos lotes desde `BASE/app/backend`:
+
+- Autenticación, tenants, rol PostgreSQL, auditoría, operaciones, exportaciones,
+  alertas y contratos (`test_auth.py`, `test_tenants.py`,
+  `test_db_runtime_role.py`, `test_ops.py`, `test_admin.py`,
+  `test_admin_exports.py`, `test_operacion.py` y `test_contratos.py`):
+  **254 aprobadas, 0 fallidas** en 682.58 s.
+- Privacidad/retención, respaldos y esquema (`test_privacidad.py`,
+  `test_admin_backups.py` y `test_esquema.py`): **48 aprobadas, 0 fallidas**
+  en 159.39 s.
+
+Resultado conjunto: **302 aprobadas, 0 fallidas**. Cada lote emitió el mismo
+warning no bloqueante de deprecación de `starlette.testclient` con `httpx`.
+Los fixtures usaron PostgreSQL 16 aislado y `acredittia_app` con `NOBYPASSRLS`;
+el esquema de pruebas sustituye `citext` por un dominio y neutraliza los
+índices `pg_trgm`. Por tanto, esto valida lógica API/RLS en la suite, no los
+roles del Compose/ngrok, el correo real, Azure ni la operación productiva. No
+se enviaron correos ni se usó la base de ngrok en estos lotes.
 
 ## Ejecución previa de suite backend — 19 de noviembre de 2026
 
@@ -514,11 +614,11 @@ Ampliación reportada por el usuario (10-11-2026, 01:50:37–01:53:01):
 - Pausa de `ops_heartbeat` con motivo informado (01:52:59), y ejecuciones
   manuales de `ops_disponibilidad` y `ops_heartbeat` (01:52:50 y 01:53:01).
 
-El usuario confirma que también revisó y verificó las demás mutaciones
-acordadas y que están registradas en auditoría. RF-AUD-01 queda cerrado
-funcionalmente al **90%**, manteniendo estado PAR/P0 por un único pendiente:
-comprobar que los registros de cambios de permisos/estados y pausa de procesos
-muestran valores anterior/nuevo cuando corresponda.
+El usuario confirmó posteriormente, el 20-11-2026, que también revisó cambios
+de rol/permisos, estados y pausa/reanudación, con valores anterior/nuevo y los
+metadatos requeridos. RF-AUD-01 sube de **90% a 100% IV/P0** en el alcance
+funcional. Retención, integridad, privacidad y preparación productiva siguen
+pendientes en RF-AUD-02/03 y RNF-PRV-01.
 
 Evidencia ejecutada desde `BASE/app/backend`:
 - Regresión completa de `tests/test_ops.py` y `tests/test_contratos.py`:
@@ -526,10 +626,10 @@ Evidencia ejecutada desde `BASE/app/backend`:
   empresa/usuarios, catálogo, revocación de usuario sin empresa y ciclo de
   contrato.
 
-RF-AUD-01 permanece **PAR / P0 al 90%** por el pendiente indicado. El usuario
-reporta que las demás mutaciones acordadas fueron revisadas y están registradas;
-la evidencia automatizada disponible es de 71 pruebas aprobadas. El aviso de
-deprecación Starlette/httpx sigue presente y no afectó el resultado.
+El cierre funcional de RF-AUD-01 se basa en la confirmación manual reportada y
+las 71 pruebas aprobadas; no cierra los requisitos distintos de privacidad,
+retención ni integridad. El aviso de deprecación Starlette/httpx no afectó el
+resultado automatizado.
 
 La ejecución inicial completa tuvo una falla transitoria en datos demo. Al
 aislar el caso, `test_demo_seed.py` pasó y una segunda ejecución completa de

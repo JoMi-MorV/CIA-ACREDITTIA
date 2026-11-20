@@ -1,8 +1,26 @@
 # Estado de salud general de Acredittia
 
-**Fecha de corte:** 18 de noviembre de 2026
+**Fecha de corte:** 20 de noviembre de 2026
 **Preparado para:** revisión técnica, operativa y de gestión  
 **Alcance:** backend, frontend, SQL/migraciones, seguridad, privacidad, continuidad operativa, documentación y preparación para producción.
+
+### Actualización de staging temporal — 20 de noviembre de 2026
+
+El smoke test externo vía ngrok confirmó HTTPS válido, redirección HTTP→HTTPS,
+carga del login y respuesta 401 esperada en `/api/v1/auth/me` sin sesión.
+También se detuvieron y recuperaron API, worker, Redis y PostgreSQL, uno a la
+vez; antes de las interrupciones de worker, Redis y PostgreSQL se confirmó que
+la cola estaba vacía. Todos quedaron activos. Durante la caída de PostgreSQL,
+`/health/esquema` respondió 500 y volvió a 200 al recuperar la base. No se
+modificaron registros durante estas pruebas automatizadas. El usuario confirmó
+que autenticación, invitación y recuperación funcionaron con los enlaces
+generados por ngrok. Después confirmó el recorrido multiempresa, la auditoría,
+los reintentos y las alertas manualmente. El detalle de escenarios reportado
+está en [VALIDACION_ACTUAL.md](VALIDACION_ACTUAL.md). En PostgreSQL 16 se
+verificó `citext=1.6` y `pg_trgm=1.6` con consultas
+funcionales usando el rol `postgres` local; esto no prueba mínimo
+privilegio/RLS productivo. El entorno de desarrollo expuesto por túnel no debe
+tratarse como staging aprobado ni usarse con datos reales.
 
 ### Actualización de continuidad — 19 de noviembre de 2026
 
@@ -14,8 +32,8 @@ migración 23 y la compatibilidad con respaldos v22. No se requiere una prueba
 separada en staging para cerrar el alcance funcional local. La configuración,
 activación y monitoreo del job,
 el almacenamiento externo y la recuperación ante pérdida total siguen sin
-acreditarse para producción. El cierre RNF-REP-01 actualiza las métricas globales
-de avance; los demás datos del corte del 18 de noviembre no se recalcularon.
+acreditarse para producción. El cierre RNF-REP-01 y la validación manual de
+RF-AUD-01 actualizan las métricas globales de avance.
 
 ### Cierre RNF-REP-01 — 19 de noviembre de 2026
 
@@ -36,6 +54,17 @@ Al subir RNF-REP-01 de 65% a 100%, el avance estimado de las 37 fichas queda en
 a aceptación integral ni preparación para producción, que sigue **NO-GO**.
 RF-CLI-09 queda IV/100% en el alcance reducido aceptado; RNF-SEG-01 permanece
 IV/100% para el entorno destino.
+
+### Actualización de avance — 20 de noviembre de 2026
+
+El usuario confirmó manualmente el recorrido multiempresa, la auditoría de
+cambios de permisos/roles, estados y pausa/reanudación, además de reintentos y
+alertas. RF-AUD-01 sube de 90% a 100%. El área ADMIN Auditoría pasa de 86,7% a
+90,0%; el promedio ADMIN sube de 89,3% a **89,7%**. La cobertura de las 37
+fichas sube de 3.243/37 (**87,6%**) a 3.253/37 (**87,9%**); P0 pasa de 90,0% a
+91,1%, y P1/P2 no cambian. RF-SAL-02/03 conservan 80%/95% hasta detallar los
+escenarios y umbrales de la verificación manual de operación. Producción sigue
+NO-GO.
 
 ### Actualización de auditoría de dependencias npm — 19 de noviembre de 2026
 
@@ -142,14 +171,14 @@ y continuidad. El detalle y los límites de evidencia están en
 
 | Área | Estado | Evaluación |
 |---|---|---|
-| Backend | 🟢 Verde | Suite completa del 19-11: **526 aprobadas, 0 fallidas, 1 warning** en PostgreSQL temporal; `citext`/`pg_trgm` reales y validación productiva fuera de alcance. |
-| Frontend | 🟡 Amarillo | Dependencias npm actualizadas; auditoría completa y de producción en 0 vulnerabilidades. Builds local y Docker aprobados; falta validación de comportamiento en el entorno destino. |
+| Backend | 🟢 Verde | Suite completa del 19-11: **526 aprobadas**; el 20-11 pasaron **302 tests focalizados** de auth, tenants/RLS, auditoría, operación, privacidad, respaldos y esquema. `citext`/`pg_trgm` comprobadas en PostgreSQL 16 local. Fixtures temporales parchean extensiones; el rol/RLS del despliegue productivo sigue fuera de alcance. |
+| Frontend | 🟡 Amarillo | Dependencias npm actualizadas; auditoría completa y de producción en 0 vulnerabilidades. Builds local y Docker aprobados; login, invitación, recuperación y recorrido multiempresa vía ngrok confirmados por el usuario el 20-11; falta validación visual/responsive. |
 | Docker / composición | 🟢 Verde | Validación de configuración y ejecución en entorno local consistente. |
 | Seguridad técnica | 🟡 Amarillo | RNF-SEG-01 queda IV/100% por confirmación en el entorno destino; continúan pendientes otros controles de RF-SEG-01/02/03 y preparación productiva. |
 | Privacidad / RNF-PRV-01 | 🔴 Rojo / P0 | `ops_retencion` está activo y el usuario reporta ejecución local `ok` el 10-11-2026 00:18:52 (0 filas podadas); faltan Log Analytics, revisión histórica documentada y aprobación de producción. |
-| Auditoría administrativa / RF-AUD-01 | 🟡 Parcial, 90% / P0 | 71 pruebas de `test_ops.py` y `test_contratos.py` pasaron; el usuario confirmó las mutaciones acordadas registradas. Pendiente único: comprobar valores anterior/nuevo para permisos/estados y pausa de procesos cuando corresponda. |
+| Auditoría administrativa / RF-AUD-01 | 🟢 IV, 100% funcional / P0 | El usuario confirmó manualmente anterior/nuevo y los metadatos de auditoría para permisos/roles, estados y pausa/reanudación. Retención, integridad y controles de acceso permanecen en RF-AUD-02/03 y RNF-PRV-01. |
 | Buscador global | 🟢 RF-BUS-01 y RF-BUS-02 cerrados (IV, 100%) | 83 pruebas focalizadas validan autorización por categoría, concesiones (titular, vigencia, revocación y alcance), ficha directa y exportación ZIP limitada; build frontend aprobado. El listado administrativo independiente de usuarios continúa bajo RF-USU. No se realizó recorrido manual de navegador. |
-| Seguridad y aislamiento de datos | 🟡 Parcial; RNF-SEG-01 IV/100%, RF-SEG-02 al 95% | 76 pruebas focalizadas de roles, configuración, tenants y esquema pasaron. El usuario confirmó roles separados, RLS efectivo con roles reales, denegaciones y secretos externos en el entorno destino, además del recorrido de concesión temporal auditado. Falta revisar algunas lecturas sensibles y cerrar los requisitos RF-SEG-01/02/03; Compose de desarrollo conserva rol elevado. |
+| Seguridad y aislamiento de datos | 🟡 Parcial; RNF-SEG-01 IV/100%, RF-SEG-02 al 95% | Las pruebas focalizadas del 20-11 (254) incluyen tenants y rol/RLS en PostgreSQL aislado con `NOBYPASSRLS`. El usuario confirmó roles separados, RLS efectivo con roles reales y el recorrido manual Empresa A/B, `contract_admin`, archivos, exportaciones y concesión ADMIN. Falta el inventario de otras lecturas sensibles; Compose de desarrollo conserva rol elevado. |
 | Ajustes de negocio ADMIN | 🟢 Implementado | UF/vigencia/fuente, CAC, margen bruto y objetivo de churn son persistentes; solo ADMIN puede modificarlos, motivo obligatorio y auditoría con antes/después. Migración 17; suites focalizadas 86 aprobadas y build frontend correcto. La fuente UF es manual. |
 | Recuperación y continuidad | 🟡 Parcial | RPO ≤24 h y RTO ≤30 min acordados; la última restauración local en esquema 23 cumplió (13,659 s / 7,815 s). Falta configurar/monitorear el job y acreditar continuidad productiva, almacenamiento externo y pérdida total. |
 | Documentación y arquitectura | 🟡 Amarillo | Buena cobertura documental; SRS v0.92 refleja el recálculo actual, aunque persisten rutas heredadas, decisiones pendientes y verificaciones de consistencia por completar. |

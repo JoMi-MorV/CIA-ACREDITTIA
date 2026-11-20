@@ -1,18 +1,18 @@
 # Gap Analysis — Acredittia
 
-**Corte vigente:** 19-11-2026  
+**Corte vigente:** 20-11-2026  
 **Estado:** funcionalmente avanzado; **NO-GO** para producción con datos reales.
 
 Este análisis refleja la implementación y la evidencia documentada en el SRS
-v1.09 y en [VALIDACION_ACTUAL.md](./VALIDACION_ACTUAL.md). Distingue entre
+v1.10 y en [VALIDACION_ACTUAL.md](./VALIDACION_ACTUAL.md). Distingue entre
 funcionalidad local, validación en el entorno destino y aceptación para
 producción; una no sustituye a las otras.
 
 ## 1. Resumen ejecutivo
 
-- Cobertura estimada actual de las 37 fichas SRS: **87,6% (3.243/37)**.
-- Promedio estimado de las ocho prioridades ADMIN: **89,3%**.
-- Promedios estimados P0/P1/P2: **90,0% / 86,3% / 89,2%**.
+- Cobertura estimada actual de las 37 fichas SRS: **87,9% (3.253/37)**.
+- Promedio estimado de las ocho prioridades ADMIN: **89,7%**.
+- Promedios estimados P0/P1/P2: **91,1% / 86,3% / 89,2%**.
 - Son promedios documentales de avance por requisito, no un porcentaje
   ponderado del producto, aceptación contractual ni preparación productiva.
 - El proyecto sigue **NO-GO** hasta cerrar los bloqueos P0 de privacidad,
@@ -52,12 +52,12 @@ inflar el avance.
 | Gestión global de empresas | 100,0% | `RF-EMP-01/02` con 100% en las fichas; el 100% de `RF-EMP-02` cubre el flujo normal de registro/aprobación. | Validar rechazo y transiciones/casos límite; el valor de las fichas no significa que esos casos estén cerrados. |
 | Buscador global | 100,0% | `RF-BUS-01/02` validados en las rutas y operaciones probadas. | Ninguna para estos requisitos. El listado ADMIN de usuarios se mantiene en `RF-USU`. |
 | Métricas SaaS | 86,7% | Promedio de `RF-MET-01` 75%, `RF-MET-02` 100% y `RF-MET-03` 85%. | Cerrar definiciones/series pendientes de `RF-MET-01/03`; distinguir documentos únicos de revisiones IA. |
-| Alertas y salud | 83,3% | Promedio de `RF-SAL-01` 75%, `RF-SAL-02` 80% y `RF-SAL-03` 95%; alertas, sondas, historial y progreso medible disponibles. | Validar umbrales, totales/paginación y fallos/recuperación distribuida. |
+| Alertas y salud | 83,3% | Promedio de `RF-SAL-01` 75%, `RF-SAL-02` 80% y `RF-SAL-03` 95%; el usuario reporta verificación manual de reintentos y alertas. | Los escenarios y umbrales de esa verificación no están detallados; siguen pendientes totales/paginación y trazabilidad operativa. Se mantienen los porcentajes de RF-SAL-02/03 hasta reconciliar esos criterios. |
 | Usuarios, roles y permisos | 77,5% | Promedio de `RF-USU-01` 75% y `RF-USU-02` 80%; gestión e invitaciones para cuentas nuevas dentro de una empresa. | Validar integralmente permisos y lecturas sensibles. La transferencia de una cuenta existente entre empresas queda fuera de la primera salida. |
-| Auditoría y trazabilidad | 86,7% | Promedio de `RF-AUD-01` 90%, `RF-AUD-02` 70% y `RF-AUD-03` 100% funcional local. | Revisar anterior/nuevo en eventos pendientes; completar retención, integridad, acceso y revocación administrativa de auditoría. |
+| Auditoría y trazabilidad | 90,0% | Promedio de `RF-AUD-01` 100%, `RF-AUD-02` 70% y `RF-AUD-03` 100% funcional local. | Completar retención, integridad, acceso y revocación administrativa de auditoría en los requisitos correspondientes. |
 | Seguridad y aislamiento | 90,0% | Promedio de `RF-SEG-01` 100%, `RF-SEG-02` 95%, `RF-SEG-03` 65% y `RNF-SEG-01` 100%. | Completar inventario de lecturas sensibles, RF-SEG-02 y validación de producción RF-SEG-03. |
 
-El promedio ADMIN de 89,3% y el promedio SRS de 87,6% no son métricas de
+El promedio ADMIN de 89,7% y el promedio SRS de 87,9% no son métricas de
 preparación para producción. No hay un modelo de ponderación por esfuerzo,
 criticidad o aceptación aprobado.
 
@@ -74,17 +74,25 @@ criticidad o aceptación aprobado.
    su disposición.
 2. **Autorización y mínimo privilegio (`RF-SEG-01/02/03`).** `RNF-SEG-01` está
    validado en el entorno destino; el Compose local de desarrollo conserva un
-   rol elevado. Completar pruebas de la matriz empresa/contrato en listados,
-   detalle, cambios, archivos y exportaciones; terminar el inventario de otras
-   lecturas sensibles; y validar roles, secretos y semillas en el despliegue
-   real.
-3. **Auditoría (`RF-AUD-01/02`).** Comprobar que cambios de permisos/estados y
-   pausas de procesos muestran anterior/nuevo cuando corresponde. Completar
-   evidencia de retención, integridad, aislamiento de consultas y revocación
-   administrativa de eventos de autenticación.
-4. **Entorno de aceptación.** No hay URL HTTPS de staging, remitente corporativo
-   ni buzón de prueba disponibles. Validar externamente acceso, invitación y
-   recuperación de contraseña antes del go-live.
+   rol elevado. El 20-11 pasó la matriz automatizada de tenants/RLS en la suite
+   aislada, y el usuario reportó el recorrido manual end-to-end de empresas A/B,
+   cambios, archivos, exportaciones, `contract_admin` y concesión ADMIN. Completar
+   el inventario de otras lecturas sensibles y validar roles, secretos y semillas
+   en el despliegue real.
+3. **Auditoría (`RF-AUD-01/02`).** El 20-11 el usuario confirmó manualmente la
+   auditoría de permisos/roles, estados y pausa/reanudación, incluidos valores
+   anterior/nuevo, actor, fecha, objeto, resultado y motivo. RF-AUD-01 sube a
+   IV/100%. Retención, integridad, aislamiento de consultas y revocación
+   administrativa de eventos de autenticación siguen pendientes en requisitos
+   relacionados.
+4. **Entorno de aceptación.** El 20-11-2026 se realizó un smoke test de solo
+   lectura con HTTPS temporal vía ngrok: TLS/redirect, carga de `/login` y
+   rechazo de acceso no autenticado por el proxy API. Esto no equivale a un
+   staging estable ni valida TLS en el origen. El usuario confirmó el mismo
+   día que autenticación, invitación y recuperación funcionaron con los enlaces
+   de ngrok. Esto acredita esos flujos en el entorno temporal reportado, no un
+   remitente corporativo ni un dominio estable; la validación del correo
+   corporativo y del entorno de go-live sigue pendiente.
 
 ### P1 — Para una operación recuperable y repetible
 
@@ -101,17 +109,28 @@ criticidad o aceptación aprobado.
    `tests/test_admin_backups.py` también pasaron 41/41 tras agregar la migración
    23 al fixture y probar la actualización de respaldos v22 durante la
    restauración. La suite usa PostgreSQL temporal y el fixture sustituye
-   `citext` y neutraliza `pg_trgm`; queda validar esas extensiones reales y
-   conservar evidencia reproducible del entorno.
+   `citext` y neutraliza `pg_trgm`. El 20-11-2026 se verificaron ambas
+   extensiones reales y su comportamiento en PostgreSQL 16 de Compose; esto no
+   valida el rol/RLS productivo. El 20-11-2026, otros **302 tests focalizados**
+   de autenticación, tenants/RLS, roles, auditoría, operaciones, privacidad,
+   respaldos y esquema pasaron en PostgreSQL 16 aislado; el fixture usa
+   `acredittia_app NOBYPASSRLS`, pero parchea `citext` y `pg_trgm`. Falta
+   conservar evidencia reproducible del entorno destino.
 3. **Dependencias y reproducibilidad (`RNF-REP-01`).** Cerrado al 100% en el
    alcance de locks Python con hashes, `npm ci` y builds reproducibles; la
    regresión backend pasó 532/532 con el lock de pruebas. La auditoría npm se
    gestiona por separado de RNF-REP-01 y quedó resuelta el 19-11-2026: las
    auditorías completa y de producción reportaron cero vulnerabilidades tras
    actualizar las dependencias del frontend.
-4. **Operación (`RNF-OPE-01`, `RF-SAL-02/03`).** Probar caída y recuperación de
-   API, worker y base de datos; verificar reintentos, heartbeat vencido,
-   recuperación distribuida y alertas con umbrales acordados.
+4. **Operación (`RNF-OPE-01`, `RF-SAL-02/03`).** El 20-11-2026 se detuvieron y
+   restauraron API, worker, Redis y PostgreSQL, uno a la vez; antes de las
+   interrupciones de worker, Redis y PostgreSQL se confirmó que la cola estaba
+   vacía. Todos recuperaron servicio. Las pruebas automatizadas del mismo día
+   cubren heartbeat vencido, reintento de un job encolado, alertas y alcance
+   contract_admin. El usuario reportó que reintentos y alertas también quedaron
+   verificados manualmente; no se documentaron los escenarios/umbrales, por lo
+   que no se recalculan todavía RF-SAL-02/03. Durante la caída de PostgreSQL, `/health/esquema`
+   devolvió 500; revisar si el contrato operativo requiere responder 503.
 
 ### Candidatos funcionales a diferir (requieren aprobación)
 
@@ -175,7 +194,7 @@ de:
 
 ## 6. Fuentes de evidencia
 
-- [SRS.md](./SRS.md), versión 1.03, 18-11-2026: requisitos, porcentajes y
+- [SRS.md](./SRS.md), versión 1.10, 20-11-2026: requisitos, porcentajes y
   criterios vigentes.
 - [VALIDACION_ACTUAL.md](./VALIDACION_ACTUAL.md): pruebas, límites de evidencia,
   DEC-08, restauración local y validación de flujos.
