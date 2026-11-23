@@ -61,6 +61,20 @@ def _cache(resp: Response, segundos: int = 60) -> None:
     resp.headers["Cache-Control"] = f"private, max-age={segundos}"
 
 
+def _duracion_ejecucion(run: OpsJobRun, timeout_s: int) -> int | None:
+    if run.started_at is None:
+        return None
+    fin = run.finished_at
+    if fin is None:
+        if run.status in ("queued", "running"):
+            fin = datetime.now(timezone.utc)
+        elif run.status == "timeout":
+            fin = run.started_at + timedelta(seconds=max(timeout_s, 0))
+        else:
+            return None
+    return max(0, int((fin - run.started_at).total_seconds()))
+
+
 def _mes_param(mes: str | None) -> date:
     """'YYYY-MM' -> date del día 1. Default: mes actual. Futuro -> 400."""
     if mes is None:
@@ -663,9 +677,7 @@ def procesos(resp: Response, componente: str | None = Query(None),
                 "created_at": ultimo.created_at.isoformat(),
                 "started_at": ultimo.started_at.isoformat()
                               if ultimo.started_at else None,
-                "duracion_s": int(((ultimo.finished_at or datetime.now(timezone.utc))
-                                   - ultimo.started_at).total_seconds())
-                              if ultimo.started_at else None,
+                "duracion_s": _duracion_ejecucion(ultimo, job.timeout_s),
                 "progress_pct": ultimo.progress_pct,
                 "progress_mensaje": ultimo.progress_mensaje,
                 "items_procesados": ultimo.items_procesados,

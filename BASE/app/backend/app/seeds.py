@@ -557,7 +557,7 @@ def run(db: Session) -> None:
     # 4. Historial de ejecuciones recientes con resultados distintos para la
     # tabla de procesos y su diagnóstico operativo.
     estados_runs = ["ok", "ok", "error", "timeout"]
-    for job_indice, (clave, _, _, _, _, _) in enumerate(jobs_data):
+    for job_indice, (clave, _, _, _, _, timeout_s) in enumerate(jobs_data):
         existentes = db.scalars(select(OpsJobRun).where(
             OpsJobRun.job_clave == clave).order_by(OpsJobRun.created_at)).all()
         ahora_utc = datetime.now(timezone.utc)
@@ -569,8 +569,9 @@ def run(db: Session) -> None:
                 disparo="manual" if run_indice == 2 else "cron",
                 params={"origen": "seed_demo", "reintento": run_indice == 3},
                 started_at=inicio,
-                finished_at=(inicio + timedelta(minutes=2)
-                             if status != "timeout" else None),
+                finished_at=(inicio + timedelta(seconds=timeout_s)
+                             if status == "timeout"
+                             else inicio + timedelta(minutes=2)),
                 items_procesados=(45 + job_indice * 7
                                   if status == "ok" else 0),
                 mensaje=("Ejecución exitosa completada."

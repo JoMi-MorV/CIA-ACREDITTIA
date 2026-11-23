@@ -449,6 +449,26 @@ def test_procesos_listado(app_cliente, admin):
     assert continuo["tipo"] == "continuo" and continuo["cron_expr"] is None
 
 
+def test_duracion_timeout_sin_finalizacion_no_sigue_aumentando(
+        app_cliente, admin, motor_admin):
+    with motor_admin.connect() as c:
+        run_id = c.execute(text(
+            "INSERT INTO ops_job_runs "
+            "(job_clave, status, disparo, started_at, created_at, params) "
+            "VALUES ('webhooks_clientes', 'timeout', 'cron', "
+            "now() - interval '3 hours', now(), '{}'::jsonb) RETURNING id"
+        )).scalar_one()
+        c.commit()
+
+    r = app_cliente.get(f"{API}/admin/procesos", headers=admin["headers"])
+    assert r.status_code == 200
+    webhooks = next(x for x in r.json()["items"]
+                    if x["clave"] == "webhooks_clientes")
+    assert webhooks["ultima_ejecucion"]["run_id"] == run_id
+    assert webhooks["ultima_ejecucion"]["status"] == "timeout"
+    assert webhooks["ultima_ejecucion"]["duracion_s"] == 3600
+
+
 def test_ejecutar_manual_y_409_en_ejecucion(app_cliente, admin, motor_admin):
     run = _run_ok(app_cliente, admin, "ops_heartbeat")
     assert run["disparo"] == "manual"
