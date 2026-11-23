@@ -1,0 +1,15 @@
+{
+  "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
+    "x-next-cache-tags": "_N_T_/layout,_N_T_/(app)/layout,_N_T_/(app)/planes-servicios/layout,_N_T_/(app)/planes-servicios/page,_N_T_/planes-servicios"
+  },
+  "routeCache": {
+    "key": "/route-cache/APP_PAGE/129a39904df6acabc7cc0975fbc0c1a6ab27be71f4c06288db5b25cd6f94112d/$/planes-servicios",
+    "owner": {
+      "kind": "APP_PAGE",
+      "sourceRoute": "/(app)/planes-servicios/page"
+    },
+    "isFallback": false
+  }
+}

@@ -801,6 +801,11 @@ def global_audit(modulo: str | None = Query(None),
 def _admin_user_out(db: Session, user: User) -> dict:
     contrato = db.get(Contrato, user.contrato_id) if user.contrato_id else None
     company = db.get(Company, user.company_id) if user.company_id else None
+    plan = db.scalar(
+        select(Plan.nombre)
+        .join(Suscripcion, Suscripcion.plan_id == Plan.id)
+        .where(Suscripcion.company_id == user.company_id)
+    ) if user.company_id else None
     return {
         # La gestión de cuentas, restringida a ADMIN, necesita una identidad
         # reconocible para asignar permisos al destinatario correcto.
@@ -810,6 +815,7 @@ def _admin_user_out(db: Session, user: User) -> dict:
         "company": {
             "id": str(company.id), "nombre": company.nombre,
         } if company else None,
+        "plan": plan,
         "contrato_id": str(user.contrato_id) if user.contrato_id else None,
         "contrato": {
             "id": str(contrato.id),
@@ -831,7 +837,9 @@ def admin_users(role: str | None = Query(None),
     """Listado global de usuarios para administradores de plataforma."""
     q = (select(User)
          .outerjoin(Company, User.company_id == Company.id)
-         .outerjoin(Contrato, User.contrato_id == Contrato.id))
+         .outerjoin(Contrato, User.contrato_id == Contrato.id)
+         .outerjoin(Suscripcion, Suscripcion.company_id == User.company_id)
+         .outerjoin(Plan, Plan.id == Suscripcion.plan_id))
     if role:
         q = q.where(User.role == role)
     if company_id:
@@ -846,6 +854,7 @@ def admin_users(role: str | None = Query(None),
         "nombre": func.coalesce(func.nullif(func.trim(User.nombre), ""), User.email),
         "role": cast(User.role, String),
         "empresa": Company.nombre,
+        "plan": Plan.nombre,
         "contrato": Contrato.nombre,
         "last_login_at": User.last_login_at,
         "activo": case((User.activo.is_(True), 0), else_=1),

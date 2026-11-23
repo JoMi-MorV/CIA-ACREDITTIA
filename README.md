@@ -2,7 +2,7 @@
 
 ## Estado actual verificado
 
-Actualizado al 20-11-2026; métricas reconciliadas con el SRS v1.10.
+Actualizado al 23-11-2026; métricas de línea base reconciliadas con el SRS v1.11.
 
 - Avance estimado vigente: **87,9%** para las 37 fichas SRS (`3.253 / 37`).
   El promedio de las ocho áreas ADMIN, recalculado desde sus fichas asociadas,
@@ -814,9 +814,9 @@ con enlaces previos. Las rutas Ops antiguas de Plataforma, Usuarios e
 Indicadores también redirigen a sus destinos Admin. `/admin` y la entrada Ops
 abren ahora el Dashboard global.
 
-## Cambios a la fecha — 20-11-2026
+## Cambios a la fecha — 23-11-2026
 
-El documento funcional vigente es el [SRS v1.10](documentacion/SRS.md). Esta
+El documento funcional vigente es el [SRS v1.11](documentacion/SRS.md). Esta
 sección resume los cambios relevantes y el estado conocido a la fecha; no
 sustituye los criterios, pendientes ni evidencias detallados en el SRS y la
 [validación actual](documentacion/VALIDACION_ACTUAL.md).
@@ -858,6 +858,17 @@ pasó 14/14 y la suite completa posterior, ejecutada el 19-11, pasó 526/526.
     tenant. El panel de responsables permite asignar cuentas `company` y
     `contract_admin`; una cuenta `company` pasa a alcance de contrato con
     confirmación doble y siempre debe quedar otro `company` activo.
+- **Planes y servicios:** las cuentas `company` pueden consultar los planes
+  activos, ver el plan y estado de suscripción de la empresa e iniciar el trial
+  de 30 días. No hay cobro en línea conectado; los cambios de plan existentes
+  se aplican inmediatamente sin cobro. Los límites mostrados en el catálogo aún
+  no se hacen cumplir en las operaciones. ADMIN ve el plan de la empresa en la
+  tabla de usuarios; se repite en las cuentas que pertenecen a la misma empresa.
+  El detalle de interfaz, reglas de suscripción y rutas API está en
+  [README_CLIENTE.md, sección 5.8](README_CLIENTE.md#58-planes-suscripciones-y-facturas).
+  La adición no está incluida en las 37 fichas de la línea base SRS y, por
+  tanto, no modifica sus porcentajes; véase la [adición funcional de planes y
+  servicios](documentacion/SRS.md#adición-de-producto-planes-y-servicios-fuera-de-las-37-fichas).
 - Consola ADMIN bajo `/admin` para empresas, buscador global, métricas, usuarios,
   auditoría, sistemas, procesos e incidentes. La API administrativa actual usa
   `/api/v1/admin`; mantiene rutas Ops anteriores por compatibilidad.

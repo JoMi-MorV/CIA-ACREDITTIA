@@ -37,6 +37,7 @@ import type {
   RequisitoFila, RequisitoTerreno, RequisitosCargo, ResetDemo, ResumenAlertas,
   Revision, RecursoExport, Sesion, Sujeto, SujetoCreado, SujetoDetalle,
   SyncLog, Tendencia, TipoReporte, Tokens, TrabajadorIn, TrabajadorPatch,
+  ContratarPlanRespuesta, PlanComercial, SuscripcionEmpresa,
   Usuario, UsuarioEmpresa, Exportacion, Periodo,
 } from "./tipos";
 
@@ -776,12 +777,12 @@ export const notificaciones = {
 };
 
 export const suscripcion = {
-  planes: () => api<Pagina<Record<string, unknown>>>("/planes"),
+  planes: () => api<Conjunto<PlanComercial>>("/planes"),
 
-  detalle: () => api<Record<string, unknown>>("/suscripcion"),
+  detalle: () => api<SuscripcionEmpresa>("/suscripcion"),
 
   contratar: (plan_id: string) =>
-    api<Record<string, unknown>>("/suscripcion", { body: { plan_id } }),
+    api<ContratarPlanRespuesta>("/suscripcion", { body: { plan_id } }),
 
   cancelar: () => api<{ ok: boolean }>("/suscripcion", { method: "DELETE" }),
 

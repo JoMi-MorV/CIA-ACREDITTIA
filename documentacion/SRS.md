@@ -1,8 +1,10 @@
 # SRS — Acredittia
 
-Especificación de requisitos de software · versión 1.10 · 20-11-2026
+Especificación de requisitos de software · versión 1.11 · 23-11-2026
 
 **Estado documental:** validado con pruebas focalizadas, suite backend completa en PostgreSQL temporal, ejecución local distribuida de Celery y recorrido manual reportado en ngrok; permanecen pendientes criterios funcionales, de seguridad y aceptación integral. DEC-08 queda acordada como política interna funcional; esto no constituye aprobación legal ni certificación de producción.
+
+> **Adición funcional de planes y servicios — 23-11-2026 (versión 1.11):** se incorporan al portal de empresa la consulta del catálogo y la suscripción vigente, la contratación inicial con trial de 30 días y el cambio/reactivación de plan sin cobro en línea; ADMIN ve el plan asociado a la empresa como dato informativo en Usuarios, roles y permisos. El plan pertenece a la empresa y no a cada usuario. Esta funcionalidad no estaba expresada por un requisito de las 37 fichas: `RF-MET-03` cubre detalle comercial/MRR/UF de ADMIN, y `RF-USU-01` el ciclo de vida de usuarios, no la contratación de servicios. Se registra como adición fuera de la línea base, sin asignar un identificador, prioridad ni puntuación; por ello no cambia el avance SRS **3.253/37 (87,9%)**, el promedio ADMIN **89,7%** ni los promedios P0/P1/P2. La brecha de interfaz identificada por el usuario queda cubierta en implementación; no se considera cerrada la validación de extremo a extremo. No hay pasarela de pago, los límites del catálogo no se hacen cumplir y la interfaz actual no ofrece cancelación ni historial de facturas. Evidencia y límites en [VALIDACION_ACTUAL.md](VALIDACION_ACTUAL.md); descripción funcional en [README_CLIENTE.md](../README_CLIENTE.md).
 
 > **Actualización por recorrido manual — 20-11-2026 (versión 1.10):** el usuario confirmó aislamiento entre empresas A/B en listados, detalles, cambios, archivos y exportaciones; alcance de `contract_admin`; concesión ADMIN con motivo, alcance y revocación; y auditoría de cambios de permisos/roles, estados y pausa/reanudación, con valores anterior/nuevo, actor, fecha, objeto, resultado y motivo, sin secretos/PII innecesaria. RF-AUD-01 sube de **90% a 100% (IV)** en su alcance funcional. El área ADMIN Auditoría sube de **86,7% a 90,0%** y el promedio de ocho áreas ADMIN de **89,3% a 89,7%**. La suma de las 37 fichas sube de **3.243 a 3.253 puntos**, de **87,6% a 87,9%**; P0 pasa de **90,0% a 91,1%** (9 fichas), mientras P1 y P2 permanecen en 86,3% y 89,2%. RF-SEG-01 y RNF-SEG-01 ya estaban al 100%; RF-SEG-02 permanece en 95% por lecturas sensibles no inventariadas y validación de despliegue. El usuario también reportó verificados manualmente reintentos y alertas, pero no se detallaron escenarios ni umbrales; RF-SAL-02/03 conservan por ahora sus porcentajes de 80%/95%. Esta evidencia reportada no certifica producción ni cambia el NO-GO.
 
@@ -368,6 +370,29 @@ La empresa es la unidad de aislamiento. Un documento o archivo debe comprobar su
 
 **Restricciones actuales:** PostgreSQL y sus funciones/RLS forman parte del comportamiento; SQLite no es un sustituto equivalente. Los adaptadores locales/simulados se distinguen de los productivos. ADMIN mantiene componentes de implementación con nombres internos históricos, aunque la superficie pública sea `/admin`.
 
+### Adición de producto: planes y servicios (fuera de las 37 fichas)
+
+Esta adición registra el alcance solicitado el 23-11-2026, sin crear un nuevo
+requisito puntuable ni modificar la línea base. El detalle de comportamiento
+esperado es:
+
+- Una cuenta `company` puede consultar planes activos y el plan, estado y
+  acceso de su empresa; `contract_admin` no accede a la suscripción.
+- La primera contratación crea una suscripción `trial` por 30 días. Cambiar
+  plan actualiza el plan asociado y conserva el periodo vigente; reactivar una
+  suscripción cancelada vuelve a habilitarla según las reglas del backend.
+- La pantalla confirma la operación y deja claro que no se realiza un cobro.
+  ADMIN puede ver el plan de la empresa en cada fila de sus usuarios, sin
+  modificarlo desde esa columna; la lista puede ordenarse por plan.
+- No forma parte de este alcance una pasarela, el cumplimiento técnico de los
+  límites del catálogo, el historial de facturas en el frontend ni cancelar la
+  suscripción desde la pantalla.
+
+La implementación tiene prueba focalizada de la respuesta/ordenamiento ADMIN
+y compilación de producción del frontend. La interacción completa de la nueva
+página no tiene todavía evidencia de recorrido manual o prueba end-to-end; no
+se marca como aceptación integral.
+
 ## 4. Línea base de evidencia
 
 | Ref. | Fuente | Alcance |
@@ -603,7 +628,7 @@ separado y puede mostrar el payback calculable con el CAC guardado.
 - **Avance estimado:** 75 % (reevaluado el 03-11-2026).
 - **Fundamento del avance:** El listado y la administración de cuentas asociadas, edición de perfil, cambios de rol/alcance, revocación/reactivación y asignación de responsables tienen implementación y pruebas focalizadas; siguen pendientes invitación y aceptación de cuentas existentes, canal de activación y navegación sobre 100 usuarios en la consola ADMIN.
 - **Comportamiento esperado:** Ciclo de vida desde la consola. Cumplir las condiciones detalladas en el criterio de aceptación.
-- **Estado actual:** botón Reactivar para cuentas revocadas, con confirmación y bloqueo durante la petición; usa PATCH administrativo con `activo=true`. Conserva rol/alcance y exige nuevo login: revocar o cambiar activo desde ADMIN incrementa `auth_version` y revoca refresh tokens. La autenticación rechaza JWT de versiones previas. `auth_version` se incorporó en la migración histórica de esquema 10 y fue verificado en base temporal; el esquema vigente exigido por la API es **23**. La versión efectiva de cada entorno debe comprobarse durante su despliegue. Se solicitan 100 usuarios sin paginación visible.
+- **Estado actual:** botón Reactivar para cuentas revocadas, con confirmación y bloqueo durante la petición; usa PATCH administrativo con `activo=true`. Conserva rol/alcance y exige nuevo login: revocar o cambiar activo desde ADMIN incrementa `auth_version` y revoca refresh tokens. La autenticación rechaza JWT de versiones previas. `auth_version` se incorporó en la migración histórica de esquema 10 y fue verificado en base temporal; el esquema vigente exigido por la API es **23**. La versión efectiva de cada entorno debe comprobarse durante su despliegue. Se solicitan 100 usuarios sin paginación visible. La columna informativa del plan de la empresa en el listado ADMIN es una adición fuera de los criterios de RF-USU-01 y no modifica su avance; véase la adición de planes y servicios en la sección 3.
 - **Pendientes / mejoras:** completar altas y navegación de más de 100 usuarios; validar reactivación en navegador y auditoría integral. Extender invalidación uniforme a los demás mecanismos de desactivación/cambio de credenciales; esta entrega cubre operaciones ADMIN. Reactivar no aprueba solicitudes pendientes o rechazadas.
 - **Validación:** Parcial: consultar evidencia de la sección 4; no se acredita el cierre de todos los criterios.
 - **Criterio de aceptación:** crear/invitar según el flujo existente, listar más de 100 usuarios sin omisiones, revocar y reactivar con autorización; no exponer contraseñas/tokens; cuentas revocadas no acceden a API ni renuevan sesión. Reutilizar reglas de empresa cuando correspondan.

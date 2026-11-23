@@ -26,6 +26,38 @@ export type Pagina<T> = {
 /** Listados que el backend NO pagina a propósito (conjuntos cerrados). */
 export type Conjunto<T> = { items: T[]; total: number };
 
+export type PlanComercial = {
+  id: string;
+  nombre: string;
+  precio: number;
+  moneda: string;
+  periodo: "mensual" | "anual";
+  limites: Record<string, unknown>;
+  activo: boolean;
+  created_at: string | null;
+  updated_at: string | null;
+};
+
+export type SuscripcionEmpresa = {
+  id: string;
+  estado: "trial" | "activa" | "morosa" | "cancelada";
+  plan: PlanComercial | null;
+  trial_hasta: string | null;
+  dias_restantes_trial: number;
+  periodo_actual_desde: string | null;
+  periodo_actual_hasta: string | null;
+  proximo_cobro: string | null;
+  medio_pago_configurado: boolean;
+  acceso: "completo" | "solo_lectura";
+  created_at: string | null;
+  updated_at: string | null;
+};
+
+export type ContratarPlanRespuesta = {
+  suscripcion: SuscripcionEmpresa;
+  pago: { requiere_accion: boolean; redirect_url: string | null };
+};
+
 /** Parámetros comunes de todo listado paginado. */
 export type ParamsPagina = {
   page?: number;

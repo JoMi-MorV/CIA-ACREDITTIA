@@ -1,3 +1,5 @@
+from sqlalchemy import text
+
 from tests.conftest import API
 
 
@@ -41,7 +43,7 @@ def test_listado_usuarios_ordenamiento_por_columnas_y_paginacion(
         app_cliente, admin, empresa_a, empresa_b):
     ruta = f"{API}/admin/users"
 
-    for sort in ("nombre", "role", "empresa", "contrato",
+    for sort in ("nombre", "role", "empresa", "plan", "contrato",
                  "last_login_at", "activo"):
         respuesta = app_cliente.get(
             ruta, headers=admin["headers"],
@@ -67,6 +69,32 @@ def test_listado_usuarios_ordenamiento_por_columnas_y_paginacion(
     descendente = roles_en_orden("-role")
     assert ascendente == sorted(ascendente)
     assert descendente == sorted(descendente, reverse=True)
+
+
+def test_admin_users_muestra_plan_de_la_empresa(
+        app_cliente, admin, empresa_a, motor_admin):
+    with motor_admin.connect() as c:
+        plan_id = c.execute(
+            text(
+                "INSERT INTO planes (nombre, precio, moneda, periodo) "
+                "VALUES ('Plan de prueba', 8, 'UF', 'mensual') "
+                "RETURNING id"
+            )
+        ).scalar_one()
+        c.execute(
+            text(
+                "INSERT INTO suscripciones (company_id, plan_id, estado) "
+                "VALUES (:company_id, :plan_id, 'trial')"
+            ),
+            {"company_id": empresa_a["company_id"], "plan_id": plan_id},
+        )
+        c.commit()
+
+    respuesta = app_cliente.get(
+        f"{API}/admin/users", headers=admin["headers"],
+        params={"search": empresa_a["email"]})
+    assert respuesta.status_code == 200, respuesta.text
+    assert respuesta.json()["items"][0]["plan"] == "Plan de prueba"
 
 
 def test_cambio_de_alcance_exige_motivo(app_cliente, admin, empresa_a,

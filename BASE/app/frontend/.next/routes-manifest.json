@@ -258,6 +258,12 @@
       "namedRegex": "^/personal(?:/)?$"
     },
     {
+      "page": "/planes-servicios",
+      "regex": "^/planes\\-servicios(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/planes\\-servicios(?:/)?$"
+    },
+    {
       "page": "/reportes",
       "regex": "^/reportes(?:/)?$",
       "routeKeys": {},

@@ -13,6 +13,7 @@ const ITEMS = [
   { href: "/reportes", icono: "▥", nombre: "Reportes" },
   { href: "/alertas", icono: "!", nombre: "Alertas" },
   { href: "/calendario", icono: "□", nombre: "Calendario" },
+  { href: "/planes-servicios", icono: "$", nombre: "Planes y servicios" },
   { href: "/gestion-cuentas", icono: "♙", nombre: "Gestión de cuentas" },
   { href: "/perfil", icono: "○", nombre: "Mi perfil" },
 ];
@@ -96,6 +97,7 @@ export default function Sidebar() {
         {(!esAdmin || viendoEmpresa) && ITEMS
           .filter((i) => !(user?.role === "contract_admin" && i.href === "/reportes"))
           .filter((i) => !(user?.role === "contract_admin" && i.href === "/gestion-cuentas"))
+          .filter((i) => i.href !== "/planes-servicios" || user?.role === "company")
           .map((i) => (
           <Link key={i.href} href={i.href}
             className={`flex shrink-0 items-center gap-3 rounded-md px-3 py-2 text-sm ${path.startsWith(i.href) ? "bg-accent font-semibold" : "hover:bg-white/10"}`}>

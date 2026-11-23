@@ -1,7 +1,7 @@
 # Resumen de requisitos ADMIN
 
-**Corte ADMIN:** 20 de noviembre de 2026  
-**Base documental:** SRS versión 1.10, GAP, `VALIDACION_ACTUAL.md` y el [cronograma de cierre de 2 semanas](CRONOGRAMA_CIERRE_PRODUCCION.md).
+**Corte ADMIN:** 23 de noviembre de 2026  
+**Base documental:** SRS versión 1.11, GAP, `VALIDACION_ACTUAL.md` y el [cronograma de cierre de 2 semanas](CRONOGRAMA_CIERRE_PRODUCCION.md).
 **Propósito:** resumir el estado técnico de las ocho prioridades ADMIN, distinguir lo implementado de lo validado y proponer criterios concretos para revisar su cierre.
 
 Este documento es una guía de revisión, no una aceptación contractual ni una certificación de producción. Los estados reflejan los requisitos y la evidencia descritos en el [SRS](SRS.md) y en [VALIDACION_ACTUAL.md](VALIDACION_ACTUAL.md). `IV` significa implementado y validado dentro del alcance probado; `ISV`, implementado sin validación completa; `PAR`, parcial; `COR`, requiere corrección; y `PEN`, pendiente. Los porcentajes estimados del SRS no equivalen a porcentaje de cumplimiento validado.
@@ -34,6 +34,16 @@ alertas. RF-AUD-01 sube de 90% a 100%; Auditoría pasa de 86,7% a 90,0% y el
 promedio ADMIN de 89,3% a **89,7%**. La suma de las 37 fichas aumenta de 3.243 a
 3.253 puntos (**87,9%**). Los porcentajes de RF-SAL-02/03 no se recalculan
 hasta detallar los escenarios/umbrales de las verificaciones operativas.
+
+**Adición 23-11-2026 — planes y servicios:** ADMIN ahora ve una columna
+informativa con el plan de la empresa en cada cuenta de Usuarios, roles y
+permisos, ordenable por ese dato. La nueva página de empresa permite ver
+catálogo, suscripción/estado e iniciar trial o cambiar/reactivar plan. La
+prueba focalizada de usuarios ADMIN
+pasó 7/7 y el build frontend pasó; falta un recorrido manual/end-to-end de la
+página. Esta funcionalidad no forma parte de los criterios de RF-USU-01 ni de
+las 37 fichas; no cambia el promedio de Usuarios y permisos (**77,5%**), el
+promedio ADMIN (**89,7%**) ni el avance global SRS (**87,9%**).
 
 La ampliación de Reportes del portal documentada el 14-10-2026 no forma parte
 de la estimación de las prioridades ADMIN.
@@ -86,7 +96,7 @@ producción.
 | 3 | Buscador global | **100%** | **RF-BUS-01 IV (100%); RF-BUS-02 IV/P0 (100%)** | Autorización por categoría, detalle directo y exportación ZIP con concesiones y alcance validados por pruebas focalizadas. El listado administrativo independiente de usuarios queda en RF-USU. |
 | 4 | Métricas SaaS | **86,7%** | **PAR** — RF-MET-01/03 con pendientes; RF-MET-02 implementado y probado | Salud muestra el tiempo activo medido de RF-MET-02; revisar definiciones/series y distinguir documentos únicos de revisiones IA. |
 | 5 | Alertas y salud de clientes | **83,3%** | **Mixto:** RF-SAL-01 **PAR**; RF-SAL-02 **ISV**; RF-SAL-03 **ISV** | Promedio de RF-SAL-01 (75%), RF-SAL-02 (80%) y RF-SAL-03 (95%). El usuario confirma reintentos y alertas manualmente; escenarios y umbrales no detallados, porcentajes sin recalcular. Siguen brechas de riesgos de clientes y totales/paginación. |
-| 6 | Usuarios, roles y permisos | **77,5%** | **PAR** — RF-USU-01/02 | El listado ADMIN pagina usuarios y los cambios de alcance invalidan sesiones. El portal permite convertir `company` en `contract_admin` si queda otro `company` activo e invita cuentas nuevas con rol y contrato mediante activación por correo. Sigue pendiente la transferencia de cuentas existentes entre empresas, el historial completo de acceso y la validación integral. |
+| 6 | Usuarios, roles y permisos | **77,5%** | **PAR** — RF-USU-01/02 | El listado ADMIN pagina usuarios y muestra el plan de la empresa como dato informativo; los cambios de alcance invalidan sesiones. El portal permite convertir `company` en `contract_admin` si queda otro `company` activo e invita cuentas nuevas con rol y contrato mediante activación por correo. Sigue pendiente la transferencia de cuentas existentes entre empresas, el historial completo de acceso y la validación integral. |
 | 7 | Auditoría y trazabilidad | **90,0%** | **RF-AUD-01 IV/P0 (100%); RF-AUD-02/03** | RF-AUD-01 quedó al 100% tras la confirmación manual de valores anterior/nuevo, actor, fecha, objeto, resultado y motivo en permisos/roles, estados y pausas. RF-AUD-02/03 conservan pendientes de integridad, retención y autorización/exportación. |
 | 8 | Seguridad y aislamiento | **90,0%** | **RF-SEG-01 IV (100%)**; RF-SEG-02 PAR (95%); RF-SEG-03 PAR (65%); RNF-SEG-01 IV (100%) | El usuario confirmó recorrido Empresa A/B, `contract_admin`, archivos, exportaciones y concesión ADMIN. RF-SEG-02 conserva el inventario de otras lecturas sensibles y validación del despliegue. |
 

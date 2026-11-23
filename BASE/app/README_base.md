@@ -142,6 +142,13 @@ La página **Mi perfil** también se bloquea durante la impersonación para evit
 confundir el perfil personal del administrador con el de la empresa observada.
 Al salir del modo empresa, el administrador vuelve a la consola interna.
 
+El portal de empresa incluye **Planes y servicios** (`/planes-servicios`),
+disponible para el rol `company`: muestra planes activos, suscripción/estado y
+permite iniciar el trial de 30 días o cambiar/reactivar el plan sin cobro en
+línea. No muestra facturas ni ofrece cancelar la suscripción. Los límites de
+plan son informativos y aún no se aplican. La experiencia y las rutas API se
+detallan en [README_CLIENTE.md](../../README_CLIENTE.md#planes-y-servicios).
+
 ## Consola administrativa
 
 La consola interna ofrece **Dashboard global**, **Sistemas y procesos**,
@@ -170,6 +177,8 @@ empresa ni contrato asignado. Sus funciones incluyen:
   impacto, exigen un motivo de al menos 12 caracteres y se registran con actor,
   fecha y valores anteriores/nuevos. Estos cambios invalidan las sesiones
   activas del usuario. La auditoría de permisos presenta el motivo y los cambios.
+  En Usuarios, roles y permisos el plan de la empresa aparece como columna de
+  solo lectura y puede usarse para ordenar; no permite contratar ni editar planes.
 - Gestión de industria por empresa: ADMIN puede cambiarla en **Usuarios, roles y
   permisos**, y el rol `company` puede hacerlo desde **Mi perfil → Industria de la
   empresa**. Las opciones se limitan a Minería, Construcción, Energía, Industrial

@@ -1,10 +1,10 @@
 # Gap Analysis — Acredittia
 
-**Corte vigente:** 20-11-2026  
+**Corte vigente:** 23-11-2026  
 **Estado:** funcionalmente avanzado; **NO-GO** para producción con datos reales.
 
 Este análisis refleja la implementación y la evidencia documentada en el SRS
-v1.10 y en [VALIDACION_ACTUAL.md](./VALIDACION_ACTUAL.md). Distingue entre
+v1.11 y en [VALIDACION_ACTUAL.md](./VALIDACION_ACTUAL.md). Distingue entre
 funcionalidad local, validación en el entorno destino y aceptación para
 producción; una no sustituye a las otras.
 
@@ -32,6 +32,15 @@ producción; una no sustituye a las otras.
   restauración local acreditadas; recuperación productiva sigue pendiente.
 - Exportación general ADMIN: PDF y ZIP contienen solo resúmenes agregados; la
   exportación de negocio permanece separada.
+- **Planes y servicios:** se cubrió la brecha de interfaz señalada por el
+  usuario: la cuenta `company` puede consultar catálogo, plan/estado actual e
+  iniciar trial o cambiar/reactivar plan; ADMIN ve el plan por empresa como
+  dato informativo. No se conectó una pasarela, no se aplican los límites del
+  catálogo y la página no incluye cancelación ni facturas. Es una adición fuera
+  de las 37 fichas SRS, por lo que no cambia el avance **87,9%**, el promedio
+  ADMIN **89,7%** ni los promedios P0/P1/P2. El build y la prueba focalizada de
+  la columna ADMIN pasaron; la interacción completa de la página aún no tiene
+  recorrido manual/end-to-end documentado.
 - El PDF ADMIN ahora usa gráficos circulares para estados, líneas para series
   mensuales y barras horizontales para comparaciones. Las dos pruebas
   focalizadas de generación PDF pasaron con
@@ -194,7 +203,7 @@ de:
 
 ## 6. Fuentes de evidencia
 
-- [SRS.md](./SRS.md), versión 1.10, 20-11-2026: requisitos, porcentajes y
+- [SRS.md](./SRS.md), versión 1.11, 23-11-2026: requisitos, porcentajes y
   criterios vigentes.
 - [VALIDACION_ACTUAL.md](./VALIDACION_ACTUAL.md): pruebas, límites de evidencia,
   DEC-08, restauración local y validación de flujos.

@@ -1,4 +1,25 @@
-# Validación funcional — actualizado al 20 de noviembre de 2026
+# Validación funcional — actualizado al 23 de noviembre de 2026
+
+## Planes y servicios — validación focalizada — 23 de noviembre de 2026
+
+- Desde `BASE/app/backend`, `python -m pytest -q tests/test_admin_identidad.py`
+  pasó **7 pruebas, 0 fallidas**. Incluye la
+  respuesta ADMIN con el plan asociado a la empresa y el ordenamiento por plan.
+  Se mantuvo un warning no bloqueante de deprecación Starlette/httpx.
+- Desde `BASE/app/frontend`, `npm run build` finalizó correctamente: compiló,
+  verificó tipos y generó la ruta `/planes-servicios`.
+- La prueba backend valida el dato informativo del listado ADMIN; el build
+  comprueba compilación/tipos, no el comportamiento interactivo de la página.
+  No se realizó recorrido manual ni prueba end-to-end de catálogo, contratación,
+  cambio/reactivación, permisos de rol o estado de suscripción.
+- No se conectó una pasarela ni se generó un cobro. Los límites de catálogo
+  siguen sin aplicarse; cancelación e historial de facturas no están expuestos
+  en la página, aunque sus endpoints backend existen.
+
+Esta evidencia es focalizada y no equivale a aceptación de producto ni modifica
+el estado GO/NO-GO. La funcionalidad de planes y servicios se documenta como
+adición fuera de las 37 fichas actuales del SRS; no se recalculan sus
+porcentajes.
 
 ## Smoke test externo de staging temporal vía ngrok — 20 de noviembre de 2026
 

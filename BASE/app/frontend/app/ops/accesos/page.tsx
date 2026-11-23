@@ -8,7 +8,7 @@ import { useDialog } from "@/components/ui";
 
 const TAMANO_PAGINA = 25;
 type ColumnaOrdenUsuario = "nombre" | "role" | "empresa" | "contrato"
-  | "last_login_at" | "activo";
+  | "plan" | "last_login_at" | "activo";
 type DireccionOrden = "asc" | "desc";
 
 type PaginaUsuarios = {
@@ -163,7 +163,7 @@ export default function AccesosPage() {
   return <div className="space-y-4">
     {dialog.host}
     <Card><CardHead titulo="Usuarios, roles y permisos" sub="Asigna alcance por empresa o contrato, modifica la industria y revoca accesos"
-      info="Cada cambio de rol, empresa o contrato requiere confirmar su impacto e ingresar un motivo auditable. La industria pertenece a la empresa y el cambio aplica a todas sus cuentas. Las sesiones se invalidan cuando cambia el alcance del usuario." />
+      info="Cada cambio de rol, empresa o contrato requiere confirmar su impacto e ingresar un motivo auditable. La industria y el plan pertenecen a la empresa y se muestran en todas sus cuentas. La contratación no procesa cobros en línea." />
       <input className="ops-input w-full max-w-md" type="search" value={buscar} onChange={(event) => {
         setBuscar(event.target.value);
         setPagina(1);
@@ -173,6 +173,7 @@ export default function AccesosPage() {
           {encabezadoOrdenable("nombre", "Usuario")}
           {encabezadoOrdenable("role", "Rol")}
           {encabezadoOrdenable("empresa", "Empresa")}
+          {encabezadoOrdenable("plan", "Plan")}
           <th>Industria</th>
           {encabezadoOrdenable("contrato", "Contrato")}
           {encabezadoOrdenable("last_login_at", "Último acceso")}
@@ -205,6 +206,7 @@ export default function AccesosPage() {
                 cambiar(user, { role: "company", company_id: companyId, contrato_id: null },
                   "El usuario perderá el acceso a la empresa anterior y a su contrato. Obtendrá acceso a la nueva empresa y a los datos disponibles para el rol company.");
               }}><option value="" disabled={Boolean(user.company_id)}>Sin empresa</option>{(catalog.data?.companies ?? []).map((company: any) => <option key={company.id} value={company.id}>{company.nombre}</option>)}</select></td>
+              <td>{user.plan ?? <span className="ops-sub">Sin plan</span>}</td>
               <td>{companyIndustry
                 ? <select className="ops-input"
                   aria-label={`Industria de ${companyIndustry.nombre}`}
@@ -242,7 +244,7 @@ export default function AccesosPage() {
             </tr>;
           })}
           {users.data?.items.length === 0 && <tr>
-            <td colSpan={8} className="py-6 text-center ops-sub">
+            <td colSpan={9} className="py-6 text-center ops-sub">
               No hay usuarios que coincidan con la búsqueda.
             </td>
           </tr>}

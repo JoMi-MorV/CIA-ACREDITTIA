@@ -1,6 +1,6 @@
 # Guia de la vista de empresa de Acredittia
 
-Fecha: 17 de septiembre de 2026
+Fecha: 23 de noviembre de 2026
 
 ## 1. Objetivo de este documento
 
@@ -114,6 +114,7 @@ Ruta base: `BASE/app/frontend/`
 | `app/(app)/layout.tsx` | Layout protegido | Verifica que exista una sesion y monta el sidebar. |
 | `app/(app)/perfil/page.tsx` | `/perfil` | Perfil personal; para ADMIN en «Ver como empresa», perfil de la empresa (nombre/correo editables; RUT/estado de solo lectura). |
 | `app/(app)/gestion-cuentas/page.tsx` | `/gestion-cuentas` | Listado paginado y administración de roles/estado; modal para invitar cuentas nuevas con rol de empresa o contrato. |
+| `app/(app)/planes-servicios/page.tsx` | `/planes-servicios` | Catalogo de planes, plan/estado de suscripcion de la empresa e inicio o cambio de plan. Solo para cuentas `company`. |
 | `app/reset/page.tsx` | `/reset?token=...` | Activación de cuenta invitada mediante contraseña de un solo uso. |
 | `components/Sidebar.tsx` | Navegacion lateral | Enlaces, empresa actual, impersonacion y cierre de sesion. |
 | `components/ui.tsx` | Compartido | KPIs, tablas, modales, chips, spinner y paginacion. |
@@ -130,6 +131,25 @@ Ruta base: `BASE/app/frontend/`
 | `app/(app)/equipos/page.tsx` | `/equipos` | Listado y alta de equipos o vehiculos. |
 | `app/(app)/alertas/page.tsx` | `/alertas` | Alertas activas, estado y lectura. |
 | `app/(app)/admin/page.tsx` | `/admin` | Back-office de plataforma. No es la vista normal de empresa. |
+
+#### Planes y servicios
+
+La ruta `/planes-servicios` presenta los planes activos del catalogo, el plan
+asociado a la empresa y el estado de su suscripcion. El plan es por empresa,
+no por usuario ni por contrato. Solo las cuentas con rol `company` ven el
+enlace; `contract_admin` no puede consultar ni modificar la suscripcion.
+
+La primera contratacion crea una suscripcion en estado `trial` por 30 dias.
+Elegir otro plan cambia inmediatamente el plan asociado, pero conserva las
+fechas del periodo vigente; no hay prorrateo. Una suscripcion cancelada puede
+reactivarse desde la accion de contratar/cambiar plan. La interfaz solicita
+confirmacion e informa que no se procesara ningun cobro en linea.
+
+Los precios y limites del catalogo son informativos mientras no se integre una
+pasarela y no se implemente la aplicacion de limites. La pantalla muestra el
+estado de acceso calculado por el backend. Actualmente no ofrece una pantalla
+de historial/descarga de facturas ni una accion de cancelacion, aunque existen
+rutas API para esas operaciones.
 
 ### 3.3 Cliente HTTP
 
@@ -349,6 +369,36 @@ Routers: `documentos.py`, `ia.py`, `alertas.py`
 
 El flujo normal de archivo es: solicitar URL, subir archivo al storage, confirmar archivo y esperar la revision IA cuando corresponda.
 
+### 5.8 Planes, suscripciones y facturas
+
+Router: `backend/app/routers/suscripcion.py`
+
+| Metodo | Endpoint | Acceso y uso |
+|---|---|---|
+| `GET` | `/planes` | Publico; devuelve los planes activos del catalogo. |
+| `GET` | `/suscripcion` | Rol `company`; devuelve plan, estado, fechas y acceso. Responde `SIN_SUSCRIPCION` si la empresa aun no tiene una. |
+| `POST` | `/suscripcion` | Rol `company`; recibe `plan_id`. Crea la primera suscripcion en trial de 30 dias, cambia el plan o reactiva una suscripcion cancelada. |
+| `DELETE` | `/suscripcion` | Rol `company`; cancela la suscripcion sin borrar el registro ni acortar el periodo vigente. La pantalla actual no expone esta accion. |
+| `GET` | `/facturas` | Rol `company`; lista facturas de la empresa con filtros/paginacion. La pantalla actual no expone el historial. |
+| `GET` | `/facturas/{factura_id}/download-url` | Rol `company`; emite una URL temporal si la factura tiene PDF asociado. |
+| `GET` | `/admin/planes` | Solo ADMIN; lista planes, incluidos los desactivados. |
+| `POST` | `/admin/planes` | Solo ADMIN; crea un plan comercial. |
+| `PATCH` | `/admin/planes/{plan_id}` | Solo ADMIN; edita o desactiva un plan. Desactivarlo lo retira del catalogo publico, pero no cambia suscripciones existentes. |
+
+La respuesta de suscripcion informa `trial`, `activa`, `morosa` o `cancelada`,
+y el acceso calculado (`completo` o `solo_lectura`). Una suscripcion morosa
+mantiene acceso completo durante siete dias desde el fin de su periodo; despues
+pasa a solo lectura. Cancelar no elimina la suscripcion y conserva el acceso
+hasta el fin del periodo vigente.
+
+No hay pasarela de pago conectada: contratar, cambiar o reactivar un plan no
+procesa cobros y `redirect_url` permanece nulo. El backend contempla webhooks de
+pago, pero la interfaz de contratacion no cobra ni configura un medio de pago.
+Los limites configurados en el plan se muestran como informacion y todavia no
+se aplican a las operaciones de la empresa. La columna **Plan** de ADMIN en
+Usuarios, roles y permisos es informativa y repite el plan de la empresa para
+cada una de sus cuentas; puede ordenarse por plan, pero no permite editarlo.
+
 ---
 
 ## 6. Modelo de datos principal
@@ -404,6 +454,8 @@ Los scripts estan en `BASE/modelo_datos/`:
 - `eventos_calendario`: calendario de la empresa.
 - `reportes`: reportes generados.
 - `reportes_programados`: reportes recurrentes.
+- `suscripciones`: plan y estado comercial de la empresa, con trial y periodo vigente.
+- `facturas`: estados y documentos de facturacion asociados a una suscripcion.
 - `integraciones`: conectores externos por empresa.
 - `sync_logs`: historial de sincronizaciones.
 - `notificacion_preferencias`: preferencias de notificacion.
@@ -777,6 +829,12 @@ confirmacion que explica consecuencias y un motivo obligatorio. El registro
 auditable conserva actor, motivo y valores anteriores/nuevos; el cambio
 invalida las sesiones del usuario. La validacion de las pruebas backend
 especificas y la cobertura integral de auditoria siguen pendientes.
+
+La tabla ADMIN **Usuarios, roles y permisos** incluye una columna de solo
+lectura **Plan**. Su valor pertenece a la empresa asociada, por lo que aparece
+repetido en sus usuarios; una empresa sin suscripcion se muestra sin plan. La
+administracion de planes esta disponible en la API `/admin/planes`, pero esa
+columna no contrata ni cambia planes.
 
 Falta:
 
