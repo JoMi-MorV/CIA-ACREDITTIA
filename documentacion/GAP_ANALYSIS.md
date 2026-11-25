@@ -1,22 +1,22 @@
 # Gap Analysis — Acredittia
 
-**Corte vigente:** 25-11-2026  
+**Corte vigente:** 25-11-2026 (actualización funcional RF-AUD-02)  
 **Estado:** funcionalmente avanzado; **NO-GO** para producción con datos reales.
 
 Este análisis refleja la implementación y la evidencia documentada en el SRS
-v1.14 y en [VALIDACION_ACTUAL.md](./VALIDACION_ACTUAL.md). Distingue entre
+v1.16 y en [VALIDACION_ACTUAL.md](./VALIDACION_ACTUAL.md). Distingue entre
 funcionalidad local, validación en el entorno destino y aceptación para
 producción; una no sustituye a las otras.
 
 ## 1. Resumen ejecutivo
 
-- Cobertura estimada actual de las 37 fichas SRS: **88,9% (3.288/37)**.
-- Promedio estimado de las ocho prioridades ADMIN: **90,8%**.
-- Promedios estimados P0/P1/P2: **95,0% / 86,3% / 89,2%**.
+- Cobertura estimada actual de las 37 fichas SRS: **89,7% (3.318/37)**.
+- Promedio estimado de las ocho prioridades ADMIN: **92,0%**.
+- Promedios estimados P0/P1/P2: **95,0% / 87,7% / 89,2%**.
 - Son promedios documentales de avance por requisito, no un porcentaje
   ponderado del producto, aceptación contractual ni preparación productiva.
-- El proyecto sigue **NO-GO** hasta cerrar los bloqueos P0 de privacidad,
-  seguridad, auditoría y validar continuidad, despliegue y regresión completa.
+- El proyecto sigue **NO-GO** hasta cerrar los bloqueos P0 de privacidad
+  (DEC-08/RNF-PRV-01), seguridad y continuidad, y validar el despliegue real.
 
 ### Cierres respaldados dentro de su alcance
 
@@ -28,6 +28,11 @@ producción; una no sustituye a las otras.
 - `RF-AUD-03`: exportación de negocio con autorización, motivo, auditoría y
   documentos asociados validada localmente (46 pruebas y pruebas sintéticas
   de 60 MiB/10.000 filas). No es certificación de producción.
+- `RF-AUD-02`: historial de autenticación funcional al 100% en el alcance
+  acordado; revisión de código confirma minimización, consulta ADMIN auditada,
+  retención de 12 meses, revocación administrativa por acción y protección
+  append-only con purga controlada. Pasaron 16 pruebas focalizadas, con un
+  warning no bloqueante; producción sigue bloqueada por DEC-08/RNF-PRV-01.
 - `RNF-REC-01`: creación, descarga, eliminación, importación, verificación y
   restauración local acreditadas; recuperación productiva sigue pendiente.
 - Exportación general ADMIN: PDF y ZIP contienen solo resúmenes agregados; la
@@ -64,10 +69,10 @@ inflar el avance.
 | Métricas SaaS | 86,7% | Promedio de `RF-MET-01` 75%, `RF-MET-02` 100% y `RF-MET-03` 85%. | Cerrar definiciones/series pendientes de `RF-MET-01/03`; distinguir documentos únicos de revisiones IA. |
 | Alertas y salud | 83,3% | Promedio de `RF-SAL-01` 75%, `RF-SAL-02` 80% y `RF-SAL-03` 95%; el usuario reporta verificación manual de reintentos y alertas. | Los escenarios y umbrales de esa verificación no están detallados; siguen pendientes totales/paginación y trazabilidad operativa. Se mantienen los porcentajes de RF-SAL-02/03 hasta reconciliar esos criterios. |
 | Usuarios, roles y permisos | 77,5% | Promedio de `RF-USU-01` 75% y `RF-USU-02` 80%; gestión e invitaciones para cuentas nuevas dentro de una empresa. | Validar integralmente permisos y lecturas sensibles. La transferencia de una cuenta existente entre empresas queda fuera de la primera salida. |
-| Auditoría y trazabilidad | 90,0% | Promedio de `RF-AUD-01` 100%, `RF-AUD-02` 70% y `RF-AUD-03` 100% funcional local. | Completar retención, integridad, acceso y revocación administrativa de auditoría en los requisitos correspondientes. |
+| Auditoría y trazabilidad | 100,0% | `RF-AUD-01/02/03` al 100% en sus alcances funcionales acordados; RF-AUD-02 pasó 16 pruebas focalizadas el 25-11-2026. | La aprobación de producción, aplicación de DEC-08 a datos reales y tratamiento de históricos siguen pendientes en RNF-PRV-01. |
 | Seguridad y aislamiento | 98,8% | Promedio de `RF-SEG-01` 100%, `RF-SEG-02` 95%, `RF-SEG-03` 100% en la demo pública temporal y `RNF-SEG-01` 100%. | Completar el inventario de lecturas sensibles de RF-SEG-02. El usuario confirmó el túnel operativo y el smoke test acreditó login/API protegida en el alcance de desarrollo; la preparación productiva sigue pendiente en el NO-GO general. |
 
-El promedio ADMIN de 90,8% y el promedio SRS de 88,9% no son métricas de
+El promedio ADMIN de 92,0% y el promedio SRS de 89,7% no son métricas de
 preparación para producción. No hay un modelo de ponderación por esfuerzo,
 criticidad o aceptación aprobado.
 
@@ -92,12 +97,14 @@ criticidad o aceptación aprobado.
    datos sintéticos. El usuario confirmó que el túnel ya funciona y la evidencia
    manual registrada verificó `/login` y el rechazo anónimo de una ruta
    protegida. No usar datos reales; producción sigue en NO-GO.
-3. **Auditoría (`RF-AUD-01/02`).** El 20-11 el usuario confirmó manualmente la
-   auditoría de permisos/roles, estados y pausa/reanudación, incluidos valores
-   anterior/nuevo, actor, fecha, objeto, resultado y motivo. RF-AUD-01 sube a
-   IV/100%. Retención, integridad, aislamiento de consultas y revocación
-   administrativa de eventos de autenticación siguen pendientes en requisitos
-   relacionados.
+3. **Auditoría y autenticación (`RF-AUD-01/02`).** El 20-11 el usuario confirmó
+   manualmente auditoría de permisos/roles, estados y pausa/reanudación.
+   RF-AUD-01 queda IV/100%. La revisión estática del 25-11 confirma RF-AUD-02
+   al 100% funcional: retención de 12 meses, consulta ADMIN auditada,
+   append-only con purga controlada y revocación administrativa auditada por
+   acción. Las pruebas focalizadas pasaron 16/16, con un warning no bloqueante.
+   La aprobación de producción, Log Analytics y tratamiento de históricos
+   siguen en RNF-PRV-01.
 4. **Entorno de aceptación.** El 20-11-2026 se realizó un smoke test de solo
    lectura con HTTPS temporal vía ngrok: TLS/redirect, carga de `/login` y
    rechazo de acceso no autenticado por el proxy API. Esto no equivale a un
@@ -172,7 +179,7 @@ hasta que Producto las apruebe.
   empresa/contrato/persona/equipo y documentos permanece separada.
 
 Estos recortes reducen el alcance de la primera salida; no eliminan requisitos
-P0 de privacidad, autorización, auditoría ni recuperación. Para cambiar el SRS
+P0 de privacidad, autorización ni recuperación. Para cambiar el SRS
 o recalcular porcentajes se debe registrar la decisión y actualizar sus
 criterios de aceptación, no solo el GAP.
 

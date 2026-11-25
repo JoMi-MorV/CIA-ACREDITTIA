@@ -1,8 +1,19 @@
 # Estado de salud general de Acredittia
 
-**Fecha de corte:** 20 de noviembre de 2026
+**Fecha de corte:** 25 de noviembre de 2026
 **Preparado para:** revisión técnica, operativa y de gestión  
 **Alcance:** backend, frontend, SQL/migraciones, seguridad, privacidad, continuidad operativa, documentación y preparación para producción.
+
+### Cierre funcional RF-AUD-02 — 25 de noviembre de 2026
+
+La revisión estática confirma en el código registro minimizado y correlacionado
+de eventos de autenticación, consulta global ADMIN auditada, implementación de
+retención de 12 meses, revocación administrativa por acción y protección
+append-only con purga controlada. RF-AUD-02 queda IV/100% para el alcance
+funcional acordado. Pasaron 16 pruebas focalizadas (0 fallidas; un warning no
+bloqueante de Starlette/httpx). La aprobación de DEC-08,
+Log Analytics y la revisión de históricos siguen pendientes antes de producción
+con datos reales (RNF-PRV-01).
 
 ### Actualización de staging temporal — 20 de noviembre de 2026
 
@@ -176,7 +187,7 @@ y continuidad. El detalle y los límites de evidencia están en
 | Docker / composición | 🟢 Verde | Validación de configuración y ejecución en entorno local consistente. |
 | Seguridad técnica | 🟡 Amarillo | RNF-SEG-01 queda IV/100% por confirmación en el entorno destino; continúan pendientes otros controles de RF-SEG-01/02/03 y preparación productiva. |
 | Privacidad / RNF-PRV-01 | 🔴 Rojo / P0 | `ops_retencion` está activo y el usuario reporta ejecución local `ok` el 10-11-2026 00:18:52 (0 filas podadas); faltan Log Analytics, revisión histórica documentada y aprobación de producción. |
-| Auditoría administrativa / RF-AUD-01 | 🟢 IV, 100% funcional / P0 | El usuario confirmó manualmente anterior/nuevo y los metadatos de auditoría para permisos/roles, estados y pausa/reanudación. Retención, integridad y controles de acceso permanecen en RF-AUD-02/03 y RNF-PRV-01. |
+| Auditoría administrativa / RF-AUD-01/02 | 🟢 IV, 100% funcional | RF-AUD-01 conserva evidencia manual y focalizada; RF-AUD-02 pasó 16 pruebas focalizadas (0 fallidas; un warning no bloqueante) sobre eventos, consulta auditada, retención, revocación y append-only. DEC-08/RNF-PRV-01 y aprobación para producción siguen pendientes. |
 | Buscador global | 🟢 RF-BUS-01 y RF-BUS-02 cerrados (IV, 100%) | 83 pruebas focalizadas validan autorización por categoría, concesiones (titular, vigencia, revocación y alcance), ficha directa y exportación ZIP limitada; build frontend aprobado. El listado administrativo independiente de usuarios continúa bajo RF-USU. No se realizó recorrido manual de navegador. |
 | Seguridad y aislamiento de datos | 🟡 Parcial; RNF-SEG-01 IV/100%, RF-SEG-02 al 95% | Las pruebas focalizadas del 20-11 (254) incluyen tenants y rol/RLS en PostgreSQL aislado con `NOBYPASSRLS`. El usuario confirmó roles separados, RLS efectivo con roles reales y el recorrido manual Empresa A/B, `contract_admin`, archivos, exportaciones y concesión ADMIN. Falta el inventario de otras lecturas sensibles; Compose de desarrollo conserva rol elevado. |
 | Ajustes de negocio ADMIN | 🟢 Implementado | UF/vigencia/fuente, CAC, margen bruto y objetivo de churn son persistentes; solo ADMIN puede modificarlos, motivo obligatorio y auditoría con antes/después. Migración 17; suites focalizadas 86 aprobadas y build frontend correcto. La fuente UF es manual. |

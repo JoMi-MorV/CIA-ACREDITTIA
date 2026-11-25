@@ -44,6 +44,14 @@ def test_minimizar_metadata_redacta_campos_de_secreto():
     assert "persona@empresa.cl" not in str(resultado)
 
 
+def test_consulta_de_auditoria_global_requiere_admin(app_cliente, empresa_a):
+    respuesta = app_cliente.get(
+        f"{API}/admin/audit", headers=empresa_a["headers"])
+
+    assert respuesta.status_code == 403
+    assert respuesta.json()["error"]["code"] == "SOLO_ADMIN"
+
+
 def test_consulta_de_auditoria_se_redacta_y_deja_traza(
         app_cliente, admin, motor_admin):
     import json

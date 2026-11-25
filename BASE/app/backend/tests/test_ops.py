@@ -1176,3 +1176,23 @@ def test_revocacion_admin_sin_empresa_audita_cambios(
         and item["descripcion"] == "Acceso de usuario revocado por administración"
     ]
     assert len(eventos_revocacion) == 1
+
+
+def test_revocacion_admin_invalida_sesion_y_refresh(
+        app_cliente, admin, empresa_a):
+    respuesta = app_cliente.post(
+        f"{API}/admin/users/{empresa_a['user_id']}/revoke",
+        headers=admin["headers"],
+        json={"motivo": "Revocación administrativa"},
+    )
+    assert respuesta.status_code == 200, respuesta.text
+
+    sesion = app_cliente.get(
+        f"{API}/auth/me", headers=empresa_a["headers"])
+    assert sesion.status_code == 401
+
+    refresh = app_cliente.post(
+        f"{API}/auth/refresh",
+        json={"refresh_token": empresa_a["refresh_token"]},
+    )
+    assert refresh.status_code == 401

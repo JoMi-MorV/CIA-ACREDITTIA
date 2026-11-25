@@ -1,8 +1,8 @@
 # Resumen de requisitos ADMIN
 
 **Corte ADMIN:** 25 de noviembre de 2026  
-**Base documental:** SRS versión 1.14, GAP, `VALIDACION_ACTUAL.md` y el [cronograma de cierre de 2 semanas](CRONOGRAMA_CIERRE_PRODUCCION.md).
-**Propósito:** resumir el estado técnico de las ocho prioridades ADMIN, distinguir lo implementado de lo validado y proponer criterios concretos para revisar su cierre.
+**Base documental:** SRS versión 1.16, GAP, `VALIDACION_ACTUAL.md` y el [cronograma de cierre de 2 semanas](CRONOGRAMA_CIERRE_PRODUCCION.md).
+**Propósito:** resumir el estado técnico de las ocho prioridades ADMIN, distinguir lo implementado de lo validado y describir el alcance y las brechas restantes.
 
 Este documento es una guía de revisión, no una aceptación contractual ni una certificación de producción. Los estados reflejan los requisitos y la evidencia descritos en el [SRS](SRS.md) y en [VALIDACION_ACTUAL.md](VALIDACION_ACTUAL.md). `IV` significa implementado y validado dentro del alcance probado; `ISV`, implementado sin validación completa; `PAR`, parcial; `COR`, requiere corrección; y `PEN`, pendiente. Los porcentajes estimados del SRS no equivalen a porcentaje de cumplimiento validado.
 
@@ -42,6 +42,16 @@ evidencia manual registrada verificó `/login` y el rechazo anónimo de una ruta
 protegida de API. RF-SEG-03 queda IV/100% dentro de este alcance; Seguridad y
 aislamiento en 98,8%, ADMIN en 90,8% y la suma SRS en 3.288/37 (88,9%).
 P0/P1/P2: 95,0% / 86,3% / 89,2%. No acredita preparación productiva.
+
+**Actualización 25-11-2026 — RF-AUD-02:** la revisión estática confirma en el
+código minimización y correlación de eventos de autenticación, consulta global
+ADMIN auditada, retención técnica de 12 meses, revocación administrativa
+registrada por acción y protección append-only con purga controlada. Se acepta
+no exigir un evento por cada sesión ni una cadena criptográfica. RF-AUD-02 queda
+IV/100% para el alcance funcional actual; pasaron 16 pruebas focalizadas, con
+un warning no bloqueante. Auditoría y trazabilidad sube a 100,0%, el promedio ADMIN a 92,0% y
+la cobertura SRS a 3.318/37 (89,7%); P0/P1/P2: 95,0% / 87,7% / 89,2%. Esto no
+cierra la aprobación de DEC-08/RNF-PRV-01 para producción con datos reales.
 
 **Adición 23-11-2026 — planes y servicios:** ADMIN ahora ve una columna
 informativa con el plan de la empresa en cada cuenta de Usuarios, roles y
@@ -106,12 +116,12 @@ producción.
 | 4 | Métricas SaaS | **86,7%** | **PAR** — RF-MET-01/03 con pendientes; RF-MET-02 implementado y probado | Salud muestra el tiempo activo medido de RF-MET-02; revisar definiciones/series y distinguir documentos únicos de revisiones IA. |
 | 5 | Alertas y salud de clientes | **83,3%** | **Mixto:** RF-SAL-01 **PAR**; RF-SAL-02 **ISV**; RF-SAL-03 **ISV** | Promedio de RF-SAL-01 (75%), RF-SAL-02 (80%) y RF-SAL-03 (95%). El usuario confirma reintentos y alertas manualmente; escenarios y umbrales no detallados, porcentajes sin recalcular. Siguen brechas de riesgos de clientes y totales/paginación. |
 | 6 | Usuarios, roles y permisos | **77,5%** | **PAR** — RF-USU-01/02 | El listado ADMIN pagina usuarios y muestra el plan de la empresa como dato informativo; los cambios de alcance invalidan sesiones. El portal permite convertir `company` en `contract_admin` si queda otro `company` activo e invita cuentas nuevas con rol y contrato mediante activación por correo. Sigue pendiente la transferencia de cuentas existentes entre empresas, el historial completo de acceso y la validación integral. |
-| 7 | Auditoría y trazabilidad | **90,0%** | **RF-AUD-01 IV/P0 (100%); RF-AUD-02/03** | RF-AUD-01 quedó al 100% tras la confirmación manual de valores anterior/nuevo, actor, fecha, objeto, resultado y motivo en permisos/roles, estados y pausas. RF-AUD-02/03 conservan pendientes de integridad, retención y autorización/exportación. |
+| 7 | Auditoría y trazabilidad | **100,0%** | **RF-AUD-01/02/03 al 100% funcional en sus alcances acordados** | RF-AUD-02 cuenta con revisión de eventos, retención, acceso ADMIN auditado, revocación administrativa por acción y protección append-only; 16 pruebas focalizadas pasaron, con un warning no bloqueante. Producción y revisión de históricos permanecen bajo RNF-PRV-01/DEC-08. |
 | 8 | Seguridad y aislamiento | **98,8%** | **RF-SEG-01 IV (100%)**; RF-SEG-02 PAR (95%); RF-SEG-03 IV (100%, demo pública temporal); RNF-SEG-01 IV (100%) | El túnel público funciona y la evidencia registrada cubre `/login` y el rechazo anónimo de API; RF-SEG-02 conserva el inventario de otras lecturas sensibles. |
 
 ### Estimación global del corte
 
-**Avance funcional ADMIN estimado: 90,8% (91% redondeado)**. Incluye la
+**Avance funcional ADMIN estimado: 92,0% (92% redondeado)**. Incluye la
 actualización de RF-BUS-01 y RF-BUS-02 al 100%, RF-SEG-03 al 100% en el alcance
 de desarrollo con ngrok y los
 avances documentados de salud, auditoría, privacidad, respaldos e integraciones. No hay
@@ -119,17 +129,17 @@ ponderaciones acordadas por criticidad o esfuerzo. No es porcentaje de pruebas
 aprobadas, aceptación contractual ni preparación para producción.
 
 La cobertura estimada actual de los 37 requisitos (29 funcionales y 8 no funcionales)
-es **88,9% (89% redondeado)** (`3288 / 37`) tras cerrar RF-SEG-01, RF-CLI-09,
-RNF-REP-01 y RF-AUD-01 en sus alcances acordados.
+es **89,7% (90% redondeado)** (`3318 / 37`) tras cerrar RF-SEG-01, RF-CLI-09,
+RNF-REP-01, RF-AUD-01 y RF-AUD-02 en sus alcances acordados.
 La suma anterior publicada
 (`2888`) no coincidía con los valores de las 37 fichas; la suma previa vigente
 era 2958 (79,9%) antes del botón de autoconcesión. Este es el porcentaje de avance de código más
 amplio que se puede reportar con el inventario actual del SRS; no incluye una
 ponderación aprobada por esfuerzo ni convierte criterios pendientes en
 completados. No se asigna un porcentaje de «listo para producción con datos
-sensibles»: los bloqueos P0 siguen abiertos, incluidos DEC-08, permisos por
-categoría/recurso, auditoría integral y evidencia de aislamiento/mínimo
-privilegio en un entorno equivalente a producción.
+sensibles»: siguen abiertos DEC-08, permisos por categoría/recurso, revisión de
+históricos y evidencia de aislamiento/mínimo privilegio en un entorno equivalente
+a producción.
 
 La nueva cifra combina estimaciones documentadas por requisito con evidencia
 de pruebas y ejecución local hasta el 14-11-2026; no es una medición de líneas de
@@ -311,28 +321,24 @@ que la prioridad Métricas SaaS sigue PAR y su 60% histórico no se recalcula.
 
 ## 7. Auditoría y trazabilidad
 
-**Estado:** PAR — RF-AUD-01, RF-AUD-02 y RF-AUD-03.
+**Estado:** 100% funcional en los alcances acordados — RF-AUD-01/02/03.
 
 **Lo que hace hoy**
 
-- Hay eventos de actividad y auditoría para operaciones seleccionadas; la creación global de faenas es consultable.
-- La consola de cambios de permisos registra actor, motivo y valores anteriores/nuevos para rol/empresa/contrato; la emisión de URL documental requiere motivo. La cobertura de otras operaciones sigue parcial.
-- `last_login_at` y refresh tokens existen, pero no hay historial completo consultable de ingreso, fallo, cierre y revocación.
-- La cobertura de catálogos y eliminaciones es incompleta; algunos borrados se registran con semántica de actualización.
-- Reportes/exportaciones no tienen justificación uniforme, y lecturas de metadatos sensibles no se auditan de manera integral en todos los handlers revisados.
+- `auth.py` persiste ingresos exitosos/fallidos, cierres, rotaciones y reutilización de refresh revocado, correlacionados por sesión y sin guardar contraseñas ni tokens.
+- `/admin/audit` permite filtrar el historial global y está restringido a ADMIN; la consulta también deja una traza de auditoría.
+- La revocación administrativa invalida las sesiones mediante `auth_version` y revoca refresh tokens activos. Se acepta un evento por acción con actor y usuario afectado; no se exige un evento separado por sesión.
+- `ops_retencion` aplica 12 meses a `actividad`. La base impide UPDATE/DELETE ordinarios; la purga de retención está limitada a una función/rol controlado. No se exige una cadena criptográfica.
+- Los cambios administrativos registran actor, motivo y valores anteriores/nuevos en los campos acordados. La exportación de negocio se mantiene bajo RF-AUD-03/DEC-11.
 - DEC-11 acuerda exportación ZIP con un CSV por tipo de entidad en `/datos` y archivos en `/archivos/<tipo>/<id>/`, con nombre saneado y ruta en el CSV; incluye relaciones por defecto con opción de excluir categorías, motivo obligatorio y descarga inmediata sin conservar el paquete después de transferirlo. No hay topes funcionales; si falla, se cancela y borra el paquete incompleto, sin reintento automático, con opción de iniciar uno manual. Debe excluir secretos y auditarse por recurso. Viabilidad ante grandes volúmenes y pruebas de autorización/transferencia pendientes.
 
-**Sugerencias y criterios a considerar**
+**Pendiente fuera del cierre funcional**
 
-1. Acordar catálogo de acciones auditables y campos: actor, sujeto afectado, operación, recurso, tenant/contrato, fecha UTC, resultado y motivo cuando aplique.
-2. Registrar valores anteriores/nuevos para cambios de permisos sin almacenar contraseñas, tokens u otros secretos.
-3. Diferenciar inequívocamente creación, actualización, eliminación física, desactivación, revocación y reactivación.
-4. Incorporar eventos de autenticación exitosos/fallidos, cierre y revocación, correlacionados con sesión sin guardar credenciales.
-5. Clasificar datos sensibles y definir cuándo se requiere motivo para lectura, URL, descarga o exportación.
-6. Diferenciar solicitud de URL/generación de exportación de transferencia efectiva; para DEC-11 validar autorización por entidad y archivo, manejo de fallos/limpieza y determinar la evidencia de almacenamiento necesaria para acreditar una descarga.
-7. Aplicar los plazos acordados en DEC-08 —auditoría 12 meses, logs y telemetría identificable 90 días, métricas agregadas no identificables 12 meses— y auditar las consultas de auditoría antes de producción.
+- Obtener aprobación de aplicabilidad de DEC-08 antes de datos reales y verificar fuentes externas como Log Analytics.
+- Inventariar y documentar el tratamiento de históricos antes del go-live. Esto permanece en RNF-PRV-01 y no invalida el cierre funcional de RF-AUD-02.
+- Se ejecutaron 16 pruebas focalizadas (0 fallidas; un warning no bloqueante) en `tests/test_auth.py`, `tests/test_privacidad.py`, `tests/test_operacion.py` y `tests/test_ops.py`; el comando y los casos están en `VALIDACION_ACTUAL.md`.
 
-**Para considerar el punto validado:** pruebas por operación que verifiquen actor/recurso/alcance/resultado, registro consultable incluso para actores sin empresa cuando corresponda, y ausencia de secretos/PII innecesaria.
+**Criterio de cierre funcional:** historial persistente y minimizado; consulta global autorizada y auditada; retención de 12 meses; protección append-only con purga controlada; revocación administrativa por acción con actor y usuario afectado. Este cierre no representa aprobación legal ni preparación productiva.
 
 ## 8. Seguridad y aislamiento de datos
 

@@ -856,6 +856,45 @@ integridad, revocación administrativa, acceso autorizado y aislamiento de la
 consulta conforme a DEC-08. Las pruebas no modifican por sí mismas las
 decisiones legales o contractuales pendientes.
 
+### Actualización de alcance — 25 de noviembre de 2026
+
+La conclusión anterior corresponde al estado y evidencia del 4-11-2026. La
+revisión estática posterior confirma que el código ahora implementa:
+
+- Consulta global restringida a ADMIN, con traza de cada consulta.
+- Retención técnica de 12 meses sobre `actividad`, mediante
+  `ops_podar_privacidad()` y el job `ops_retencion`.
+- Protección append-only contra UPDATE/DELETE ordinarios; la excepción queda
+  limitada a la purga controlada por la función/rol de retención.
+- Revocación administrativa mediante incremento de `auth_version` y revocación
+  de refresh tokens activos. La acción se audita con actor y usuario afectado.
+
+Se acuerda para el cierre funcional aceptar un evento por acción administrativa
+en lugar de un evento `auth_session_revoked` por cada sesión, y aceptar
+append-only con purga controlada sin exigir integridad criptográfica.
+
+Validación focalizada ejecutada desde `BASE/app/backend` el 25-11-2026:
+
+Se ejecutó `python -m pytest -q` con estos selectores:
+
+- `tests/test_auth.py::test_login_audita_sesion_sin_guardar_credenciales`
+- `tests/test_auth.py::test_login_credenciales_invalidas`
+- `tests/test_auth.py::test_refresh_rota_el_token`
+- `tests/test_auth.py::test_logout_revoca_el_refresh`
+- `tests/test_privacidad.py`
+- `tests/test_operacion.py::test_la_actividad_es_inmutable`
+- `tests/test_ops.py::test_todo_el_router_exige_admin`
+- `tests/test_ops.py::test_revocacion_admin_sin_empresa_audita_cambios`
+- `tests/test_ops.py::test_revocacion_admin_invalida_sesion_y_refresh`
+
+Resultado: **16 aprobadas, 0 fallidas**, con un warning de deprecación de
+Starlette/httpx. La suite ejercita eventos/minimización, login fallido,
+rotación/logout, redacción y traza de consulta, retención, append-only,
+rechazo de la consulta global para usuarios no ADMIN, autorización ADMIN del
+router, revocación administrativa (incluida invalidación del access token y
+refresh token) y registro de la acción. La aprobación de producción, Log
+Analytics y el tratamiento de históricos siguen sujetos a DEC-08/RNF-PRV-01.
+
 ## Regresiones focalizadas de salud operacional — 3 de noviembre de 2026, 19:40 -03:00
 
 Se añadieron cinco regresiones a `tests/test_ops.py`: heartbeat vencido seguido
