@@ -1,7 +1,7 @@
 # Resumen de requisitos ADMIN
 
-**Corte ADMIN:** 23 de noviembre de 2026  
-**Base documental:** SRS versión 1.11, GAP, `VALIDACION_ACTUAL.md` y el [cronograma de cierre de 2 semanas](CRONOGRAMA_CIERRE_PRODUCCION.md).
+**Corte ADMIN:** 25 de noviembre de 2026  
+**Base documental:** SRS versión 1.14, GAP, `VALIDACION_ACTUAL.md` y el [cronograma de cierre de 2 semanas](CRONOGRAMA_CIERRE_PRODUCCION.md).
 **Propósito:** resumir el estado técnico de las ocho prioridades ADMIN, distinguir lo implementado de lo validado y proponer criterios concretos para revisar su cierre.
 
 Este documento es una guía de revisión, no una aceptación contractual ni una certificación de producción. Los estados reflejan los requisitos y la evidencia descritos en el [SRS](SRS.md) y en [VALIDACION_ACTUAL.md](VALIDACION_ACTUAL.md). `IV` significa implementado y validado dentro del alcance probado; `ISV`, implementado sin validación completa; `PAR`, parcial; `COR`, requiere corrección; y `PEN`, pendiente. Los porcentajes estimados del SRS no equivalen a porcentaje de cumplimiento validado.
@@ -21,12 +21,13 @@ frontend y revisión visual confirmada por el usuario. El 14-11-2026 RF-SEG-02 s
 el botón ADMIN de autoconcesión por empresa; 88 pruebas focalizadas y el build
 frontend pasaron. El usuario confirmó el recorrido UI/API completo y que queda
 auditado, por lo que RF-SEG-02 sube a 95%; revisar otras lecturas sensibles y
-las credenciales del despliegue sigue pendiente. El promedio vigente de las ocho prioridades ADMIN es **89,7% (90%
+las credenciales del despliegue sigue pendiente. En ese corte, el promedio de
+las ocho prioridades ADMIN era **89,7% (90%
 redondeado)** y la cobertura media de los 37 requisitos SRS es **87,9% (88%
 redondeado)**, tras la verificación manual de auditoría. RNF-SEG-01 alcanza
 IV/100% según la confirmación de roles, denegaciones y secretos en el entorno
-destino. RNF-REC-01 alcanza 100% para su ciclo funcional local.
-Ninguna cifra mide preparación productiva.
+destino. RNF-REC-01 alcanza 100% para su ciclo funcional local. Ninguna cifra
+mide preparación productiva.
 
 El 20-11-2026 el usuario confirmó el recorrido multiempresa, la auditoría de
 cambios de permisos/roles, estados y pausa/reanudación, además de reintentos y
@@ -35,6 +36,13 @@ promedio ADMIN de 89,3% a **89,7%**. La suma de las 37 fichas aumenta de 3.243 a
 3.253 puntos (**87,9%**). Los porcentajes de RF-SAL-02/03 no se recalculan
 hasta detallar los escenarios/umbrales de las verificaciones operativas.
 
+**Actualización 25-11-2026 — RF-SEG-03:** el usuario acepta ngrok público para
+la demo temporal con datos sintéticos y confirmó que el túnel funciona. La
+evidencia manual registrada verificó `/login` y el rechazo anónimo de una ruta
+protegida de API. RF-SEG-03 queda IV/100% dentro de este alcance; Seguridad y
+aislamiento en 98,8%, ADMIN en 90,8% y la suma SRS en 3.288/37 (88,9%).
+P0/P1/P2: 95,0% / 86,3% / 89,2%. No acredita preparación productiva.
+
 **Adición 23-11-2026 — planes y servicios:** ADMIN ahora ve una columna
 informativa con el plan de la empresa en cada cuenta de Usuarios, roles y
 permisos, ordenable por ese dato. La nueva página de empresa permite ver
@@ -42,8 +50,9 @@ catálogo, suscripción/estado e iniciar trial o cambiar/reactivar plan. La
 prueba focalizada de usuarios ADMIN
 pasó 7/7 y el build frontend pasó; falta un recorrido manual/end-to-end de la
 página. Esta funcionalidad no forma parte de los criterios de RF-USU-01 ni de
-las 37 fichas; no cambia el promedio de Usuarios y permisos (**77,5%**), el
-promedio ADMIN (**89,7%**) ni el avance global SRS (**87,9%**).
+las 37 fichas; no modificó directamente el promedio de Usuarios y permisos
+(**77,5%**). En ese corte, el promedio ADMIN era 89,7% y el avance global SRS
+87,9%.
 
 La ampliación de Reportes del portal documentada el 14-10-2026 no forma parte
 de la estimación de las prioridades ADMIN.
@@ -98,18 +107,19 @@ producción.
 | 5 | Alertas y salud de clientes | **83,3%** | **Mixto:** RF-SAL-01 **PAR**; RF-SAL-02 **ISV**; RF-SAL-03 **ISV** | Promedio de RF-SAL-01 (75%), RF-SAL-02 (80%) y RF-SAL-03 (95%). El usuario confirma reintentos y alertas manualmente; escenarios y umbrales no detallados, porcentajes sin recalcular. Siguen brechas de riesgos de clientes y totales/paginación. |
 | 6 | Usuarios, roles y permisos | **77,5%** | **PAR** — RF-USU-01/02 | El listado ADMIN pagina usuarios y muestra el plan de la empresa como dato informativo; los cambios de alcance invalidan sesiones. El portal permite convertir `company` en `contract_admin` si queda otro `company` activo e invita cuentas nuevas con rol y contrato mediante activación por correo. Sigue pendiente la transferencia de cuentas existentes entre empresas, el historial completo de acceso y la validación integral. |
 | 7 | Auditoría y trazabilidad | **90,0%** | **RF-AUD-01 IV/P0 (100%); RF-AUD-02/03** | RF-AUD-01 quedó al 100% tras la confirmación manual de valores anterior/nuevo, actor, fecha, objeto, resultado y motivo en permisos/roles, estados y pausas. RF-AUD-02/03 conservan pendientes de integridad, retención y autorización/exportación. |
-| 8 | Seguridad y aislamiento | **90,0%** | **RF-SEG-01 IV (100%)**; RF-SEG-02 PAR (95%); RF-SEG-03 PAR (65%); RNF-SEG-01 IV (100%) | El usuario confirmó recorrido Empresa A/B, `contract_admin`, archivos, exportaciones y concesión ADMIN. RF-SEG-02 conserva el inventario de otras lecturas sensibles y validación del despliegue. |
+| 8 | Seguridad y aislamiento | **98,8%** | **RF-SEG-01 IV (100%)**; RF-SEG-02 PAR (95%); RF-SEG-03 IV (100%, demo pública temporal); RNF-SEG-01 IV (100%) | El túnel público funciona y la evidencia registrada cubre `/login` y el rechazo anónimo de API; RF-SEG-02 conserva el inventario de otras lecturas sensibles. |
 
 ### Estimación global del corte
 
-**Avance funcional ADMIN estimado: 89,7% (90% redondeado)**. Incluye la
-actualización de RF-BUS-01 y RF-BUS-02 al 100%, RF-SEG-03 al 65% y los
+**Avance funcional ADMIN estimado: 90,8% (91% redondeado)**. Incluye la
+actualización de RF-BUS-01 y RF-BUS-02 al 100%, RF-SEG-03 al 100% en el alcance
+de desarrollo con ngrok y los
 avances documentados de salud, auditoría, privacidad, respaldos e integraciones. No hay
 ponderaciones acordadas por criticidad o esfuerzo. No es porcentaje de pruebas
 aprobadas, aceptación contractual ni preparación para producción.
 
 La cobertura estimada actual de los 37 requisitos (29 funcionales y 8 no funcionales)
-es **87,9% (88% redondeado)** (`3253 / 37`) tras cerrar RF-SEG-01, RF-CLI-09,
+es **88,9% (89% redondeado)** (`3288 / 37`) tras cerrar RF-SEG-01, RF-CLI-09,
 RNF-REP-01 y RF-AUD-01 en sus alcances acordados.
 La suma anterior publicada
 (`2888`) no coincidía con los valores de las 37 fichas; la suma previa vigente
@@ -326,7 +336,8 @@ que la prioridad Métricas SaaS sigue PAR y su 60% histórico no se recalcula.
 
 ## 8. Seguridad y aislamiento de datos
 
-**Estado:** RF-SEG-01 IV/100%; RF-SEG-02 PAR/95%; RF-SEG-03 PAR/65%;
+**Estado:** RF-SEG-01 IV/100%; RF-SEG-02 PAR/95%; RF-SEG-03 IV/100% para
+demo pública temporal con datos sintéticos;
 RNF-SEG-01 IV/100%.
 
 **Lo que hace hoy**
@@ -335,7 +346,12 @@ RNF-SEG-01 IV/100%.
 - Las pruebas focalizadas incluyen aislamiento. El usuario confirmó en el entorno destino roles separados y denegaciones; la configuración Compose de desarrollo aún usa superusuario PostgreSQL y no prueba ese entorno.
 - El alcance contractual se comprueba en la API según DEC-10; no se adopta una política RLS contractual independiente.
 - ADMIN conserva privilegio global; no hay flujo completo de acceso excepcional temporal/limitado a documentos sensibles.
-- RNF-SEG-01 está validado para el entorno destino. RF-SEG-01 queda cerrado; RF-SEG-02 y RF-SEG-03 conservan sus pendientes.
+- RNF-SEG-01 está validado para el entorno destino. RF-SEG-01 queda cerrado;
+  RF-SEG-02 conserva el inventario de lecturas sensibles pendiente. RF-SEG-03
+  cubre la demo pública temporal ngrok con datos sintéticos; el usuario
+  confirmó que el túnel funciona y la evidencia manual registrada verificó
+  `/login` y el rechazo anónimo de una ruta protegida de API. La preparación
+  productiva queda fuera de este requisito.
 - Emisión de URL documental requiere motivo y controles de pertenencia, pero la auditoría de toda lectura sensible/exportación sigue parcial.
 
 **Sugerencias y criterios a considerar**
@@ -347,6 +363,9 @@ RNF-SEG-01 IV/100%.
 5. Exigir actor, cuándo, recurso y motivo en accesos excepcionales; probar autorización/denegación por API.
 6. Revisar dashboards, logs, respuestas, reportes y exportaciones para retirar RUT, documentos y PII que no sean necesarios.
 7. Validar secretos, recuperación de cuenta, semillas demo y migraciones en configuración de producción aislada.
+8. RF-SEG-03 se cerró en el alcance acordado con login y rechazo de API
+   anónima verificados; mantener solo datos sintéticos y detener el túnel al
+   terminar.
 
 **Criterio RNF-SEG-01:** el usuario confirmó roles de mínimo privilegio separados, RLS efectivo bajo roles reales, denegaciones multiempresa/contrato en el entorno destino, secretos fuera de código/configuración pública, y cumplimiento de la condición DEC-10 (RLS contractual no adoptado o validado con pruebas SQL directas). Este RNF queda IV/100%; los pendientes de acceso sensible, auditoría y revisión de privacidad corresponden a otros requisitos.
 

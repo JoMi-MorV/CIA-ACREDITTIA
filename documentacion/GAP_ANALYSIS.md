@@ -1,18 +1,18 @@
 # Gap Analysis — Acredittia
 
-**Corte vigente:** 23-11-2026  
+**Corte vigente:** 25-11-2026  
 **Estado:** funcionalmente avanzado; **NO-GO** para producción con datos reales.
 
 Este análisis refleja la implementación y la evidencia documentada en el SRS
-v1.11 y en [VALIDACION_ACTUAL.md](./VALIDACION_ACTUAL.md). Distingue entre
+v1.14 y en [VALIDACION_ACTUAL.md](./VALIDACION_ACTUAL.md). Distingue entre
 funcionalidad local, validación en el entorno destino y aceptación para
 producción; una no sustituye a las otras.
 
 ## 1. Resumen ejecutivo
 
-- Cobertura estimada actual de las 37 fichas SRS: **87,9% (3.253/37)**.
-- Promedio estimado de las ocho prioridades ADMIN: **89,7%**.
-- Promedios estimados P0/P1/P2: **91,1% / 86,3% / 89,2%**.
+- Cobertura estimada actual de las 37 fichas SRS: **88,9% (3.288/37)**.
+- Promedio estimado de las ocho prioridades ADMIN: **90,8%**.
+- Promedios estimados P0/P1/P2: **95,0% / 86,3% / 89,2%**.
 - Son promedios documentales de avance por requisito, no un porcentaje
   ponderado del producto, aceptación contractual ni preparación productiva.
 - El proyecto sigue **NO-GO** hasta cerrar los bloqueos P0 de privacidad,
@@ -37,9 +37,10 @@ producción; una no sustituye a las otras.
   iniciar trial o cambiar/reactivar plan; ADMIN ve el plan por empresa como
   dato informativo. No se conectó una pasarela, no se aplican los límites del
   catálogo y la página no incluye cancelación ni facturas. Es una adición fuera
-  de las 37 fichas SRS, por lo que no cambia el avance **87,9%**, el promedio
-  ADMIN **89,7%** ni los promedios P0/P1/P2. El build y la prueba focalizada de
-  la columna ADMIN pasaron; la interacción completa de la página aún no tiene
+  de las 37 fichas SRS, por lo que en el corte del 23-11-2026 no cambiaba el
+  avance (**88,7%**) ni el promedio ADMIN (**90,6%**); P0/P1/P2 tampoco
+  cambiaban. El build y la prueba focalizada de la columna ADMIN pasaron; la
+  interacción completa de la página aún no tiene
   recorrido manual/end-to-end documentado.
 - El PDF ADMIN ahora usa gráficos circulares para estados, líneas para series
   mensuales y barras horizontales para comparaciones. Las dos pruebas
@@ -64,9 +65,9 @@ inflar el avance.
 | Alertas y salud | 83,3% | Promedio de `RF-SAL-01` 75%, `RF-SAL-02` 80% y `RF-SAL-03` 95%; el usuario reporta verificación manual de reintentos y alertas. | Los escenarios y umbrales de esa verificación no están detallados; siguen pendientes totales/paginación y trazabilidad operativa. Se mantienen los porcentajes de RF-SAL-02/03 hasta reconciliar esos criterios. |
 | Usuarios, roles y permisos | 77,5% | Promedio de `RF-USU-01` 75% y `RF-USU-02` 80%; gestión e invitaciones para cuentas nuevas dentro de una empresa. | Validar integralmente permisos y lecturas sensibles. La transferencia de una cuenta existente entre empresas queda fuera de la primera salida. |
 | Auditoría y trazabilidad | 90,0% | Promedio de `RF-AUD-01` 100%, `RF-AUD-02` 70% y `RF-AUD-03` 100% funcional local. | Completar retención, integridad, acceso y revocación administrativa de auditoría en los requisitos correspondientes. |
-| Seguridad y aislamiento | 90,0% | Promedio de `RF-SEG-01` 100%, `RF-SEG-02` 95%, `RF-SEG-03` 65% y `RNF-SEG-01` 100%. | Completar inventario de lecturas sensibles, RF-SEG-02 y validación de producción RF-SEG-03. |
+| Seguridad y aislamiento | 98,8% | Promedio de `RF-SEG-01` 100%, `RF-SEG-02` 95%, `RF-SEG-03` 100% en la demo pública temporal y `RNF-SEG-01` 100%. | Completar el inventario de lecturas sensibles de RF-SEG-02. El usuario confirmó el túnel operativo y el smoke test acreditó login/API protegida en el alcance de desarrollo; la preparación productiva sigue pendiente en el NO-GO general. |
 
-El promedio ADMIN de 89,7% y el promedio SRS de 87,9% no son métricas de
+El promedio ADMIN de 90,8% y el promedio SRS de 88,9% no son métricas de
 preparación para producción. No hay un modelo de ponderación por esfuerzo,
 criticidad o aceptación aprobado.
 
@@ -81,13 +82,16 @@ criticidad o aceptación aprobado.
    demostrar retención por fuente (incluido Log Analytics) y documentar el
    inventario/tratamiento de históricos. No borrar históricos antes de aprobar
    su disposición.
-2. **Autorización y mínimo privilegio (`RF-SEG-01/02/03`).** `RNF-SEG-01` está
+2. **Autorización y mínimo privilegio (`RF-SEG-01/02`).** `RNF-SEG-01` está
    validado en el entorno destino; el Compose local de desarrollo conserva un
    rol elevado. El 20-11 pasó la matriz automatizada de tenants/RLS en la suite
    aislada, y el usuario reportó el recorrido manual end-to-end de empresas A/B,
    cambios, archivos, exportaciones, `contract_admin` y concesión ADMIN. Completar
-   el inventario de otras lecturas sensibles y validar roles, secretos y semillas
-   en el despliegue real.
+   el inventario de otras lecturas sensibles y validar los controles del
+   despliegue real. `RF-SEG-03` se limita a la demo pública temporal ngrok con
+   datos sintéticos. El usuario confirmó que el túnel ya funciona y la evidencia
+   manual registrada verificó `/login` y el rechazo anónimo de una ruta
+   protegida. No usar datos reales; producción sigue en NO-GO.
 3. **Auditoría (`RF-AUD-01/02`).** El 20-11 el usuario confirmó manualmente la
    auditoría de permisos/roles, estados y pausa/reanudación, incluidos valores
    anterior/nuevo, actor, fecha, objeto, resultado y motivo. RF-AUD-01 sube a

@@ -9,6 +9,11 @@ Este procedimiento es exclusivamente para una **demo con datos sintéticos**.
 No lo uses para producción ni cargues información real de empresas, personas,
 documentos o credenciales.
 
+> **Alcance aceptado:** el túnel ngrok es público para esta demo temporal.
+> Cualquier persona que conozca la URL puede abrir el frontend; el login de la
+> aplicación sigue activo, pero esto no convierte el túnel en privado. Usa solo
+> datos sintéticos y detén el túnel al terminar la demo.
+
 > **Seguridad:** un token de ngrok fue compartido anteriormente. Revócalo en
 > el dashboard oficial de ngrok y genera uno nuevo antes de continuar. Nunca
 > pegues tokens, contraseñas o secretos en el chat ni los guardes en archivos
@@ -26,9 +31,9 @@ documentos o credenciales.
 - Editor de texto para modificar `.env`.
 
 El Compose de demostración utiliza configuración de desarrollo, cuentas y
-semillas conocidas. La URL del túnel es pública para quien la conozca; el login
-de Acredittia sigue activo, pero ngrok no agrega Basic Auth ni otro diálogo de
-credenciales.
+semillas conocidas. Al abrir la URL ngrok se muestra el login de Acredittia.
+El token de ngrok autentica el agente contra ngrok; no es una credencial para
+acceder a la web.
 
 ## 2. Abrir la carpeta `BASE/app`
 
@@ -198,15 +203,15 @@ iniciaron con `-d`, esto no los detiene.
 
 ## 5. Abrir y probar la aplicación
 
-Abre en el navegador:
+Abre el dominio ngrok en el navegador. Debería aparecer el login de Acredittia:
 
 ```text
 https://unequal-unsolved-twitch.ngrok-free.dev
 ```
 
-Debe aparecer el login de Acredittia, sin un segundo diálogo de autenticación
-de ngrok. Inicia sesión con una cuenta válida configurada para tu entorno demo.
-No compartas cuentas demo conocidas.
+Inicia sesión con una cuenta válida configurada para tu entorno demo. El acceso
+al frontend es público para cualquiera que conozca la URL; no uses datos reales
+ni compartas la URL fuera de la demo.
 
 El servicio ngrok publica `web:3000`. Las llamadas de API se encaminan dentro
 de Compose; PostgreSQL no publica un puerto al host. Redis, API y el inspector
@@ -228,10 +233,8 @@ datos y archivos. No añadas `-v` si deseas conservar los datos de demostración
 
 - Si el token se comparte o aparece en registros/capturas, revócalo en ngrok,
   crea uno nuevo y actualiza `.env`.
-- Cualquier persona que conozca el enlace puede llegar al login de Acredittia.
-  Si necesitas impedir incluso el acceso a esa pantalla, configura una
-  protección en ngrok o limita el acceso desde su panel antes de compartir el
-  enlace.
+- No interpretes que una URL difícil de adivinar sea un control de acceso;
+  detén el túnel al finalizar la demo.
 - No uses datos reales: el Compose base usa configuración de desarrollo,
   semillas y cuentas demo conocidas.
 - Esta guía no configura un despliegue productivo. Producción requiere

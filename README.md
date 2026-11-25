@@ -2,12 +2,17 @@
 
 ## Estado actual verificado
 
-Actualizado al 23-11-2026; métricas de línea base reconciliadas con el SRS v1.11.
+Actualizado al 25-11-2026; métricas de línea base reconciliadas con el SRS v1.14.
 
-- Avance estimado vigente: **87,9%** para las 37 fichas SRS (`3.253 / 37`).
+- Avance estimado vigente: **88,9%** para las 37 fichas SRS (`3.288 / 37`).
   El promedio de las ocho áreas ADMIN, recalculado desde sus fichas asociadas,
-  es **89,7%**; P0/P1/P2: 91,1%, 86,3% y 89,2%. Son estimaciones de cobertura,
+  es **90,8%**; P0/P1/P2: 95,0%, 86,3% y 89,2%. Son estimaciones de cobertura,
   no aceptación integral ni preparación productiva.
+- RF-SEG-03 queda **IV/100% dentro del alcance temporal acordado**: el usuario
+  confirmó el túnel ngrok operativo; la evidencia manual registrada verificó
+  `/login` y el rechazo anónimo de una ruta protegida de API. Usar únicamente
+  datos sintéticos y detener el túnel al terminar; producción sigue fuera del
+  alcance y en estado NO-GO.
 - RF-AUD-01 sube de **90% a 100% IV/P0** tras la confirmación manual de cambios
   de permisos/roles, estados y pausa/reanudación con valores anterior/nuevo y
   metadatos de auditoría. El recorrido multiempresa también fue confirmado por
@@ -814,16 +819,17 @@ con enlaces previos. Las rutas Ops antiguas de Plataforma, Usuarios e
 Indicadores también redirigen a sus destinos Admin. `/admin` y la entrada Ops
 abren ahora el Dashboard global.
 
-## Cambios a la fecha — 23-11-2026
+## Cambios a la fecha — 25-11-2026
 
-El documento funcional vigente es el [SRS v1.11](documentacion/SRS.md). Esta
+El documento funcional vigente es el [SRS v1.14](documentacion/SRS.md). Esta
 sección resume los cambios relevantes y el estado conocido a la fecha; no
 sustituye los criterios, pendientes ni evidencias detallados en el SRS y la
 [validación actual](documentacion/VALIDACION_ACTUAL.md).
 
-**Resumen del corte:** la suma de las 37 fichas es **87,9% (3.253/37)** y el
-promedio simple de las ocho áreas ADMIN es **89,7%**; P0/P1/P2: 91,1%, 86,3%
-y 89,2%. Las cifras reflejan la verificación manual de RF-AUD-01 y no ponderan
+**Resumen del corte:** la suma de las 37 fichas es **88,9% (3.288/37)** y el
+promedio simple de las ocho áreas ADMIN es **90,8%**; P0/P1/P2: 95,0%, 86,3%
+y 89,2%. Las cifras incorporan RF-SEG-03 al 100% en el alcance temporal de la
+demo pública con datos sintéticos. No ponderan
 las áreas por tamaño. RF-CLI-09
 queda IV/100% en el alcance reducido aceptado; RF-AUD-03 queda IV/100% en
 alcance funcional local; RF-DAS-01 queda
