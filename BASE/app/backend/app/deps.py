@@ -3,20 +3,41 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
+from typing import Literal
 
 import jwt
-from fastapi import Depends, Header, HTTPException, Query
+from fastapi import Depends, Header, HTTPException, Query, Request
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import select
 
 from .config import settings
 from .database import auth_session, get_db, set_ctx
-from .models import AdminAccessGrant, User
+from .models import AdminAccessGrant, Suscripcion, User
 from .security import decode_access_token
 
 oauth2 = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login", auto_error=False)
+_METODOS_ESCRITURA = frozenset({"POST", "PUT", "PATCH", "DELETE"})
+_RUTAS_PERMITIDAS_EN_SOLO_LECTURA = frozenset({
+    ("POST", "/api/v1/suscripcion"),
+    ("POST", "/api/v1/suscripcion/solicitudes"),
+})
+GRACIA_MOROSA_DIAS = 7
+
+
+def acceso_suscripcion(
+        estado: str, periodo_actual_hasta: date | None,
+        hoy: date | None = None) -> Literal["completo", "solo_lectura"]:
+    hoy = hoy or date.today()
+    if estado == "cancelada":
+        return "solo_lectura" if (
+            periodo_actual_hasta is None or hoy > periodo_actual_hasta
+        ) else "completo"
+    if estado != "morosa" or periodo_actual_hasta is None:
+        return "completo"
+    dias = (hoy - periodo_actual_hasta).days
+    return "solo_lectura" if dias > GRACIA_MOROSA_DIAS else "completo"
 
 
 def err(status: int, code: str, message: str, details: list | None = None):
@@ -27,7 +48,10 @@ def err(status: int, code: str, message: str, details: list | None = None):
 
 
 # ------------------------------------------------------------------ usuario
-def get_current_user(token: str | None = Depends(oauth2)) -> User:
+def get_current_user(
+        request: Request,
+        token: str | None = Depends(oauth2),
+        db: Session = Depends(get_db)) -> User:
     """Resuelve el usuario y fija el contexto de tenant para el resto del request.
 
     Usa `auth_session()` porque leer `users` exige poder consultar sin tenant.
@@ -57,6 +81,28 @@ def get_current_user(token: str | None = Depends(oauth2)) -> User:
     # Contexto por defecto: la propia empresa del usuario. El admin lo ajusta
     # con X-Company-Id en get_company_id().
     set_ctx(company_id=user.company_id, is_admin=(user.role == "admin"), user_id=user.id)
+    if (
+        user.role in ("company", "contract_admin")
+        and user.company_id is not None
+        and request.method in _METODOS_ESCRITURA
+        and (request.method, request.url.path.rstrip("/"))
+        not in _RUTAS_PERMITIDAS_EN_SOLO_LECTURA
+    ):
+        suscripcion = db.scalar(select(Suscripcion).where(
+            Suscripcion.company_id == user.company_id))
+        if (
+            suscripcion is not None
+            and suscripcion.estado == "cancelada"
+            and acceso_suscripcion(
+                suscripcion.estado, suscripcion.periodo_actual_hasta,
+            ) == "solo_lectura"
+        ):
+            raise err(
+                403,
+                "SUSCRIPCION_SOLO_LECTURA",
+                "El período del servicio terminó. Reactiva la suscripción "
+                "para volver a operar.",
+            )
     return user
 
 

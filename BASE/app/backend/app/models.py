@@ -693,6 +693,24 @@ class Suscripcion(Base):
     plan: Mapped[Plan] = relationship()
 
 
+class SolicitudSuscripcion(Base):
+    __tablename__ = "solicitudes_suscripcion"
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    company_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"))
+    tipo: Mapped[str] = mapped_column(Text)
+    plan_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("planes.id", ondelete="RESTRICT"))
+    estado: Mapped[str] = mapped_column(Text, default="pendiente")
+    motivo: Mapped[str] = mapped_column(Text)
+    solicitado_por: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"))
+    solicitado_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=datetime.utcnow)
+    resuelto_por: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+    resuelto_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    motivo_resolucion: Mapped[str | None] = mapped_column(Text)
+
+
 class Factura(Base):
     __tablename__ = "facturas"
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)

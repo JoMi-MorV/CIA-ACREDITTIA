@@ -3,7 +3,9 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import { useRouter } from "next/navigation";
 import * as Api from "@/lib/cliente";
 import { INDUSTRIAS_EMPRESA } from "@/lib/tipos";
-import type { Empresa, EmpresaDetalle } from "@/lib/tipos";
+import type {
+  Empresa, EmpresaDetalle, SolicitudSuscripcion,
+} from "@/lib/tipos";
 import { Chip, ESTADO_LABEL, Spinner, useDialog } from "@/components/ui";
 import { Card, CardHead, InfoButton, Pill } from "@/components/ops/ui";
 
@@ -61,9 +63,12 @@ export default function EmpresasAdminPage() {
   const [detalle, setDetalle] = useState<EmpresaDetalle | null>(null);
   const [empresaExpandida, setEmpresaExpandida] = useState<string | null>(null);
   const [cargandoDetalle, setCargandoDetalle] = useState<string | null>(null);
+  const [solicitudesSuscripcion, setSolicitudesSuscripcion] = useState<SolicitudSuscripcion[]>([]);
+  const [resolviendoSolicitud, setResolviendoSolicitud] = useState<string | null>(null);
   const [autorizandoEmpresa, setAutorizandoEmpresa] = useState<string | null>(null);
   const [eliminandoInvitacion, setEliminandoInvitacion] = useState<string | null>(null);
   const [orden, setOrden] = useState<{ columna: ColumnaOrden; direccion: DireccionOrden } | null>(null);
+  const [solicitudesPendientes, setSolicitudesPendientes] = useState<SolicitudSuscripcion[]>([]);
   const solicitudDetalle = useRef(0);
   const empresasOrdenadas = useMemo(() => {
     if (!companies || !orden) return companies ?? [];
@@ -92,7 +97,16 @@ export default function EmpresasAdminPage() {
     Api.paginarTodo<Empresa>((page, pageSize) => Api.admin.empresas({ page, page_size: pageSize }))
       .then(setCompanies).catch((e) => setError(Api.mensajeError(e)));
   }, []);
-  useEffect(() => { cargar(); }, [cargar]);
+  const cargarSolicitudesPendientes = useCallback(() => {
+    Api.paginarTodo<SolicitudSuscripcion>((page, pageSize) =>
+      Api.admin.solicitudesSuscripcionPendientes({ page, page_size: pageSize }))
+      .then(setSolicitudesPendientes)
+      .catch((e) => setError(Api.mensajeError(e)));
+  }, []);
+  useEffect(() => {
+    cargar();
+    cargarSolicitudesPendientes();
+  }, [cargar, cargarSolicitudesPendientes]);
 
   const actuar = async (accion: () => Promise<string>) => {
     setError(""); setAviso("");
@@ -104,17 +118,25 @@ export default function EmpresasAdminPage() {
       solicitudDetalle.current += 1;
       setEmpresaExpandida(null);
       setDetalle(null);
+      setSolicitudesSuscripcion([]);
       setCargandoDetalle(null);
       return;
     }
     const solicitud = ++solicitudDetalle.current;
     setEmpresaExpandida(company.id);
     setDetalle(null);
+    setSolicitudesSuscripcion([]);
     setCargandoDetalle(company.id);
     setError("");
     try {
-      const resultado = await Api.admin.empresa(company.id);
-      if (solicitud === solicitudDetalle.current) setDetalle(resultado);
+      const [resultado, solicitudes] = await Promise.all([
+        Api.admin.empresa(company.id),
+        Api.admin.solicitudesSuscripcion(company.id),
+      ]);
+      if (solicitud === solicitudDetalle.current) {
+        setDetalle(resultado);
+        setSolicitudesSuscripcion(solicitudes.items);
+      }
     } catch (e) {
       if (solicitud === solicitudDetalle.current) setError(Api.mensajeError(e));
     } finally {
@@ -227,6 +249,47 @@ export default function EmpresasAdminPage() {
       setEliminandoInvitacion(null);
     }
   };
+  const resolverSolicitud = async (
+    company: Empresa,
+    solicitud: SolicitudSuscripcion,
+    decision: "aprobada" | "rechazada",
+  ) => {
+    const motivo = await dialog.prompt({
+      title: decision === "aprobada" ? "Autorizar solicitud" : "Rechazar solicitud",
+      message: decision === "aprobada"
+        ? `Indica el motivo de aprobación para la solicitud de ${company.nombre}.`
+        : `Indica el motivo de rechazo para la solicitud de ${company.nombre}.`,
+      inputLabel: "Motivo (mínimo 12 caracteres)",
+      minLength: 12,
+      maxLength: 240,
+    });
+    if (!motivo) return;
+
+    setResolviendoSolicitud(solicitud.id);
+    setError("");
+    setAviso("");
+    try {
+      await Api.admin.resolverSolicitudSuscripcion(
+        solicitud.id, decision, motivo);
+      const [detalleActualizado, solicitudes] = await Promise.all([
+        Api.admin.empresa(company.id),
+        Api.admin.solicitudesSuscripcion(company.id),
+      ]);
+      setDetalle(detalleActualizado);
+      setSolicitudesSuscripcion(solicitudes.items);
+      cargar();
+      cargarSolicitudesPendientes();
+      setAviso(decision === "rechazada"
+        ? "Solicitud rechazada. La decisión quedó auditada."
+        : solicitud.tipo === "regularizacion"
+          ? "Regularización autorizada. El estado visible quedó al día; las facturas se conservaron intactas."
+          : `Cambio a ${solicitud.plan?.nombre ?? "nuevo plan"} autorizado; se conservaron el estado y el período.`);
+    } catch (e) {
+      setError(Api.mensajeError(e));
+    } finally {
+      setResolviendoSolicitud(null);
+    }
+  };
   if (!companies) return error ? <p className="text-sm text-red-600">{error}</p> : <Spinner />;
   const pendientes = companies.filter((company) => company.status === "pending");
   const fmt = (value: number) => new Intl.NumberFormat("es-CL").format(value);
@@ -284,6 +347,54 @@ export default function EmpresasAdminPage() {
         }}>Rechazar</button>
       </div>)}
     </Card>}
+    {solicitudesPendientes.length > 0 && <section
+      aria-label="Autorizaciones pendientes"
+      aria-live="polite"
+      className="rounded-lg border p-4"
+      style={{ borderColor: "var(--ops-warn)", background: "var(--ops-warn-soft)" }}>
+      <div className="mb-3 flex items-center gap-3">
+        <Pill tono="warn">{solicitudesPendientes.length}</Pill>
+        <div>
+          <h2 className="text-sm font-semibold">Autorizaciones pendientes</h2>
+          <p className="ops-sub">Revisa y resuelve solicitudes de cambio de plan o regularización.</p>
+        </div>
+      </div>
+      <div className="space-y-2">
+        {solicitudesPendientes.map((solicitud) => {
+          const company = companies.find((item) => item.id === solicitud.company_id);
+          return <div key={solicitud.id}
+            className="flex flex-col gap-3 rounded-md border p-3 sm:flex-row sm:items-center"
+            style={{ borderColor: "var(--ops-line)", background: "var(--ops-card)" }}>
+            <div className="min-w-0 flex-1">
+              <p className="font-semibold">
+                {solicitud.empresa ?? company?.nombre ?? "Empresa"}
+              </p>
+              <p className="text-sm">
+                {solicitud.tipo === "cambio_plan"
+                  ? `Cambio de plan · ${solicitud.plan?.nombre ?? "Plan solicitado"}`
+                  : "Regularización de cuenta"}
+              </p>
+              <p className="ops-sub mt-1">{solicitud.motivo}</p>
+              {solicitud.solicitado_at && <p className="ops-sub mt-1">
+                Recibida {new Date(solicitud.solicitado_at).toLocaleString("es-CL")}
+              </p>}
+            </div>
+            {company ? <div className="flex shrink-0 gap-2">
+              <button className="ops-btn ops-btn-primary"
+                disabled={resolviendoSolicitud !== null}
+                onClick={() => void resolverSolicitud(company, solicitud, "aprobada")}>
+                {resolviendoSolicitud === solicitud.id ? "Procesando…" : "Autorizar"}
+              </button>
+              <button className="ops-btn ops-btn-ghost"
+                disabled={resolviendoSolicitud !== null}
+                onClick={() => void resolverSolicitud(company, solicitud, "rechazada")}>
+                Rechazar
+              </button>
+            </div> : <p className="ops-sub">No se encontró la empresa para resolver esta solicitud.</p>}
+          </div>;
+        })}
+      </div>
+    </section>}
     <Card>
       <CardHead titulo="Empresas (cuentas)" sub={`${companies.length} cuentas · sin RUT ni email en este listado`}
         info="Cada fila representa una empresa y muestra sus agregados operativos. «Uso 30 días» es la proporción de usuarios con actividad reciente; el estado de cuenta refleja pagos: al día (sin facturas impagas vencidas), en riesgo (una vencida impaga o trial vencido hace menos de 15 días) o moroso (dos o más vencidas impagas o más de 30 días de atraso). «No aplica» indica que no corresponde evaluar la cuenta." />
@@ -321,6 +432,13 @@ export default function EmpresasAdminPage() {
               onClick={() => void alternarDetalle(company)}>
               {empresaExpandida === company.id ? "Ocultar detalle" : "Detalle"}
             </button>
+              {solicitudesPendientes.filter((solicitud) =>
+                solicitud.company_id === company.id).length > 0 && (
+                <Pill tono="warn">
+                  {solicitudesPendientes.filter((solicitud) =>
+                    solicitud.company_id === company.id).length} pendiente(s)
+                </Pill>
+              )}
               {company.status === "approved" && <button
                 className="ops-btn ops-btn-ghost text-xs"
                 disabled={autorizandoEmpresa !== null}
@@ -357,6 +475,52 @@ export default function EmpresasAdminPage() {
                   <Dato label="Trabajadores" value={detalle.stats.personal.total} /><Dato label="Equipos" value={detalle.stats.equipos.total} />
                   <Dato label="Documentos correctos" value={detalle.stats.documentos.ok} /><Dato label="Pendientes" value={detalle.stats.documentos.falta} />
                   <Dato label="Vencidos" value={detalle.stats.documentos.venc} /><Dato label="Alertas activas" value={detalle.stats.alertas_activas} />
+                </div>
+                <div className="mt-4 border-t pt-3" style={{ borderColor: "var(--ops-line)" }}>
+                  <div className="ops-lbl">Solicitudes pendientes de autorización</div>
+                  <p className="ops-sub mt-1">
+                    Los cambios de plan conservan el estado y período. La regularización solo actualiza el estado visible; no marca facturas como pagadas.
+                  </p>
+                  {solicitudesSuscripcion.filter((solicitud) =>
+                    solicitud.estado === "pendiente").length ? (
+                    <div className="mt-3 space-y-3">
+                      {solicitudesSuscripcion.filter((solicitud) =>
+                        solicitud.estado === "pendiente").map((solicitud) => (
+                        <div key={solicitud.id}
+                          className="rounded-md border bg-white p-3"
+                          style={{ borderColor: "var(--ops-line-soft)" }}>
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div className="min-w-0 flex-1">
+                              <b>{solicitud.tipo === "cambio_plan"
+                                ? `Cambio a ${solicitud.plan?.nombre ?? "nuevo plan"}`
+                                : "Solicitud para poner la cuenta al día"}</b>
+                              <p className="ops-sub mt-1">{solicitud.motivo}</p>
+                              <p className="ops-sub mt-1">
+                                Recibida {solicitud.solicitado_at
+                                  ? new Date(solicitud.solicitado_at).toLocaleString("es-CL")
+                                  : ""}
+                              </p>
+                            </div>
+                            <div className="flex gap-2">
+                              <button className="ops-btn ops-btn-primary text-xs"
+                                disabled={resolviendoSolicitud !== null}
+                                onClick={() => void resolverSolicitud(
+                                  company, solicitud, "aprobada")}>
+                                {resolviendoSolicitud === solicitud.id
+                                  ? "Procesando…" : "Aprobar"}
+                              </button>
+                              <button className="ops-btn ops-btn-ghost text-xs"
+                                disabled={resolviendoSolicitud !== null}
+                                onClick={() => void resolverSolicitud(
+                                  company, solicitud, "rechazada")}>
+                                Rechazar
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : <p className="ops-sub mt-2">No hay solicitudes pendientes.</p>}
                 </div>
                 {detalle.datos_usuarios_restringidos && <p className="ops-sub mt-3 rounded-md border p-3" style={{ borderColor: "var(--ops-line)" }}>
                   Los datos identificables de cuentas, responsables y actores están restringidos. Se requiere una concesión temporal de acceso a usuarios para consultarlos.

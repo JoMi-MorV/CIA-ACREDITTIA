@@ -231,6 +231,34 @@ datos y archivos. No añadas `-v` si deseas conservar los datos de demostración
 
 ## 7. Incidentes y límites
 
+- Si Docker muestra `failed to set up container networking` y `network ... not
+  found` al iniciar `app-ngrok-1`, el contenedor puede conservar una referencia
+  obsoleta a una red de Compose eliminada. Desde `BASE/app`, elimina y recrea
+  solo ngrok:
+
+  ```powershell
+  docker compose -f docker-compose.yml -f docker-compose.ngrok.yml rm -sf ngrok
+  docker compose -f docker-compose.yml -f docker-compose.ngrok.yml up -d ngrok
+  ```
+
+  Si el error continúa, recrea el stack y su red:
+
+  ```powershell
+  docker compose -f docker-compose.yml -f docker-compose.ngrok.yml down --remove-orphans
+  docker compose -f docker-compose.yml -f docker-compose.ngrok.yml up --build -d
+  ```
+
+  `down` sin `-v` conserva los volúmenes con la base de datos y los archivos.
+- Si `web-1` termina con `SyntaxError: Error parsing /web/package.json:
+  Unexpected end of JSON input`, reconstruye la imagen frontend sin usar las
+  capas de caché y recrea solo ese contenedor:
+
+  ```powershell
+  docker compose -f docker-compose.yml -f docker-compose.ngrok.yml build --no-cache web
+  docker compose -f docker-compose.yml -f docker-compose.ngrok.yml up -d --force-recreate web
+  docker compose -f docker-compose.yml -f docker-compose.ngrok.yml logs --tail 50 web
+  ```
+
 - Si el token se comparte o aparece en registros/capturas, revócalo en ngrok,
   crea uno nuevo y actualiza `.env`.
 - No interpretes que una URL difícil de adivinar sea un control de acceso;

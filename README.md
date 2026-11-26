@@ -2,7 +2,7 @@
 
 ## Estado actual verificado
 
-Actualizado al 25-11-2026; métricas de línea base reconciliadas con el SRS v1.14.
+Actualizado al 25-11-2026; métricas de línea base reconciliadas con el SRS v1.18.
 
 - Avance estimado vigente: **88,9%** para las 37 fichas SRS (`3.288 / 37`).
   El promedio de las ocho áreas ADMIN, recalculado desde sus fichas asociadas,
@@ -821,7 +821,7 @@ abren ahora el Dashboard global.
 
 ## Cambios a la fecha — 25-11-2026
 
-El documento funcional vigente es el [SRS v1.14](documentacion/SRS.md). Esta
+El documento funcional vigente es el [SRS v1.18](documentacion/SRS.md). Esta
 sección resume los cambios relevantes y el estado conocido a la fecha; no
 sustituye los criterios, pendientes ni evidencias detallados en el SRS y la
 [validación actual](documentacion/VALIDACION_ACTUAL.md).
@@ -866,10 +866,26 @@ pasó 14/14 y la suite completa posterior, ejecutada el 19-11, pasó 526/526.
     confirmación doble y siempre debe quedar otro `company` activo.
 - **Planes y servicios:** las cuentas `company` pueden consultar los planes
   activos, ver el plan y estado de suscripción de la empresa e iniciar el trial
-  de 30 días. No hay cobro en línea conectado; los cambios de plan existentes
-  se aplican inmediatamente sin cobro. Los límites mostrados en el catálogo aún
-  no se hacen cumplir en las operaciones. ADMIN ve el plan de la empresa en la
-  tabla de usuarios; se repite en las cuentas que pertenecen a la misma empresa.
+  de 30 días. Después, las empresas pueden solicitar cambios de plan, que
+  quedan pendientes hasta resolución de ADMIN. La bandeja de autorizaciones
+  aparece sobre la tabla de empresas, muestra los datos de cada solicitud y
+  permite aprobar o rechazar indicando el motivo; el detalle individual
+  mantiene esas acciones. Aprobar un cambio conserva estado y período, no
+  procesa cobros y queda auditado. Las cuentas `en_riesgo` o
+  `moroso` también pueden solicitar regularización: ADMIN puede aprobar un
+  override visible a `al_dia` sin modificar ni marcar facturas como pagadas.
+  Las empresas pueden cancelar el servicio desde **Planes y servicios**: el
+  acceso se conserva hasta el fin del período vigente y luego pasa a solo
+  lectura; la suscripción y los datos se conservan y se puede reactivar. No se
+  ejecutan cobros ni se elimina la empresa.
+  Los límites mostrados en el catálogo aún no se hacen cumplir en las
+  operaciones. ADMIN ve el plan de la empresa en la tabla de usuarios; se
+  repite en las cuentas que pertenecen a la misma empresa.
+  Desde **Ajustes de negocio** (`/admin/ajustes-negocio`), ADMIN puede crear,
+  editar, activar y desactivar planes mediante `/api/v1/admin/planes`; los
+  límites se capturan en campos separados para máximos de usuarios y faenas.
+  Desactivar retira el plan del catálogo para nuevas suscripciones, sin borrar
+  el registro ni modificar las suscripciones existentes.
   El detalle de interfaz, reglas de suscripción y rutas API está en
   [README_CLIENTE.md, sección 5.8](README_CLIENTE.md#58-planes-suscripciones-y-facturas).
   La adición no está incluida en las 37 fichas de la línea base SRS y, por

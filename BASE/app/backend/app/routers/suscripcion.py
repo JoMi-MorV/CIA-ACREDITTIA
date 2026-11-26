@@ -9,8 +9,8 @@ Ciclo de estados (§17): `trial` (30 días) → `activa` → `morosa` (pago fall
 `cancelada`. `morosa` no corta el acceso de inmediato: durante 7 días desde el
 fin del periodo la empresa sigue operando y solo después pasa a solo lectura. El
 endpoint expone esa decisión como `acceso` (`completo` | `solo_lectura`) para que
-el frontend no reimplemente la regla y el middleware de escritura pueda
-consultarla en un único sitio.
+el frontend no reimplemente la regla. La dependencia común de autenticación
+bloquea escrituras tras vencer una suscripción cancelada.
 
 Qué NO hace este módulo: no cobra. El inicio del flujo con la pasarela
 (Transbank Webpay/OneClick o Stripe) está marcado con un TODO en
@@ -30,16 +30,19 @@ import calendar
 import logging
 import uuid
 from datetime import date, datetime, timedelta, timezone
+from typing import Literal
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from ..deps import (Page, aplicar_orden, err, get_company_id, get_current_user,
-                    get_db, paginacion, require_admin, require_company, sobre)
-from ..models import Factura, Plan, Suscripcion, User
+from ..deps import (Page, acceso_suscripcion, aplicar_orden, err,
+                    get_company_id, get_current_user, get_db, paginacion,
+                    require_admin, require_company, sobre)
+from ..models import (Company, Factura, Plan, SolicitudSuscripcion,
+                      Suscripcion, User)
 from ..services import actividad
 from ..services.storage import get_storage
 
@@ -50,12 +53,12 @@ router = APIRouter(prefix="/suscripcion", tags=["suscripcion"])
 router_facturas = APIRouter(prefix="/facturas", tags=["suscripcion"])
 router_admin = APIRouter(prefix="/admin/planes", tags=["suscripcion"],
                          dependencies=[Depends(require_admin)])
+router_admin_suscripciones = APIRouter(
+    prefix="/admin/suscripciones", tags=["suscripcion"],
+    dependencies=[Depends(require_admin)])
 
 # Días de trial al contratar por primera vez (§17).
 TRIAL_DIAS = 30
-
-# Días de gracia de una suscripción morosa antes de pasar a solo lectura (§17).
-GRACIA_MOROSA_DIAS = 7
 
 ESTADOS_FACTURA = ("pendiente", "pagada", "fallida", "anulada")
 PERIODOS = ("mensual", "anual")
@@ -85,6 +88,17 @@ class PlanPatch(BaseModel):
     periodo: str | None = None
     limites: dict | None = None
     activo: bool | None = None
+
+
+class SolicitudSuscripcionIn(BaseModel):
+    tipo: Literal["cambio_plan", "regularizacion"]
+    plan_id: uuid.UUID | None = None
+    motivo: str = Field(min_length=12, max_length=240)
+
+
+class ResolverSolicitudSuscripcionIn(BaseModel):
+    decision: Literal["aprobada", "rechazada"]
+    motivo: str = Field(min_length=12, max_length=240)
 
 
 # ------------------------------------------------------------------- helpers
@@ -129,16 +143,15 @@ def dias_restantes_trial(s: Suscripcion, hoy: date | None = None) -> int:
 def acceso_de(s: Suscripcion, hoy: date | None = None) -> str:
     """`completo` o `solo_lectura` según §17.
 
+    Una suscripción cancelada conserva acceso completo hasta el fin del periodo
+    vigente y luego pasa a solo lectura.
     Una suscripción morosa conserva el acceso completo durante
-    `GRACIA_MOROSA_DIAS` desde el fin del periodo vigente: el impago suele ser un
+    siete días desde el fin del periodo vigente: el impago suele ser un
     problema del medio de pago y cortar el mismo día bloquearía acreditaciones en
     curso. Sin `periodo_actual_hasta` no se puede contar la gracia y se concede
     el acceso completo.
     """
-    if s.estado != "morosa" or s.periodo_actual_hasta is None:
-        return "completo"
-    dias = ((hoy or date.today()) - s.periodo_actual_hasta).days
-    return "solo_lectura" if dias > GRACIA_MOROSA_DIAS else "completo"
+    return acceso_suscripcion(s.estado, s.periodo_actual_hasta, hoy)
 
 
 def _out(s: Suscripcion, plan: Plan | None = None) -> dict:
@@ -162,6 +175,36 @@ def _out(s: Suscripcion, plan: Plan | None = None) -> dict:
         "acceso": acceso_de(s),
         "created_at": _iso(s.created_at), "updated_at": _iso(s.updated_at),
     }
+
+
+def _estado_cuenta(db: Session, company_id: uuid.UUID) -> str:
+    return db.execute(
+        text("SELECT ops_estado_cuenta(:company_id)"),
+        {"company_id": company_id},
+    ).scalar_one()
+
+
+def _solicitud_out(db: Session, solicitud: SolicitudSuscripcion,
+                   empresa: str | None = None) -> dict:
+    plan = db.get(Plan, solicitud.plan_id) if solicitud.plan_id else None
+    salida = {
+        "id": str(solicitud.id),
+        "company_id": str(solicitud.company_id),
+        "tipo": solicitud.tipo,
+        "estado": solicitud.estado,
+        "plan": _plan_out(plan) if plan else None,
+        "motivo": solicitud.motivo,
+        "solicitado_por": str(solicitud.solicitado_por)
+        if solicitud.solicitado_por else None,
+        "solicitado_at": _iso(solicitud.solicitado_at),
+        "resuelto_por": str(solicitud.resuelto_por)
+        if solicitud.resuelto_por else None,
+        "resuelto_at": _iso(solicitud.resuelto_at),
+        "motivo_resolucion": solicitud.motivo_resolucion,
+    }
+    if empresa is not None:
+        salida["empresa"] = empresa
+    return salida
 
 
 def _factura_out(f: Factura) -> dict:
@@ -248,24 +291,111 @@ def detalle(db: Session = Depends(get_db),
                   "La empresa no tiene una suscripción; contrátela con "
                   "POST /suscripcion")
     plan = db.get(Plan, s.plan_id)
-    return _out(s, plan)
+    salida = _out(s, plan)
+    salida["estado_cuenta"] = _estado_cuenta(db, cid)
+    return salida
+
+
+@router.get("/solicitudes")
+def listar_solicitudes_empresa(db: Session = Depends(get_db),
+                               cid: uuid.UUID = Depends(get_company_id),
+                               user: User = Depends(require_company)):
+    _solo_empresa(user)
+    solicitudes = db.scalars(
+        select(SolicitudSuscripcion)
+        .where(SolicitudSuscripcion.company_id == cid)
+        .order_by(
+            (SolicitudSuscripcion.estado == "pendiente").desc(),
+            SolicitudSuscripcion.solicitado_at.desc(),
+        )
+        .limit(20)
+    ).all()
+    return {"items": [_solicitud_out(db, solicitud)
+                      for solicitud in solicitudes]}
+
+
+@router.post("/solicitudes", status_code=201)
+def crear_solicitud_empresa(body: SolicitudSuscripcionIn,
+                            db: Session = Depends(get_db),
+                            cid: uuid.UUID = Depends(get_company_id),
+                            user: User = Depends(require_company)):
+    _solo_empresa(user)
+    motivo = " ".join(body.motivo.split())
+    if len(motivo) < 12:
+        raise err(400, "MOTIVO_REQUERIDO",
+                  "Indique un motivo de al menos 12 caracteres")
+
+    if db.scalar(select(SolicitudSuscripcion.id).where(
+            SolicitudSuscripcion.company_id == cid,
+            SolicitudSuscripcion.tipo == body.tipo,
+            SolicitudSuscripcion.estado == "pendiente")):
+        raise err(409, "SOLICITUD_PENDIENTE",
+                  "Ya existe una solicitud pendiente de este tipo")
+
+    plan = None
+    if body.tipo == "cambio_plan":
+        if body.plan_id is None:
+            raise err(400, "PLAN_REQUERIDO",
+                      "Seleccione el plan solicitado")
+        suscripcion = suscripcion_de(db, cid)
+        if suscripcion is None:
+            raise err(409, "SIN_SUSCRIPCION",
+                      "La primera contratación inicia el trial directamente")
+        plan = _get_plan(db, body.plan_id, solo_activos=True)
+        if suscripcion.plan_id == plan.id:
+            raise err(409, "PLAN_ACTUAL",
+                      "La empresa ya tiene este plan")
+    elif body.plan_id is not None:
+        raise err(400, "PLAN_NO_APLICA",
+                  "La regularización no recibe un plan")
+    else:
+        estado = _estado_cuenta(db, cid)
+        if estado not in {"en_riesgo", "moroso"}:
+            raise err(409, "CUENTA_NO_REGULARIZABLE",
+                      "La cuenta no está en riesgo ni morosa")
+
+    solicitud = SolicitudSuscripcion(
+        company_id=cid,
+        tipo=body.tipo,
+        plan_id=plan.id if plan else None,
+        motivo=motivo,
+        solicitado_por=user.id,
+    )
+    db.add(solicitud)
+    try:
+        db.flush()
+    except IntegrityError:
+        db.rollback()
+        raise err(409, "SOLICITUD_PENDIENTE",
+                  "Ya existe una solicitud pendiente de este tipo")
+
+    actividad.log(
+        db, cid, "creacion", "suscripcion",
+        f"Solicitud de {body.tipo} enviada a autorización ADMIN",
+        user_id=user.id, entidad_tipo="solicitud_suscripcion",
+        entidad_id=solicitud.id,
+        metadata={
+            "tipo": body.tipo,
+            "plan_id": str(plan.id) if plan else None,
+            "motivo": motivo,
+        },
+    )
+    db.commit()
+    return _solicitud_out(db, solicitud)
 
 
 @router.post("")
 def contratar(body: SuscripcionIn, db: Session = Depends(get_db),
               cid: uuid.UUID = Depends(get_company_id),
               user: User = Depends(require_company)):
-    """Contrata o cambia de plan.
+    """Inicia el trial o reactiva una suscripción cancelada con el mismo plan.
 
     Primera contratación: nace en `trial` con 30 días (§17) y un periodo mensual
     abierto desde hoy, de modo que `proximo_cobro` tenga valor desde el principio.
 
-    Cambio de plan: se cambia `plan_id` y **se conserva el periodo vigente**. No
-    se prorratea ni se emite nota de crédito: el cobro del periodo ya está hecho
-    y el plan nuevo rige desde el siguiente. Si la suscripción estaba
-    `cancelada`, contratar la reactiva —a `trial` si el trial sigue vigente, a
-    `activa` si no—; no tendría sentido dejar cancelada una suscripción que
-    alguien acaba de contratar.
+    Los cambios de plan de una suscripción existente se solicitan mediante
+    `POST /suscripcion/solicitudes`; una cuenta de empresa aún puede reactivar
+    una suscripción cancelada si conserva el mismo plan.
 
     `pago.requiere_accion` indica si hace falta pasar por la pasarela antes del
     próximo cobro. `redirect_url` es null mientras no haya pasarela conectada.
@@ -292,7 +422,9 @@ def contratar(body: SuscripcionIn, db: Session = Depends(get_db),
                        f"(trial hasta {s.trial_hasta.isoformat()})")
         tipo_log = "creacion"
     else:
-        anterior = db.get(Plan, s.plan_id)
+        if s.plan_id != plan.id:
+            raise err(403, "AUTORIZACION_ADMIN_REQUERIDA",
+                      "Solicite el cambio de plan para que ADMIN lo autorice")
         cambios: list[str] = []
         if s.estado == "cancelada":
             s.estado = ("trial" if s.trial_hasta and s.trial_hasta >= hoy
@@ -302,11 +434,6 @@ def contratar(body: SuscripcionIn, db: Session = Depends(get_db),
                 s.periodo_actual_desde = hoy
                 s.periodo_actual_hasta = sumar_mes(hoy)
             cambios.append(f"reactivada como '{s.estado}'")
-        if s.plan_id != plan.id:
-            cambios.append(f"plan cambiado de "
-                           f"'{anterior.nombre if anterior else '?'}' "
-                           f"a '{plan.nombre}'")
-            s.plan_id = plan.id
         # Repetir la contratación del mismo plan es idempotente: se devuelve la
         # suscripción tal cual, sin registrar un cambio que no ocurrió.
         descripcion = (f"Suscripción actualizada ({'; '.join(cambios)})"
@@ -329,11 +456,150 @@ def contratar(body: SuscripcionIn, db: Session = Depends(get_db),
     # el frontend redirija. La confirmación no llega por esta respuesta sino por
     # `POST /webhooks/pagos`, que es el único punto que marca una factura pagada.
     requiere_accion = bool(s.medio_pago_ref is None and s.estado != "trial")
+    suscripcion_out = _out(s, plan)
+    suscripcion_out["estado_cuenta"] = _estado_cuenta(db, cid)
 
     return {
-        "suscripcion": _out(s, plan),
+        "suscripcion": suscripcion_out,
         "pago": {"requiere_accion": requiere_accion, "redirect_url": None},
     }
+
+
+@router_admin_suscripciones.get("/{company_id}/solicitudes")
+def admin_listar_solicitudes(company_id: uuid.UUID,
+                              db: Session = Depends(get_db)):
+    company = db.get(Company, company_id)
+    if company is None:
+        raise err(404, "NO_ENCONTRADO", "Empresa inexistente")
+    solicitudes = db.scalars(
+        select(SolicitudSuscripcion)
+        .where(SolicitudSuscripcion.company_id == company_id)
+        .order_by(
+            (SolicitudSuscripcion.estado == "pendiente").desc(),
+            SolicitudSuscripcion.solicitado_at.desc(),
+        )
+        .limit(50)
+    ).all()
+    return {"items": [
+        _solicitud_out(db, solicitud, empresa=company.nombre)
+        for solicitud in solicitudes
+    ]}
+
+
+@router_admin_suscripciones.get("/solicitudes")
+def admin_listar_solicitudes_pendientes(
+        p: Page = Depends(paginacion), db: Session = Depends(get_db)):
+    consulta = (
+        select(SolicitudSuscripcion, Company.nombre)
+        .join(Company, Company.id == SolicitudSuscripcion.company_id)
+        .where(SolicitudSuscripcion.estado == "pendiente")
+    )
+    total = db.scalar(
+        select(func.count()).select_from(consulta.subquery())) or 0
+    filas = db.execute(
+        consulta.order_by(SolicitudSuscripcion.solicitado_at.desc())
+        .offset(p.offset).limit(p.page_size)
+    ).all()
+    return sobre([
+        _solicitud_out(db, solicitud, empresa=empresa)
+        for solicitud, empresa in filas
+    ], total, p)
+
+
+@router_admin_suscripciones.patch(
+        "/solicitudes/{solicitud_id}/resolver")
+def admin_resolver_solicitud(
+        solicitud_id: uuid.UUID,
+        body: ResolverSolicitudSuscripcionIn,
+        db: Session = Depends(get_db),
+        admin: User = Depends(get_current_user)):
+    motivo = " ".join(body.motivo.split())
+    if len(motivo) < 12:
+        raise err(400, "MOTIVO_REQUERIDO",
+                  "Indique un motivo de al menos 12 caracteres")
+
+    solicitud = db.scalar(
+        select(SolicitudSuscripcion)
+        .where(SolicitudSuscripcion.id == solicitud_id)
+        .with_for_update())
+    if solicitud is None:
+        raise err(404, "NO_ENCONTRADO", "La solicitud no existe")
+    if solicitud.estado != "pendiente":
+        raise err(409, "SOLICITUD_RESUELTA",
+                  "La solicitud ya fue resuelta")
+
+    company = db.get(Company, solicitud.company_id)
+    if company is None:
+        raise err(404, "NO_ENCONTRADO", "Empresa inexistente")
+
+    plan_anterior = None
+    plan_nuevo = None
+    suscripcion = None
+    estado_cuenta_antes = (
+        _estado_cuenta(db, company.id)
+        if solicitud.tipo == "regularizacion" else None
+    )
+    if body.decision == "aprobada" and solicitud.tipo == "cambio_plan":
+        suscripcion = db.scalar(
+            select(Suscripcion)
+            .where(Suscripcion.company_id == company.id)
+            .with_for_update())
+        if suscripcion is None:
+            raise err(409, "SIN_SUSCRIPCION",
+                      "La suscripción fue eliminada antes de resolver la solicitud")
+        plan_nuevo = _get_plan(db, solicitud.plan_id, solo_activos=True)
+        if suscripcion.plan_id == plan_nuevo.id:
+            raise err(409, "PLAN_ACTUAL",
+                      "La empresa ya tiene el plan solicitado")
+        plan_anterior = db.get(Plan, suscripcion.plan_id)
+        suscripcion.plan_id = plan_nuevo.id
+        suscripcion.updated_at = datetime.now(timezone.utc)
+
+    solicitud.estado = body.decision
+    solicitud.resuelto_por = admin.id
+    solicitud.resuelto_at = datetime.now(timezone.utc)
+    solicitud.motivo_resolucion = motivo
+    db.flush()
+
+    cambios = None
+    if plan_nuevo:
+        cambios = {
+            "plan": {
+                "antes": plan_anterior.nombre if plan_anterior else None,
+                "despues": plan_nuevo.nombre,
+            },
+        }
+    estado_cuenta_despues = _estado_cuenta(db, company.id)
+    if solicitud.tipo == "regularizacion":
+        cambios = {
+            "estado_cuenta": {
+                "antes": estado_cuenta_antes,
+                "despues": estado_cuenta_despues,
+            },
+        }
+    actividad.log(
+        db, company.id, "actualizacion", "suscripcion",
+        f"ADMIN {body.decision} solicitud de {solicitud.tipo}",
+        user_id=admin.id, entidad_tipo="solicitud_suscripcion",
+        entidad_id=solicitud.id,
+        metadata={
+            "decision": body.decision,
+            "motivo_solicitud": solicitud.motivo,
+            "motivo_resolucion": motivo,
+            "cambios": cambios or {},
+        },
+    )
+    db.commit()
+
+    salida = {
+        "solicitud": _solicitud_out(db, solicitud, empresa=company.nombre),
+        "estado_cuenta": estado_cuenta_despues,
+    }
+    if suscripcion is not None and plan_nuevo is not None:
+        salida["suscripcion"] = _out(suscripcion, plan_nuevo)
+    logger.info("admin %s resolvió solicitud %s (%s): %s",
+                admin.id, solicitud.id, body.decision, motivo)
+    return salida
 
 
 @router.delete("")
@@ -343,8 +609,8 @@ def cancelar(db: Session = Depends(get_db),
     """Cancela al término del periodo vigente.
 
     No se borra la fila ni se recorta `periodo_actual_hasta`: el periodo está
-    pagado y la empresa lo usa hasta el final. `acceso` sigue siendo `completo`
-    porque la regla de solo lectura es de la morosidad, no de la cancelación.
+    pagado y la empresa lo usa hasta el final. Después del vencimiento, la
+    dependencia común de autenticación bloquea las escrituras de la empresa.
     """
     _solo_empresa(user)
     s = suscripcion_de(db, cid)
@@ -353,6 +619,10 @@ def cancelar(db: Session = Depends(get_db),
     if s.estado == "cancelada":
         raise err(409, "SUSCRIPCION_CANCELADA",
                   "La suscripción ya está cancelada")
+    if s.periodo_actual_hasta is None:
+        raise err(409, "PERIODO_SIN_FECHA",
+                  "No se puede programar la cancelación sin una fecha de fin "
+                  "del periodo vigente")
 
     s.estado = "cancelada"
     s.updated_at = datetime.now(timezone.utc)

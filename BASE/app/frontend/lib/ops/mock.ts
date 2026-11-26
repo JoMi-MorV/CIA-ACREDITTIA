@@ -175,6 +175,30 @@ let ajustesNegocio = {
   updated_by: "u-admin",
 };
 
+type PlanDemo = {
+  id: string;
+  nombre: string;
+  precio: number;
+  moneda: string;
+  periodo: "mensual" | "anual";
+  limites: Record<string, unknown>;
+  activo: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+const planesComerciales: PlanDemo[] = [
+  { id: "plan-demo-basico", nombre: "Básico", precio: 1.5, moneda: "UF",
+    periodo: "mensual", limites: { usuarios: 25, faenas: 1 }, activo: true,
+    created_at: iso(), updated_at: iso() },
+  { id: "plan-demo-pro", nombre: "Pro", precio: 4, moneda: "UF",
+    periodo: "mensual", limites: { usuarios: 120, faenas: 5 }, activo: true,
+    created_at: iso(), updated_at: iso() },
+  { id: "plan-demo-enterprise", nombre: "Enterprise", precio: 10, moneda: "UF",
+    periodo: "mensual", limites: { usuarios: 1000, faenas: 50 }, activo: true,
+    created_at: iso(), updated_at: iso() },
+];
+
 // ---------------------------------------------------------------- dispatch
 type Opts = { method?: string; body?: any; query?: Record<string, any> };
 
@@ -217,6 +241,74 @@ export async function mockDispatch(path: string, opts: Opts = {}): Promise<any> 
       };
     }
     return { ...ajustesNegocio };
+  }
+
+  if (path === "/planes" && method === "GET") {
+    let rows = [...planesComerciales];
+    if (q.activo !== undefined && q.activo !== null && q.activo !== "") {
+      rows = rows.filter((plan) => plan.activo === (q.activo === true || q.activo === "true"));
+    }
+    if (q.search) {
+      const termino = String(q.search).toLocaleLowerCase();
+      rows = rows.filter((plan) => plan.nombre.toLocaleLowerCase().includes(termino));
+    }
+    if (q.sort === "nombre") {
+      rows.sort((a, b) => a.nombre.localeCompare(b.nombre));
+    }
+    const page = Math.max(1, Number(q.page) || 1);
+    const pageSize = Math.max(1, Number(q.page_size) || 50);
+    const start = (page - 1) * pageSize;
+    return {
+      items: rows.slice(start, start + pageSize),
+      page,
+      page_size: pageSize,
+      total: rows.length,
+      total_pages: Math.ceil(rows.length / pageSize),
+    };
+  }
+  if (path === "/planes" && method === "POST") {
+    const body = opts.body ?? {};
+    const nombre = String(body.nombre ?? "").trim();
+    if (planesComerciales.some((plan) => plan.nombre === nombre)) {
+      throw Object.assign(new Error("Ya existe un plan con ese nombre"),
+        { code: "PLAN_DUPLICADO", status: 409 });
+    }
+    const ahora = iso();
+    const plan: PlanDemo = {
+      id: `plan-demo-${Date.now()}`,
+      nombre,
+      precio: Number(body.precio),
+      moneda: String(body.moneda ?? "UF"),
+      periodo: body.periodo === "anual" ? "anual" : "mensual",
+      limites: body.limites ?? {},
+      activo: body.activo !== false,
+      created_at: ahora,
+      updated_at: ahora,
+    };
+    planesComerciales.push(plan);
+    return { ...plan };
+  }
+  if (path.startsWith("/planes/") && method === "PATCH") {
+    const id = path.slice("/planes/".length);
+    const plan = planesComerciales.find((item) => item.id === id);
+    if (!plan) {
+      throw Object.assign(new Error("El plan no existe"),
+        { code: "NO_ENCONTRADO", status: 404 });
+    }
+    const body = opts.body ?? {};
+    const nombre = body.nombre === undefined ? plan.nombre : String(body.nombre).trim();
+    if (planesComerciales.some((item) => item.id !== id && item.nombre === nombre)) {
+      throw Object.assign(new Error("Ya existe un plan con ese nombre"),
+        { code: "PLAN_DUPLICADO", status: 409 });
+    }
+    Object.assign(plan, body, {
+      ...(body.nombre !== undefined ? { nombre } : {}),
+      ...(body.periodo !== undefined
+        ? { periodo: body.periodo === "anual" ? "anual" : "mensual" }
+        : {}),
+      updated_at: iso(),
+    });
+    return { ...plan };
   }
 
   // ---- usuarios

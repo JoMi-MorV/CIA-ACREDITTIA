@@ -41,6 +41,7 @@ export type PlanComercial = {
 export type SuscripcionEmpresa = {
   id: string;
   estado: "trial" | "activa" | "morosa" | "cancelada";
+  estado_cuenta?: "al_dia" | "en_riesgo" | "moroso" | null;
   plan: PlanComercial | null;
   trial_hasta: string | null;
   dias_restantes_trial: number;
@@ -51,6 +52,27 @@ export type SuscripcionEmpresa = {
   acceso: "completo" | "solo_lectura";
   created_at: string | null;
   updated_at: string | null;
+};
+
+export type SolicitudSuscripcion = {
+  id: string;
+  company_id: string;
+  empresa?: string;
+  tipo: "cambio_plan" | "regularizacion";
+  estado: "pendiente" | "aprobada" | "rechazada";
+  plan: PlanComercial | null;
+  motivo: string;
+  solicitado_por: string | null;
+  solicitado_at: string | null;
+  resuelto_por: string | null;
+  resuelto_at: string | null;
+  motivo_resolucion: string | null;
+};
+
+export type ResolverSolicitudSuscripcionRespuesta = {
+  solicitud: SolicitudSuscripcion;
+  estado_cuenta: "al_dia" | "en_riesgo" | "moroso";
+  suscripcion?: SuscripcionEmpresa;
 };
 
 export type ContratarPlanRespuesta = {

@@ -14,6 +14,29 @@ const TONO_ESTADO: Record<string, "ok" | "warn" | "crit"> = {
 };
 const UPTIME_COMPS = ["api", "db", "workers", "storage"];
 const TAMANO_HISTORIAL = 5;
+const INFO_METRICAS: Record<string, string> = {
+  latencia_p95_ms: "Percentil 95 de latencia. En API resume solicitudes de los últimos 5 minutos; en IA e integraciones resume ejecuciones completadas de los últimos 7 días. En la API basada en Celery es una aproximación por intervalos.",
+  tasa_error_5xx_pct: "Porcentaje de solicitudes de los últimos 5 minutos que terminaron en HTTP 500 o superior. Las respuestas 4xx no se cuentan. Sin solicitudes, el valor no está disponible.",
+  tasa_error_pct: "Porcentaje de sincronizaciones fallidas respecto del total de ejecuciones de integración en los últimos 7 días. Sin ejecuciones, el valor no está disponible.",
+  ping_ms: "Tiempo que tardó la sonda de base de datos en completar SELECT 1. Se mide en milisegundos y no representa la latencia de todas las consultas.",
+  healthcheck_ms: "Tiempo de respuesta del health check HTTP interno de la API, cuando está configurado. No es el p95 de las solicitudes de usuarios.",
+  redis_ping_ms: "Tiempo de respuesta del ping a Redis usado por la sonda de workers. Se mide en milisegundos.",
+  solicitudes_5m: "Cantidad de solicitudes HTTP recibidas por la API en los últimos 5 minutos. No incluye /health ni /health/esquema y no se desglosa por ruta.",
+  errores_5xx_5m: "Cantidad de solicitudes de los últimos 5 minutos cuya respuesta fue HTTP 500 o superior. No incluye errores 4xx.",
+  workers_activos: "Cantidad de workers Celery que respondieron al ping de inspección. No indica cuántas tareas han procesado históricamente.",
+  tareas_ejecutandose: "Cantidad de tareas que los workers Celery informan como activas en este momento.",
+  ejecuciones_7d: "Cantidad de sincronizaciones registradas durante los últimos 7 días para el tipo de integración.",
+  errores_7d: "Cantidad de sincronizaciones con estado de error durante los últimos 7 días.",
+  revisiones_7d: "Cantidad de revisiones IA creadas durante los últimos 7 días, incluyendo las que siguen en cola o fallaron.",
+  fallidas_7d: "Cantidad de revisiones IA con estado fallido durante los últimos 7 días.",
+  en_cola: "Cantidad de revisiones IA en cola o en procesamiento dentro del período medido.",
+  conexiones: "Conexiones activas respecto del máximo configurado para PostgreSQL (formato actual/máximo). Permite inferir la ocupación; la sonda marca degradación al superar el 85% del límite.",
+  escritura_ms: "Tiempo de escritura de un objeto canario temporal en el almacenamiento local, en milisegundos.",
+  lectura_ms: "Tiempo de lectura y comprobación del objeto canario temporal, en milisegundos.",
+  eliminacion_ms: "Tiempo que tardó la sonda en eliminar el objeto canario y verificar su eliminación, en milisegundos.",
+  integraciones_activas: "Cantidad de registros de integración cuyo estado está marcado como activo. No confirma conectividad externa.",
+  conectores_implementados: "Cantidad de tipos de integración que tienen un conector implementado en el código. No significa que estén configurados o conectados a un proveedor.",
+};
 const INFO_EJECUCION_MANUAL: Record<string, { titulo: string; descripcion: string }> = {
   ia_revision: {
     titulo: "Verificación IA pendiente de runner manual",
@@ -128,7 +151,7 @@ export default function SistemasPage() {
               "solicitudes_5m", "errores_5xx_5m", "workers_activos",
               "tareas_ejecutandose", "ejecuciones_7d", "errores_7d",
               "revisiones_7d", "fallidas_7d", "en_cola", "conexiones",
-              "conexiones_max", "escritura_ms", "lectura_ms",
+              "escritura_ms", "lectura_ms",
               "eliminacion_ms", "integraciones_activas",
               "conectores_implementados",
             ];
@@ -151,12 +174,19 @@ export default function SistemasPage() {
                 <div className="mt-3 flex flex-wrap gap-6">
                   {visibles.map(([k, v]) => (
                     <div key={k}>
-                      <div className="text-[11px]" style={{ color: "var(--ops-faint)" }}>
-                        {k.replaceAll("_", " ")}
+                      <div className="inline-flex items-center gap-1 text-[11px]"
+                        style={{ color: "var(--ops-faint)" }}>
+                        <span>{k.replaceAll("_", " ")}</span>
+                        <InfoButton
+                          titulo={k.replaceAll("_", " ")}
+                          descripcion={INFO_METRICAS[k] ?? "Métrica informada por la sonda del componente."}
+                        />
                       </div>
                       <div className="text-[17px] font-bold"
                         style={{ fontVariantNumeric: "tabular-nums" }}>
-                        {typeof v === "number" ? fmtN(v, v % 1 ? 1 : 0) : String(v)}
+                        {k === "conexiones"
+                          ? `${typeof v === "number" ? fmtN(v) : String(v)} / ${typeof metricas.conexiones_max === "number" ? fmtN(metricas.conexiones_max) : "—"}`
+                          : typeof v === "number" ? fmtN(v, v % 1 ? 1 : 0) : String(v)}
                       </div>
                     </div>
                   ))}

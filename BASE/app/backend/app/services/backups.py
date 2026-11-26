@@ -554,6 +554,10 @@ def _check_schema(database: str) -> None:
 
 def _migrate_restored_schema(database: str) -> None:
     url = _maintenance_url().set(database=database)
+    migraciones = {
+        22: "23_respaldo_diario_rpo24h.sql",
+        23: "24_solicitudes_estado_cuenta.sql",
+    }
     try:
         with psycopg.connect(url.render_as_string(hide_password=False)) as conn:
             row = conn.execute(
@@ -561,18 +565,24 @@ def _migrate_restored_schema(database: str) -> None:
             version = row[0] if row else None
             if version == settings.schema_version_esperada:
                 return
-            if version != 22 or settings.schema_version_esperada != 23:
+            if version is None or version > settings.schema_version_esperada:
                 raise BackupError(
                     f"El respaldo usa esquema {version if version is not None else 'desconocido'}; "
                     f"no hay migración de restauración compatible a "
                     f"{settings.schema_version_esperada}")
-            migration_path = Path(settings.schema_dir) / "23_respaldo_diario_rpo24h.sql"
-            try:
-                migration_sql = migration_path.read_text(encoding="utf-8")
-            except OSError as exc:
-                raise BackupError(
-                    f"No se pudo cargar la migración {migration_path}: {exc}") from exc
-            conn.execute(migration_sql)
+            while version < settings.schema_version_esperada:
+                migration_name = migraciones.get(version)
+                if migration_name is None:
+                    raise BackupError(
+                        f"No hay migración de restauración desde esquema {version}")
+                migration_path = Path(settings.schema_dir) / migration_name
+                try:
+                    migration_sql = migration_path.read_text(encoding="utf-8")
+                except OSError as exc:
+                    raise BackupError(
+                        f"No se pudo cargar la migración {migration_path}: {exc}") from exc
+                conn.execute(migration_sql)
+                version += 1
     except psycopg.Error as exc:
         raise BackupError(
             f"No se pudo actualizar el esquema del respaldo restaurado: {exc}") from exc

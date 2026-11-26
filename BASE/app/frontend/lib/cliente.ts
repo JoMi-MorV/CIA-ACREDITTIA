@@ -38,6 +38,7 @@ import type {
   Revision, RecursoExport, Sesion, Sujeto, SujetoCreado, SujetoDetalle,
   SyncLog, Tendencia, TipoReporte, Tokens, TrabajadorIn, TrabajadorPatch,
   ContratarPlanRespuesta, PlanComercial, SuscripcionEmpresa,
+  SolicitudSuscripcion, ResolverSolicitudSuscripcionRespuesta,
   Usuario, UsuarioEmpresa, Exportacion, Periodo,
 } from "./tipos";
 
@@ -103,6 +104,20 @@ export const admin = {
 
   empresa: (id: string, accessGrantId?: string) =>
     api<EmpresaDetalle>(`/admin/companies/${id}`, { accessGrantId }),
+
+  solicitudesSuscripcion: (companyId: string) =>
+    api<{ items: SolicitudSuscripcion[] }>(
+      `/admin/suscripciones/${companyId}/solicitudes`),
+
+  solicitudesSuscripcionPendientes: (params?: ParamsPagina) =>
+    api<Pagina<SolicitudSuscripcion>>(
+      "/admin/suscripciones/solicitudes", { query: q(params) }),
+
+  resolverSolicitudSuscripcion: (
+    solicitudId: string, decision: "aprobada" | "rechazada", motivo: string,
+  ) => api<ResolverSolicitudSuscripcionRespuesta>(
+    `/admin/suscripciones/solicitudes/${solicitudId}/resolver`,
+    { method: "PATCH", body: { decision, motivo } }),
 
   eliminarInvitacion: (companyId: string, userId: string, motivo: string) =>
     api<{ ok: boolean; id: string; invitacion_eliminada: boolean }>(
@@ -174,7 +189,7 @@ export const admin = {
     api<{ ok: boolean }>(`/admin/cargos/${id}`, { method: "DELETE" }),
 
   planes: (params?: ParamsPagina & { activo?: boolean }) =>
-    api<Pagina<Record<string, unknown>>>("/admin/planes", { query: q(params) }),
+    api<Pagina<PlanComercial>>("/admin/planes", { query: q(params) }),
 };
 
 // ============================================================================
@@ -781,10 +796,20 @@ export const suscripcion = {
 
   detalle: () => api<SuscripcionEmpresa>("/suscripcion"),
 
+  solicitudes: () =>
+    api<{ items: SolicitudSuscripcion[] }>("/suscripcion/solicitudes"),
+
+  solicitarAutorizacion: (body: {
+    tipo: "cambio_plan" | "regularizacion";
+    plan_id?: string;
+    motivo: string;
+  }) => api<SolicitudSuscripcion>("/suscripcion/solicitudes", { body }),
+
   contratar: (plan_id: string) =>
     api<ContratarPlanRespuesta>("/suscripcion", { body: { plan_id } }),
 
-  cancelar: () => api<{ ok: boolean }>("/suscripcion", { method: "DELETE" }),
+  cancelar: () => api<SuscripcionEmpresa & { vigente_hasta: string | null }>(
+    "/suscripcion", { method: "DELETE" }),
 
   facturas: (params?: ParamsPagina & {
     estado?: string; desde?: string; hasta?: string;

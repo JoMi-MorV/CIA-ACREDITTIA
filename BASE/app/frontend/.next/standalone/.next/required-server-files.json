@@ -100,7 +100,7 @@
         "transform": "lodash/{{member}}"
       }
     },
-    "outputFileTracingRoot": "C:\\Users\\amaru\\Desktop\\consola-interna-84\\CIA-ACREDITTIA-main\\BASE\\app\\frontend",
+    "outputFileTracingRoot": "C:\\Users\\amaru\\Desktop\\consola-interna-90\\CIA-ACREDITTIA-main\\BASE\\app\\frontend",
     "experimental": {
       "useSkewCookie": false,
       "cacheLife": {
@@ -289,7 +289,7 @@
     "bundlePagesRouterDependencies": false,
     "configFileName": "next.config.mjs",
     "turbopack": {
-      "root": "C:\\Users\\amaru\\Desktop\\consola-interna-84\\CIA-ACREDITTIA-main\\BASE\\app\\frontend"
+      "root": "C:\\Users\\amaru\\Desktop\\consola-interna-90\\CIA-ACREDITTIA-main\\BASE\\app\\frontend"
     },
     "_originalRewrites": {
       "beforeFiles": [],
@@ -345,7 +345,7 @@
       }
     ]
   },
-  "appDir": "C:\\Users\\amaru\\Desktop\\consola-interna-84\\CIA-ACREDITTIA-main\\BASE\\app\\frontend",
+  "appDir": "C:\\Users\\amaru\\Desktop\\consola-interna-90\\CIA-ACREDITTIA-main\\BASE\\app\\frontend",
   "relativeAppDir": "",
   "files": [
     ".next\\routes-manifest.json",

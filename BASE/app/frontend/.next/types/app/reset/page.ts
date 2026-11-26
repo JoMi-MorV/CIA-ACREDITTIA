@@ -1,4 +1,4 @@
-// File: C:\Users\amaru\Desktop\consola-interna-84\CIA-ACREDITTIA-main\BASE\app\frontend\app\reset\page.tsx
+// File: C:\Users\amaru\Desktop\consola-interna-90\CIA-ACREDITTIA-main\BASE\app\frontend\app\reset\page.tsx
 import * as entry from '../../../../app/reset/page.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 

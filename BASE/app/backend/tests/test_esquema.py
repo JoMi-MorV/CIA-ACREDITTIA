@@ -22,7 +22,7 @@ def _simular_esquema_anterior_a_v21(connection):
 
 def test_version_de_esquema(esquema):
     """Los scripts de negocio y consola instalan la versión exigida por la API."""
-    assert SCHEMA_VERSION == 23
+    assert SCHEMA_VERSION == 24
     assert schema_version() == SCHEMA_VERSION
 
 
@@ -138,7 +138,7 @@ def test_migracion_v22_actualiza_respaldo_semanal_a_diario(motor_admin, monkeypa
             "UPDATE ops_jobs SET cron_expr='0 2 * * 0' "
             "WHERE clave='admin_backup'"))
         conn.execute(sa.text(
-            "DELETE FROM app_schema_migrations WHERE version=23"))
+            "DELETE FROM app_schema_migrations WHERE version >= 23"))
     try:
         assert database.schema_version() == 22
         assert database.apply_schema() == SCHEMA_VERSION

@@ -114,7 +114,7 @@ Ruta base: `BASE/app/frontend/`
 | `app/(app)/layout.tsx` | Layout protegido | Verifica que exista una sesion y monta el sidebar. |
 | `app/(app)/perfil/page.tsx` | `/perfil` | Perfil personal; para ADMIN en «Ver como empresa», perfil de la empresa (nombre/correo editables; RUT/estado de solo lectura). |
 | `app/(app)/gestion-cuentas/page.tsx` | `/gestion-cuentas` | Listado paginado y administración de roles/estado; modal para invitar cuentas nuevas con rol de empresa o contrato. |
-| `app/(app)/planes-servicios/page.tsx` | `/planes-servicios` | Catalogo de planes, plan/estado de suscripcion de la empresa e inicio o cambio de plan. Solo para cuentas `company`. |
+| `app/(app)/planes-servicios/page.tsx` | `/planes-servicios` | Catalogo de planes, plan/estado de suscripcion de la empresa e inicio del trial. Solo para cuentas `company`; los cambios posteriores requieren ADMIN. |
 | `app/reset/page.tsx` | `/reset?token=...` | Activación de cuenta invitada mediante contraseña de un solo uso. |
 | `components/Sidebar.tsx` | Navegacion lateral | Enlaces, empresa actual, impersonacion y cierre de sesion. |
 | `components/ui.tsx` | Compartido | KPIs, tablas, modales, chips, spinner y paginacion. |
@@ -140,16 +140,27 @@ no por usuario ni por contrato. Solo las cuentas con rol `company` ven el
 enlace; `contract_admin` no puede consultar ni modificar la suscripcion.
 
 La primera contratacion crea una suscripcion en estado `trial` por 30 dias.
-Elegir otro plan cambia inmediatamente el plan asociado, pero conserva las
-fechas del periodo vigente; no hay prorrateo. Una suscripcion cancelada puede
-reactivarse desde la accion de contratar/cambiar plan. La interfaz solicita
-confirmacion e informa que no se procesara ningun cobro en linea.
+Luego, una cuenta `company` puede solicitar el cambio a otro plan desde el
+catalogo; la suscripcion no cambia hasta que ADMIN resuelve la solicitud desde
+la notificacion de autorizaciones sobre la tabla de empresas o desde el detalle
+de esa empresa. La bandeja muestra empresa, tipo de solicitud, motivo y fecha, y
+permite aprobar o rechazar indicando un motivo. La aprobación conserva estado y
+periodo, no genera cobros y queda auditada. Una suscripcion cancelada puede
+reactivarse por la empresa con el mismo plan.
 
-Los precios y limites del catalogo son informativos mientras no se integre una
-pasarela y no se implemente la aplicacion de limites. La pantalla muestra el
-estado de acceso calculado por el backend. Actualmente no ofrece una pantalla
-de historial/descarga de facturas ni una accion de cancelacion, aunque existen
-rutas API para esas operaciones.
+Si el estado de cuenta es `en_riesgo` o `moroso`, la empresa puede solicitar
+regularizacion. ADMIN debe resolver la solicitud; al aprobarla, el estado visible
+pasa a `al_dia` mediante un override auditado y las facturas existentes no se
+marcan como pagadas ni se modifican. Las facturas vencidas emitidas despues de
+la aprobacion vuelven a afectar el estado calculado.
+
+Desde **Planes y servicios**, la empresa puede cancelar el servicio al fin del
+periodo vigente. Mantiene acceso completo hasta esa fecha y luego queda en solo
+lectura; el registro de suscripcion y los datos de la empresa se conservan, y
+se puede reactivar con el mismo plan. La baja no elimina la empresa ni sus
+usuarios. Los precios y limites del catalogo siguen siendo informativos mientras
+no se integre una pasarela ni se aplique el control de limites. La pantalla no
+ofrece historial ni descarga de facturas.
 
 ### 3.3 Cliente HTTP
 
@@ -376,14 +387,19 @@ Router: `backend/app/routers/suscripcion.py`
 | Metodo | Endpoint | Acceso y uso |
 |---|---|---|
 | `GET` | `/planes` | Publico; devuelve los planes activos del catalogo. |
-| `GET` | `/suscripcion` | Rol `company`; devuelve plan, estado, fechas y acceso. Responde `SIN_SUSCRIPCION` si la empresa aun no tiene una. |
-| `POST` | `/suscripcion` | Rol `company`; recibe `plan_id`. Crea la primera suscripcion en trial de 30 dias, cambia el plan o reactiva una suscripcion cancelada. |
-| `DELETE` | `/suscripcion` | Rol `company`; cancela la suscripcion sin borrar el registro ni acortar el periodo vigente. La pantalla actual no expone esta accion. |
+| `GET` | `/suscripcion` | Rol `company`; devuelve plan, estado de suscripcion, fechas, acceso y estado de cuenta calculado. Responde `SIN_SUSCRIPCION` si la empresa aun no tiene una. |
+| `POST` | `/suscripcion` | Rol `company`; recibe `plan_id`. Crea la primera suscripcion en trial de 30 dias o reactiva una suscripcion cancelada con el mismo plan. Un cambio directo a otro plan responde `AUTORIZACION_ADMIN_REQUERIDA`. |
+| `GET` | `/suscripcion/solicitudes` | Rol `company`; lista las ultimas solicitudes propias y sus estados. |
+| `POST` | `/suscripcion/solicitudes` | Rol `company`; crea una solicitud pendiente de `cambio_plan` (con `plan_id`) o `regularizacion`. Exige motivo de 12 a 240 caracteres; solo admite una solicitud pendiente por tipo. |
+| `DELETE` | `/suscripcion` | Rol `company`; programa la cancelacion al fin del periodo vigente y conserva la suscripcion y sus datos. Hasta esa fecha mantiene acceso completo; despues queda en solo lectura. |
 | `GET` | `/facturas` | Rol `company`; lista facturas de la empresa con filtros/paginacion. La pantalla actual no expone el historial. |
 | `GET` | `/facturas/{factura_id}/download-url` | Rol `company`; emite una URL temporal si la factura tiene PDF asociado. |
 | `GET` | `/admin/planes` | Solo ADMIN; lista planes, incluidos los desactivados. |
 | `POST` | `/admin/planes` | Solo ADMIN; crea un plan comercial. |
 | `PATCH` | `/admin/planes/{plan_id}` | Solo ADMIN; edita o desactiva un plan. Desactivarlo lo retira del catalogo publico, pero no cambia suscripciones existentes. |
+| `GET` | `/admin/suscripciones/solicitudes` | Solo ADMIN; listado paginado de solicitudes pendientes para la bandeja de empresas. |
+| `GET` | `/admin/suscripciones/{company_id}/solicitudes` | Solo ADMIN; consulta las solicitudes recientes de una empresa. |
+| `PATCH` | `/admin/suscripciones/solicitudes/{solicitud_id}/resolver` | Solo ADMIN; aprueba o rechaza con motivo. Aprobar un cambio actualiza el plan; aprobar regularizacion activa el override `al_dia` sin modificar facturas. |
 
 La respuesta de suscripcion informa `trial`, `activa`, `morosa` o `cancelada`,
 y el acceso calculado (`completo` o `solo_lectura`). Una suscripcion morosa
@@ -391,9 +407,12 @@ mantiene acceso completo durante siete dias desde el fin de su periodo; despues
 pasa a solo lectura. Cancelar no elimina la suscripcion y conserva el acceso
 hasta el fin del periodo vigente.
 
-No hay pasarela de pago conectada: contratar, cambiar o reactivar un plan no
-procesa cobros y `redirect_url` permanece nulo. El backend contempla webhooks de
-pago, pero la interfaz de contratacion no cobra ni configura un medio de pago.
+No hay pasarela de pago conectada: contratar, cambiar, reactivar o cancelar un
+plan no procesa cobros y `redirect_url` permanece nulo. La empresa puede
+programar la cancelacion desde **Planes y servicios**; se conserva el acceso
+hasta el fin del periodo y luego pasa a solo lectura, sin borrar datos. Puede
+reactivar la suscripcion desde esa misma pantalla. El backend contempla
+webhooks de pago, pero la interfaz no cobra ni configura un medio de pago.
 Los limites configurados en el plan se muestran como informacion y todavia no
 se aplican a las operaciones de la empresa. La columna **Plan** de ADMIN en
 Usuarios, roles y permisos es informativa y repite el plan de la empresa para
@@ -456,6 +475,7 @@ Los scripts estan en `BASE/modelo_datos/`:
 - `reportes_programados`: reportes recurrentes.
 - `suscripciones`: plan y estado comercial de la empresa, con trial y periodo vigente.
 - `facturas`: estados y documentos de facturacion asociados a una suscripcion.
+- `solicitudes_suscripcion`: solicitudes de cambio de plan o regularizacion, con estado pendiente/aprobado/rechazado y actores auditables.
 - `integraciones`: conectores externos por empresa.
 - `sync_logs`: historial de sincronizaciones.
 - `notificacion_preferencias`: preferencias de notificacion.
@@ -690,6 +710,10 @@ Ya existe:
 - porcentaje de cumplimiento y documentos por estado;
 - plan, suscripcion, actividad, ultima actividad y nivel de uso en la consola
     Ops;
+- notificacion de autorizaciones pendientes sobre la tabla de empresas, con
+    contador y solicitudes de cambio de plan o regularizacion, empresa, motivo
+    y fecha; ADMIN puede aprobar o rechazar desde la notificacion o el detalle
+    de la empresa, indicando el motivo de resolucion;
 - acceso al detalle de cada cliente, con cuentas/perfiles y responsables por
     contrato, sin listar sus documentos personales en la tabla general.
 
