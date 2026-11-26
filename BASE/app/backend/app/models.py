@@ -393,8 +393,7 @@ class Alerta(Base):
 class Actividad(Base):
     __tablename__ = "actividad"
     id: Mapped[int] = mapped_column(BigInteger, Identity(always=True), primary_key=True)
-    company_id: Mapped[uuid.UUID | None] = mapped_column(
-        ForeignKey("companies.id"), nullable=True)
+    company_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     tipo: Mapped[str] = mapped_column(pg_enum('actividad_tipo'))
     modulo: Mapped[str] = mapped_column(Text)

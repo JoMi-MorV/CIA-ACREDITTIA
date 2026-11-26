@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import select, text
 
 from app.database import worker_session
 from app.models import (
@@ -39,6 +39,38 @@ def test_registro_queda_pendiente(app_cliente):
                          json={"email": "nueva@empresa.cl", "password": CLAVE})
     assert r.status_code == 403
     assert r.json()["error"]["code"] == "ACCOUNT_PENDING"
+
+
+def test_aprobar_empresa_envia_bienvenida_una_sola_vez(
+        app_cliente, admin, monkeypatch):
+    from app.routers import admin as admin_router
+
+    monkeypatch.setattr(
+        admin_router.settings, "frontend_url", "https://demo.ngrok-free.dev")
+    correos = []
+    monkeypatch.setattr(
+        admin_router, "enviar_email", lambda *args: correos.append(args))
+    registro = app_cliente.post(f"{API}/auth/register", json={
+        "empresa": "Bienvenida SpA", "rut": rut_valido(54),
+        "nombre": "Contacto Bienvenida",
+        "email": "bienvenida@empresa.cl", "password": CLAVE})
+    company_id = registro.json()["company_id"]
+
+    aprobada = app_cliente.post(
+        f"{API}/admin/companies/{company_id}/approve",
+        headers=admin["headers"])
+    assert aprobada.status_code == 200, aprobada.text
+    assert aprobada.json()["email_enviado"] is True
+    assert correos[0][0] == "bienvenida@empresa.cl"
+    assert correos[0][1] == "Bienvenido a Acredittia"
+    assert "https://demo.ngrok-free.dev/login" in correos[0][2]
+
+    repetida = app_cliente.post(
+        f"{API}/admin/companies/{company_id}/approve",
+        headers=admin["headers"])
+    assert repetida.status_code == 200, repetida.text
+    assert repetida.json()["email_enviado"] is None
+    assert len(correos) == 1
 
 
 def test_empresa_edita_industria_y_la_comparte_con_invitados(
@@ -231,7 +263,12 @@ def test_login_usuario_desactivado(app_cliente, empresa_a):
     assert r.status_code == 401
 
 
-def test_login_rechazado(app_cliente, admin):
+def test_login_rechazado(app_cliente, admin, monkeypatch):
+    from app.routers import admin as admin_router
+
+    correos = []
+    monkeypatch.setattr(
+        admin_router, "enviar_email", lambda *args: correos.append(args))
     r = app_cliente.post(f"{API}/auth/register", json={
         "empresa": "Rechazada SpA", "rut": rut_valido(53),
         "nombre": "Contacto Rechazado",
@@ -240,11 +277,107 @@ def test_login_rechazado(app_cliente, admin):
     r = app_cliente.post(f"{API}/admin/companies/{company_id}/reject",
                          headers=admin["headers"], json={"reason": "documentación falsa"})
     assert r.status_code == 200, r.text
+    assert r.json()["email_enviado"] is True
+    assert correos[0][0] == "rechazada@empresa.cl"
+    assert correos[0][1] == "Actualización de tu solicitud de empresa"
+    assert "documentación falsa" in correos[0][2]
 
     r = app_cliente.post(f"{API}/auth/login",
                          json={"email": "rechazada@empresa.cl", "password": CLAVE})
     assert r.status_code == 403
     assert r.json()["error"]["code"] == "ACCOUNT_REJECTED"
+
+
+def test_rechazo_se_guarda_si_falla_el_correo(app_cliente, admin, monkeypatch):
+    from app.routers import admin as admin_router
+    from app.services.email import EmailDeliveryError
+
+    def falla_envio(*args):
+        raise EmailDeliveryError("SMTP no disponible")
+
+    monkeypatch.setattr(admin_router, "enviar_email", falla_envio)
+    registro = app_cliente.post(f"{API}/auth/register", json={
+        "empresa": "Rechazo SMTP SpA", "rut": rut_valido(55),
+        "nombre": "Contacto SMTP",
+        "email": "rechazo-smtp@empresa.cl", "password": CLAVE})
+    company_id = registro.json()["company_id"]
+
+    rechazo = app_cliente.post(
+        f"{API}/admin/companies/{company_id}/reject",
+        headers=admin["headers"], json={"reason": "No se pudo validar la solicitud"})
+    assert rechazo.status_code == 200, rechazo.text
+    assert rechazo.json()["status"] == "rejected"
+    assert rechazo.json()["email_enviado"] is False
+
+
+def test_eliminar_empresa_rechazada_libera_identificadores_y_conserva_auditoria(
+        app_cliente, admin, monkeypatch):
+    from app.routers import admin as admin_router
+
+    monkeypatch.setattr(admin_router, "enviar_email", lambda *args: None)
+    email = "eliminada@empresa.cl"
+    rut = rut_valido(56)
+    registro = app_cliente.post(f"{API}/auth/register", json={
+        "empresa": "Empresa Rechazada Eliminable SpA", "rut": rut,
+        "nombre": "Contacto Eliminable", "email": email, "password": CLAVE})
+    company_id = uuid.UUID(registro.json()["company_id"])
+    no_rechazada = app_cliente.delete(
+        f"{API}/admin/companies/{company_id}", headers=admin["headers"])
+    assert no_rechazada.status_code == 409
+    assert no_rechazada.json()["error"]["code"] == "EMPRESA_NO_RECHAZADA"
+
+    app_cliente.post(
+        f"{API}/admin/companies/{company_id}/reject",
+        headers=admin["headers"], json={"reason": "Solicitud duplicada"})
+
+    eliminacion = app_cliente.delete(
+        f"{API}/admin/companies/{company_id}", headers=admin["headers"])
+    assert eliminacion.status_code == 200, eliminacion.text
+    assert eliminacion.json()["eliminada"] is True
+    assert eliminacion.json()["auditoria_conservada"] is True
+
+    with worker_session(is_admin=True) as db:
+        assert db.get(Company, company_id) is None
+        assert db.scalar(select(User.id).where(User.email == email)) is None
+        eventos = db.scalars(select(Actividad).where(
+            Actividad.company_id == company_id)).all()
+        assert any("Solicitud rechazada" in evento.descripcion for evento in eventos)
+        assert any("eliminada permanentemente" in evento.descripcion
+                   for evento in eventos)
+
+    nueva_solicitud = app_cliente.post(f"{API}/auth/register", json={
+        "empresa": "Empresa Reingresada SpA", "rut": rut,
+        "nombre": "Contacto Reingresado", "email": email, "password": CLAVE})
+    assert nueva_solicitud.status_code == 201, nueva_solicitud.text
+
+
+def test_no_eliminar_empresa_rechazada_con_datos_operacionales(
+        app_cliente, admin, motor_admin, monkeypatch):
+    from app.routers import admin as admin_router
+
+    monkeypatch.setattr(admin_router, "enviar_email", lambda *args: None)
+    registro = app_cliente.post(f"{API}/auth/register", json={
+        "empresa": "Empresa Con Datos SpA", "rut": rut_valido(57),
+        "nombre": "Contacto Con Datos",
+        "email": "con-datos@empresa.cl", "password": CLAVE})
+    company_id = uuid.UUID(registro.json()["company_id"])
+    app_cliente.post(
+        f"{API}/admin/companies/{company_id}/reject",
+        headers=admin["headers"], json={"reason": "Solicitud duplicada"})
+    with motor_admin.begin() as db:
+        db.execute(text(
+            "INSERT INTO ops_actividad_empresa_diaria "
+            "(fecha, company_id, segundos_activos) "
+            "VALUES (CURRENT_DATE, :company_id, 10)"),
+            {"company_id": company_id})
+
+    eliminacion = app_cliente.delete(
+        f"{API}/admin/companies/{company_id}", headers=admin["headers"])
+    assert eliminacion.status_code == 409
+    assert eliminacion.json()["error"]["code"] == "EMPRESA_CON_DATOS"
+
+    with worker_session(is_admin=True) as db:
+        assert db.get(Company, company_id) is not None
 
 
 # ============================================================================
@@ -666,6 +799,8 @@ def test_invitacion_asigna_company_y_rol_y_permite_activar(
         app_cliente, empresa_a, contrato_a, monkeypatch):
     from app.routers import company
 
+    monkeypatch.setattr(
+        company.settings, "frontend_url", "https://demo.ngrok-free.dev")
     correos = []
     monkeypatch.setattr(company, "enviar_email",
                         lambda *args: correos.append(args))
@@ -686,6 +821,7 @@ def test_invitacion_asigna_company_y_rol_y_permite_activar(
     assert invitacion["role"] == "contract_admin"
 
     enlace = correos[0][2]
+    assert "https://demo.ngrok-free.dev/reset?token=" in enlace
     token = enlace.split("token=", 1)[1].splitlines()[0].strip()
     assert token
 

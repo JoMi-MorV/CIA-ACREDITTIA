@@ -557,6 +557,7 @@ def _migrate_restored_schema(database: str) -> None:
     migraciones = {
         22: "23_respaldo_diario_rpo24h.sql",
         23: "24_solicitudes_estado_cuenta.sql",
+        24: "25_empresa_rechazada_borrado_auditable.sql",
     }
     try:
         with psycopg.connect(url.render_as_string(hide_password=False)) as conn:

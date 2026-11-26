@@ -56,16 +56,18 @@ El módulo operativo sigue siendo una base funcional relevante, pero el estado r
    ```python
    SCHEMA_SCRIPTS = [..., "21_baja_invitaciones_pendientes.sql",
                      "22_normalizar_tipo_token_password.sql",
-                     "23_respaldo_diario_rpo24h.sql"]
-   SCHEMA_VERSION = 23
+                     "23_respaldo_diario_rpo24h.sql",
+                     "24_solicitudes_estado_cuenta.sql",
+                     "25_empresa_rechazada_borrado_auditable.sql"]
+   SCHEMA_VERSION = 25
    ```
 
-   El esquema vigente es la versión 23. `apply_schema()` aplica únicamente las
+   El esquema vigente es la versión 25. `apply_schema()` aplica únicamente las
    migraciones pendientes y el migrador externo conserva el DDL fuera del
    arranque de la API. No actualizar solo el número esperado: deben existir
    todos los scripts desde el estado anterior compatible.
 
-4. **`.env` / config** — `SCHEMA_VERSION_ESPERADA=23` y, cuando existan,
+4. **`.env` / config** — `SCHEMA_VERSION_ESPERADA=25` y, cuando existan,
    los settings financieros: `OPS_VALOR_UF`, `OPS_CAC_CLP`,
    `OPS_MARGEN_BRUTO_PCT`, `OPS_OBJETIVO_CHURN_PCT` (defaults en
    `config_ops.py`; con `OPS_CAC_CLP=0` el endpoint devuelve `ltv_cac: null`

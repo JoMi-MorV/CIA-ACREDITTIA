@@ -23,7 +23,7 @@ app/
 
 PostgreSQL no ejecuta el esquema desde su inicialización. El servicio `migrate`
 aplica las migraciones versionadas de `../modelo_datos/` antes de iniciar la
-api y los workers. La versión actual del esquema es **23**, y la API comprueba
+api y los workers. La versión actual del esquema es **25**, y la API comprueba
 la versión requerida al arrancar.
 
 ## Ejecutar en local
@@ -76,6 +76,9 @@ registro de horarios sin lanzar procesos periódicos contra la base de pruebas.
 El perfil `docker-compose.ngrok.yml` publica únicamente el frontend por ngrok,
 con el login de Acredittia activo. PostgreSQL, Redis, API y el inspector de
 ngrok quedan ligados a `127.0.0.1`.
+El perfil configura `FRONTEND_URL` con el dominio HTTPS de ngrok para que los
+enlaces de bienvenida, invitación y recuperación de cuenta no apunten a
+`localhost`. Sin el perfil ngrok, el Compose local conserva `localhost:3000`.
 Es exclusivamente para una demostración temporal con
 datos sintéticos. El Compose base usa roles de desarrollo y semillas/cuentas
 demo conocidas: no cargar información real ni tratarlo como despliegue de
@@ -235,7 +238,7 @@ no la instalación ni la ejecución normal de la imagen de la aplicación.
 | DATABASE_URL | postgres local | Conexión SQLAlchemy (psycopg) |
 | DB_RLS_ENABLED | true | Activa el contexto de aislamiento por tenant |
 | DB_APPLY_SCHEMA_ON_START | false | En Compose el servicio `migrate` aplica el esquema |
-| SCHEMA_VERSION_ESPERADA | 24 | Versión de esquema exigida por la API |
+| SCHEMA_VERSION_ESPERADA | 25 | Versión de esquema exigida por la API |
 | STORAGE_BACKEND / STORAGE_DIR | local / `/data/uploads` | Almacenamiento local o `azure` |
 | AZURE_STORAGE_ACCOUNT / AZURE_BLOB_CONN / AZURE_BLOB_CONTAINER | vacío / vacío / `docs` | Configuración de Azure Blob Storage |
 | QUEUE_BACKEND / REDIS_URL | inproc / Redis local | `celery` usa Redis para trabajos en segundo plano |

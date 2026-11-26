@@ -31,7 +31,7 @@ from sqlalchemy import (String, and_, case, cast, delete, func, literal, or_, se
 from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.orm import Session
 
-from ..config import TIPOS_EQUIPO
+from ..config import TIPOS_EQUIPO, settings
 from ..database import get_db
 from ..deps import (Page, aplicar_orden, autorizar_categoria_informacion, err,
                     paginacion, require_admin, sobre)
@@ -46,6 +46,7 @@ from ..models import (
 )
 from ..models_ops import IndustriaEmpresa, MetricasMensuales
 from ..services import actividad
+from ..services.email import EmailDeliveryError, enviar_email
 from ..services.checklist import (calc_estado_doc, calc_estado_sujeto,
                                   crear_expediente_conductor, instanciar_docs,
                                   vencimiento_por_plantilla)
@@ -1298,18 +1299,125 @@ def _set_status(db: Session, company_id: uuid.UUID, admin: User,
     return c
 
 
+def _notificar_estado_empresa(
+        company: Company, status: str, reason: str | None = None) -> bool:
+    if status == "approved":
+        asunto = "Bienvenido a Acredittia"
+        cuerpo = (
+            f"Hola {company.nombre}:\n\n"
+            "La cuenta de tu empresa fue aprobada. Ya puedes ingresar a "
+            f"Acredittia desde {settings.frontend_url.rstrip('/')}/login.\n\n"
+            "Saludos,\nEquipo Acredittia"
+        )
+    else:
+        asunto = "Actualización de tu solicitud de empresa"
+        cuerpo = (
+            f"Hola {company.nombre}:\n\n"
+            "No fue posible aprobar la solicitud de creación de tu cuenta de "
+            f"empresa.\nMotivo informado: {reason or 'No especificado'}\n\n"
+            "Si tienes dudas, contacta a soporte@acredittia.cl.\n\n"
+            "Equipo Acredittia"
+        )
+    try:
+        enviar_email(company.email, asunto, cuerpo)
+    except EmailDeliveryError:
+        logger.warning(
+            "No se pudo enviar notificación de estado de empresa id=%s status=%s",
+            company.id, status,
+        )
+        return False
+    return True
+
+
 @router.post("/companies/{company_id}/approve")
 def approve(company_id: uuid.UUID, db: Session = Depends(get_db),
             admin: User = Depends(require_admin)):
+    estado_anterior = _get_company(db, company_id).status
     c = _set_status(db, company_id, admin, "approved")
-    return {"id": str(c.id), "status": c.status}
+    email_enviado = (
+        _notificar_estado_empresa(c, "approved")
+        if estado_anterior == "pending" else None
+    )
+    return {"id": str(c.id), "status": c.status,
+            "email_enviado": email_enviado}
 
 
 @router.post("/companies/{company_id}/reject")
 def reject(company_id: uuid.UUID, body: RejectIn, db: Session = Depends(get_db),
            admin: User = Depends(require_admin)):
+    estado_anterior = _get_company(db, company_id).status
     c = _set_status(db, company_id, admin, "rejected", body.reason)
-    return {"id": str(c.id), "status": c.status}
+    email_enviado = (
+        _notificar_estado_empresa(c, "rejected", body.reason)
+        if estado_anterior == "pending" else None
+    )
+    return {"id": str(c.id), "status": c.status,
+            "email_enviado": email_enviado}
+
+
+def _empresa_tiene_datos_operacionales(db: Session, company_id: uuid.UUID) -> bool:
+    if db.scalar(
+        select(Actividad.id).join(User, Actividad.user_id == User.id)
+        .where(User.company_id == company_id).limit(1)
+    ) is not None:
+        return True
+
+    tablas = db.scalars(text("""
+        SELECT c.table_name
+        FROM information_schema.columns c
+        JOIN information_schema.tables t
+          ON t.table_schema = c.table_schema AND t.table_name = c.table_name
+        WHERE c.table_schema = 'public'
+          AND t.table_type = 'BASE TABLE'
+          AND c.column_name = 'company_id'
+          AND c.table_name NOT IN ('users', 'actividad', 'bitacora_cambios')
+        ORDER BY c.table_name
+    """)).all()
+    preparador = db.get_bind().dialect.identifier_preparer
+    for tabla in tablas:
+        tabla_sql = preparador.quote(tabla)
+        if db.scalar(
+            text(
+                f"SELECT EXISTS (SELECT 1 FROM public.{tabla_sql} "
+                "WHERE company_id::text = :company_id)"
+            ),
+            {"company_id": str(company_id)},
+        ):
+            return True
+    return False
+
+
+@router.delete("/companies/{company_id}")
+def delete_rejected_company(
+        company_id: uuid.UUID, db: Session = Depends(get_db),
+        admin: User = Depends(require_admin)):
+    company = db.scalar(
+        select(Company).where(Company.id == company_id).with_for_update())
+    if company is None:
+        raise err(404, "NO_ENCONTRADO", "Empresa inexistente")
+    if company.status != "rejected":
+        raise err(409, "EMPRESA_NO_RECHAZADA",
+                  "Solo se pueden eliminar solicitudes rechazadas")
+    if _empresa_tiene_datos_operacionales(db, company.id):
+        raise err(409, "EMPRESA_CON_DATOS",
+                  "No se puede eliminar una empresa con datos operacionales")
+
+    company_id_eliminada = company.id
+    actividad.log(
+        db, company_id_eliminada, "actualizacion", "empresa",
+        "Solicitud rechazada eliminada permanentemente por ADMIN",
+        user_id=admin.id, entidad_tipo="empresa",
+        entidad_id=company_id_eliminada,
+    )
+    db.delete(company)
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise err(409, "EMPRESA_NO_ELIMINABLE",
+                  "La empresa conserva referencias que impiden eliminarla") from exc
+    return {"id": str(company_id_eliminada), "eliminada": True,
+            "auditoria_conservada": True}
 
 
 # ============================================================================

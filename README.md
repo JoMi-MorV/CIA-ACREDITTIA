@@ -2,7 +2,7 @@
 
 ## Estado actual verificado
 
-Actualizado al 25-11-2026; métricas de línea base reconciliadas con el SRS v1.18.
+Actualizado al 25-11-2026; métricas de línea base reconciliadas con el SRS v1.19.
 
 - Avance estimado vigente: **88,9%** para las 37 fichas SRS (`3.288 / 37`).
   El promedio de las ocho áreas ADMIN, recalculado desde sus fichas asociadas,
@@ -159,7 +159,7 @@ Bash
 cd BASE/app
 docker compose up --build
 
-### Actualización de esquema 23
+### Actualización de esquema 25
 
 Las migraciones `09_indices_consola.sql` y `10_version_sesion.sql` crean índices
 administrativos y añaden `users.auth_version`. `11_ciclo_vida_contratos.sql`
@@ -177,10 +177,12 @@ tokens de invitación, permite eliminar solo cuentas invitadas que aún no
 activaron su acceso y conserva la bitácora al borrar la cuenta. La migración 22
 normaliza el tipo del token de recuperación de contraseña para que coincida con
 la restricción de la base. La migración 23 cambia a diaria (02:00
-`America/Santiago`) la programación de respaldo existente, sin activarla. La API
-exige el esquema 23 para este corte. Al restaurar un respaldo de esquema 22,
-la API aplica la migración 23 a la base aislada antes de validar y reemplazar la
-base activa.
+`America/Santiago`) la programación de respaldo existente, sin activarla. La
+migración 24 incorpora solicitudes de cambio de plan y regularización; la 25
+permite eliminar empresas rechazadas conservando su auditoría append-only. La
+API exige el esquema 25 para este corte. Al restaurar un respaldo de esquema
+22, la API aplica las migraciones 23 a 25 a la base aislada antes de validar y
+reemplazar la base activa.
 Desde
 `BASE/app`, actualizar las imágenes y aplicar las migraciones pendientes antes
 de recrear los servicios:
@@ -192,7 +194,7 @@ docker compose up -d api worker beat
 ```
 
 Si se configuró `SCHEMA_VERSION_ESPERADA` externamente, debe coincidir con la
-versión que requiere la aplicación (23 para este corte). Las migraciones
+versión que requiere la aplicación (25 para este corte). Las migraciones
 conservan los datos; la validación automatizada se realiza en PostgreSQL
 temporal y no aplica cambios a la base habitual. La migración 19 se validó con
 las pruebas focalizadas descritas en `documentacion/VALIDACION_ACTUAL.md`; la
@@ -210,7 +212,7 @@ Conserva identidad, rol y alcance. Revocar o cambiar el estado activo desde ADMI
 invalida los JWT anteriores y los refresh tokens; el usuario debe iniciar sesión
 nuevamente. Reactivar no aprueba una solicitud pendiente/rechazada. Instalar esquema
 11 fue el requisito de la versión que introdujo esta función; para el código
-actual, seguir la sección de esquema 23 anterior. Las cuentas que ya estaban
+actual, seguir la sección de esquema 25 anterior. Las cuentas que ya estaban
 revocadas también invalidan sus sesiones antiguas al reactivarse.
 
 
@@ -821,7 +823,7 @@ abren ahora el Dashboard global.
 
 ## Cambios a la fecha — 25-11-2026
 
-El documento funcional vigente es el [SRS v1.18](documentacion/SRS.md). Esta
+El documento funcional vigente es el [SRS v1.19](documentacion/SRS.md). Esta
 sección resume los cambios relevantes y el estado conocido a la fecha; no
 sustituye los criterios, pendientes ni evidencias detallados en el SRS y la
 [validación actual](documentacion/VALIDACION_ACTUAL.md).
@@ -894,6 +896,12 @@ pasó 14/14 y la suite completa posterior, ejecutada el 19-11, pasó 526/526.
 - Consola ADMIN bajo `/admin` para empresas, buscador global, métricas, usuarios,
   auditoría, sistemas, procesos e incidentes. La API administrativa actual usa
   `/api/v1/admin`; mantiene rutas Ops anteriores por compatibilidad.
+- **Altas y bajas de empresas:** el registro queda pendiente de ADMIN. La
+  aprobación envía bienvenida y el rechazo notifica el motivo; un fallo SMTP
+  no revierte la decisión y se informa en el panel. ADMIN puede eliminar una
+  solicitud rechazada sin datos operacionales, liberar RUT/correo y conservar
+  intacta la auditoría histórica. El esquema requerido es v25; la validación
+  focalizada pasó 7/7 pruebas y el build frontend.
 - El buscador global permite combinar términos parciales de distintos campos
   del mismo resultado y su empresa relacionada. Su explorador permite activar
   o quitar referencias de empresas, cargos, contratos, tipos y marcas de
@@ -1015,12 +1023,14 @@ pasó 14/14 y la suite completa posterior, ejecutada el 19-11, pasó 526/526.
   ADMIN; al aprobarlo, la empresa y el usuario inicial quedan aprobados y el
   usuario conserva el rol `company`. La verificación manual cubrió la
   aprobación; rechazo y transiciones repetidas requieren validación separada.
-- El esquema requerido por este corte de API es v22. La migración v9 incorporó
+- El esquema requerido por este corte de API es v25. La migración v9 incorporó
   invalidación de sesiones al cambiar el estado de acceso; la validación de
   seguridad de conexiones de producción no configura por sí sola los roles
-  reales de la base de datos. Las migraciones 18, 19, 20, 21 y 22 añaden
-  confirmación de cambio de correo, progreso, telemetría, eliminación
-  controlada de invitaciones y normalización de tokens de contraseña.
+  reales de la base de datos. Las migraciones 18 a 22 añaden confirmación de
+  cambio de correo, progreso, telemetría, eliminación controlada de
+  invitaciones y normalización de tokens de contraseña; las migraciones 23 a
+  25 incorporan respaldos diarios, solicitudes de estado de cuenta y
+  eliminación auditable de empresas rechazadas.
 
 ### Validación y límites conocidos
 

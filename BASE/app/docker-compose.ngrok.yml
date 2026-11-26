@@ -3,6 +3,7 @@ services:
     environment:
       CORS_ORIGINS: https://${NGROK_DOMAIN}
       PUBLIC_BASE_URL: https://${NGROK_DOMAIN}
+      FRONTEND_URL: https://${NGROK_DOMAIN}
       JWT_SECRET: ${JWT_SECRET:?Define JWT_SECRET en BASE/app/.env}
 
   web:

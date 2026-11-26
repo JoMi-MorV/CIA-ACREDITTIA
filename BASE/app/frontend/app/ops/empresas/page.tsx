@@ -67,6 +67,7 @@ export default function EmpresasAdminPage() {
   const [resolviendoSolicitud, setResolviendoSolicitud] = useState<string | null>(null);
   const [autorizandoEmpresa, setAutorizandoEmpresa] = useState<string | null>(null);
   const [eliminandoInvitacion, setEliminandoInvitacion] = useState<string | null>(null);
+  const [eliminandoEmpresa, setEliminandoEmpresa] = useState<string | null>(null);
   const [orden, setOrden] = useState<{ columna: ColumnaOrden; direccion: DireccionOrden } | null>(null);
   const [solicitudesPendientes, setSolicitudesPendientes] = useState<SolicitudSuscripcion[]>([]);
   const solicitudDetalle = useRef(0);
@@ -112,6 +113,24 @@ export default function EmpresasAdminPage() {
     setError(""); setAviso("");
     try { setAviso(await accion()); cargar(); }
     catch (e) { setError(Api.mensajeError(e)); }
+  };
+  const eliminarEmpresaRechazada = async (company: Empresa) => {
+    if (!await dialog.confirm({
+      title: "Eliminar cuenta rechazada",
+      message: `Se eliminarán la empresa y sus cuentas de acceso. Se liberarán el RUT y el correo para registrarlos nuevamente; el historial de auditoría se conservará. No se puede eliminar si existen datos operacionales.`,
+      confirmLabel: "Eliminar cuenta",
+      danger: true,
+      doubleConfirm: true,
+    })) return;
+
+    setEliminandoEmpresa(company.id);
+    await actuar(async () => {
+      await Api.admin.eliminarEmpresa(company.id);
+      setEmpresaExpandida((id) => id === company.id ? null : id);
+      setDetalle((actual) => actual?.id === company.id ? null : actual);
+      return `${company.nombre} eliminada; el RUT y el correo quedaron disponibles nuevamente.`;
+    });
+    setEliminandoEmpresa(null);
   };
   const alternarDetalle = async (company: Empresa) => {
     if (empresaExpandida === company.id) {
@@ -329,7 +348,16 @@ export default function EmpresasAdminPage() {
         info="Empresas cuyo registro todavía espera una decisión administrativa. Aprobar habilita la cuenta; rechazar registra el motivo indicado." />
       {pendientes.map((company) => <div key={company.id} className="flex flex-wrap items-center gap-3 border-b py-3 last:border-0" style={{ borderColor: "var(--ops-line-soft)" }}>
         <div className="min-w-0 flex-1"><b>{company.nombre}</b><div className="ops-sub">Solicitud recibida · {new Date(company.created_at).toLocaleDateString("es-CL")}</div></div>
-        <button className="ops-btn ops-btn-primary" onClick={() => actuar(async () => { await Api.admin.aprobar(company.id); return `${company.nombre} aprobada.`; })}>Aprobar</button>
+        <button className="ops-btn ops-btn-primary" onClick={() => actuar(async () => {
+          const resultado = await Api.admin.aprobar(company.id);
+          if (resultado.email_enviado === false) {
+            return `${company.nombre} aprobada, pero no se pudo enviar el correo de bienvenida.`;
+          }
+          if (resultado.email_enviado === null) {
+            return `${company.nombre} ya estaba aprobada; no se reenvió el correo.`;
+          }
+          return `${company.nombre} aprobada y correo de bienvenida enviado.`;
+        })}>Aprobar</button>
         <button className="ops-btn ops-btn-ghost" onClick={async () => {
           const reason = await dialog.prompt({
             title: "Rechazar solicitud de empresa",
@@ -343,7 +371,12 @@ export default function EmpresasAdminPage() {
             message: `Se rechazará la solicitud de ${company.nombre}.`,
             confirmLabel: "Rechazar solicitud", danger: true, doubleConfirm: true,
           })) return;
-          await actuar(async () => { await Api.admin.rechazar(company.id, reason); return `${company.nombre} rechazada.`; });
+          await actuar(async () => {
+            const resultado = await Api.admin.rechazar(company.id, reason);
+            return resultado.email_enviado === false
+              ? `${company.nombre} rechazada, pero no se pudo enviar el correo.`
+              : `${company.nombre} rechazada y correo de notificación enviado.`;
+          });
         }}>Rechazar</button>
       </div>)}
     </Card>}
@@ -446,6 +479,12 @@ export default function EmpresasAdminPage() {
                 {autorizandoEmpresa === company.id
                   ? "Autorizando…"
                   : "Autorizar lectura y ver (1 h)"}
+              </button>}
+              {company.status === "rejected" && <button
+                className="ops-btn ops-btn-ghost text-xs"
+                disabled={eliminandoEmpresa !== null}
+                onClick={() => void eliminarEmpresaRechazada(company)}>
+                {eliminandoEmpresa === company.id ? "Eliminando…" : "Eliminar cuenta"}
               </button>}
               {company.es_demo && <button className="ops-btn ops-btn-ghost text-xs" onClick={async () => {
                 if (!await dialog.confirm({

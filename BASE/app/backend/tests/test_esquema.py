@@ -22,7 +22,7 @@ def _simular_esquema_anterior_a_v21(connection):
 
 def test_version_de_esquema(esquema):
     """Los scripts de negocio y consola instalan la versión exigida por la API."""
-    assert SCHEMA_VERSION == 24
+    assert SCHEMA_VERSION == 25
     assert schema_version() == SCHEMA_VERSION
 
 

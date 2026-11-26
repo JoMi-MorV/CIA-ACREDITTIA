@@ -146,7 +146,7 @@ def test_restauracion_actualiza_backup_de_esquema_22(motor_admin, monkeypatch):
             schedule, active = conn.execute(sa.text(
                 "SELECT cron_expr, activo FROM ops_jobs "
                 "WHERE clave='admin_backup'")).one()
-        assert version == 24
+        assert version == 25
         assert schedule == "0 2 * * *"
         assert active is False
     finally:
@@ -155,7 +155,7 @@ def test_restauracion_actualiza_backup_de_esquema_22(motor_admin, monkeypatch):
                 "UPDATE ops_jobs SET cron_expr='0 2 * * *' "
                 "WHERE clave='admin_backup'"))
             conn.execute(sa.text(
-                "INSERT INTO app_schema_migrations (version) VALUES (23), (24) "
+                "INSERT INTO app_schema_migrations (version) VALUES (23), (24), (25) "
                 "ON CONFLICT DO NOTHING"))
 
 

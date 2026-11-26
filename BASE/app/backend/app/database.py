@@ -100,8 +100,9 @@ SCHEMA_SCRIPTS = ["01_esquema.sql", "02_indices.sql", "03_triggers.sql",
                   "21_baja_invitaciones_pendientes.sql",
                   "22_normalizar_tipo_token_password.sql",
                   "23_respaldo_diario_rpo24h.sql",
-                  "24_solicitudes_estado_cuenta.sql"]
-SCHEMA_VERSION = 24
+                  "24_solicitudes_estado_cuenta.sql",
+                  "25_empresa_rechazada_borrado_auditable.sql"]
+SCHEMA_VERSION = 25
 MIGRATION_LOCK_ID = 918273        # clave del pg_advisory_lock de migración
 
 
@@ -396,6 +397,8 @@ def apply_schema(schema_dir: str | None = None) -> int:
                 pendientes.append("16_privacidad_retencion.sql")
             elif actual == 23:
                 pendientes = ["24_solicitudes_estado_cuenta.sql"]
+            elif actual == 24:
+                pendientes = ["25_empresa_rechazada_borrado_auditable.sql"]
             else:
                 # Por si viene de otra versión intermedia, aplicamos los scripts desde el 06 en adelante
                 pendientes = SCHEMA_SCRIPTS[4:]
@@ -444,10 +447,11 @@ def apply_schema(schema_dir: str | None = None) -> int:
                         pendientes.append(script)
                 pendientes.append("20_telemetria_actividad.sql")
 
-            for latest_migration in (
-                    "23_respaldo_diario_rpo24h.sql",
-                    "24_solicitudes_estado_cuenta.sql"):
-                if actual < SCHEMA_VERSION and latest_migration not in pendientes:
+            for version, latest_migration in (
+                    (23, "23_respaldo_diario_rpo24h.sql"),
+                    (24, "24_solicitudes_estado_cuenta.sql"),
+                    (25, "25_empresa_rechazada_borrado_auditable.sql")):
+                if actual < version and latest_migration not in pendientes:
                     pendientes.append(latest_migration)
 
             for nombre in pendientes:

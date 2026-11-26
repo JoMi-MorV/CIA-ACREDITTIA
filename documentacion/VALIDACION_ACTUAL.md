@@ -918,7 +918,7 @@ externos.
 **Registro histórico — 3 de noviembre de 2026:** se aplicó en ese momento la
 migración de esquema 12, que ajustaba el cron de `reportes_programados` a cada
 minuto. El migrador confirmó versión 12 en ese entorno. Esta referencia describe
-solo ese corte; el estado vigente requiere esquema 23.
+solo ese corte; el estado vigente requiere esquema 25.
 En esa ejecución se reconstruyeron y levantaron API, worker, Celery Beat y web;
 PostgreSQL y Redis también quedaron activos durante la comprobación.
 

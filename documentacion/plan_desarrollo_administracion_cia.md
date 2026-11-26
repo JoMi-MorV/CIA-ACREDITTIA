@@ -37,15 +37,15 @@ futuro no deben marcarse como completados.
 
 1. **Aplanamiento de la estructura raíz:** En `CIA-ACREDITTIA-main`, el código vive anidado en `BASE/app/` y `BASE/modelo_datos/`. En el Día 1 se promueve a la raíz (`backend/`, `frontend/`, `modelo_datos/`, `infra/`) para que coincida 1:1 con `estructura_repositorio_unificado.md`.
    *Nota histórica:* los detalles de renumeración siguientes fueron una propuesta
-   de integración. El esquema vigente implementado es 23 y los scripts reales
-   aparecen numerados `01` a `23` en `modelo_datos/`.
+   de integración. El esquema vigente implementado es 25 y los scripts reales
+   aparecen numerados `01` a `25` en `modelo_datos/`.
 2. **Secuencia SQL Unificada (`19`..`22`):** Para evitar colisión con las migraciones `07`..`18` de Plataforma (certificación laboral, RAG `pgvector`, vínculo faena, rol visor, alertas IA), los scripts de la Consola Interna se renumeran como:
    - `19_consola_interna.sql` (antes `07_consola_interna.sql`)
    - `20_funciones_consola.sql` (antes `08_funciones_consola.sql`)
    - `21_indices_consola.sql` (antes `09_indices_consola.sql`)
    - `22_sesion_y_ciclo_vida.sql` (propuesta histórica que fusionaba
      `10_version_sesion.sql` y `11_ciclo_vida_contratos.sql`; el diseño vigente
-     conserva ambos scripts y continúa hasta `SCHEMA_VERSION = 23`).
+     conserva ambos scripts y continúa hasta `SCHEMA_VERSION = 25`).
 3. **Aislamiento de namespaces (`ops/`):** Todos los modelos (`models/ops.py`), routers (`routers/ops/admin_ops.py`), servicios (`services/ops/`) y vistas Next.js (`app/(ops)/ops/*`, `components/ops/`, `lib/ops/`) quedan encapsulados en sus propias carpetas, garantizando **cero conflictos de archivos** al hacer `git merge` en el Día 4.
 
 ---
@@ -157,7 +157,7 @@ futuro no deben marcarse como completados.
 
 #### Tarea 4.2: Aplicar cadena completa SQL (`01`..`22`) y procedimientos almacenados sobre la BD compartida
 - **Descripción:** Propuesta histórica reemplazada: configurar en el diseño vigente
-  `SCHEMA_SCRIPTS` (`01`..`23`) y `SCHEMA_VERSION = 23` en
+  `SCHEMA_SCRIPTS` (`01`..`25`) y `SCHEMA_VERSION = 25` en
   `backend/app/database.py`, unificando `schema_version()` mediante
   `app_schema_migrations` y manteniendo `install_runtime_role_guard()`.
 - **Criterios de aceptación:**

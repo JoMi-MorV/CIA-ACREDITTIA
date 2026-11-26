@@ -138,10 +138,16 @@ export const admin = {
       { method: "POST", body: {} }),
 
   aprobar: (id: string) =>
-    api<Empresa>(`/admin/companies/${id}/approve`, { method: "POST", body: {} }),
+    api<{ id: string; status: Empresa["status"]; email_enviado: boolean | null }>(
+      `/admin/companies/${id}/approve`, { method: "POST", body: {} }),
 
   rechazar: (id: string, reason: string) =>
-    api<Empresa>(`/admin/companies/${id}/reject`, { body: { reason } }),
+    api<{ id: string; status: Empresa["status"]; email_enviado: boolean | null }>(
+      `/admin/companies/${id}/reject`, { body: { reason } }),
+
+  eliminarEmpresa: (id: string) =>
+    api<{ id: string; eliminada: boolean; auditoria_conservada: boolean }>(
+      `/admin/companies/${id}`, { method: "DELETE" }),
 
   /** 409 `NO_ES_DEMO` si la empresa no lo es. La actividad NO se borra. */
   resetDemo: (id: string) =>

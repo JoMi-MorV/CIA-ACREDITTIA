@@ -716,6 +716,20 @@ Ya existe:
     de la empresa, indicando el motivo de resolucion;
 - acceso al detalle de cada cliente, con cuentas/perfiles y responsables por
     contrato, sin listar sus documentos personales en la tabla general.
+- el registro de empresa queda pendiente hasta la decision de ADMIN. Al aprobar
+    una solicitud pendiente se envia un correo de bienvenida; al rechazarla se
+    envia un aviso con el motivo. Si SMTP falla, la decision se conserva y el
+    panel informa que el correo no pudo enviarse.
+- ADMIN puede eliminar permanentemente una solicitud rechazada desde
+    `/ops/empresas`. La accion libera el RUT y correo, pero se bloquea si la
+    empresa ya tiene datos operacionales. Los eventos append-only de auditoria
+    se conservan asociados al UUID historico de la empresa; no se editan ni
+    eliminan.
+
+La API `DELETE /api/v1/admin/companies/{company_id}` solo acepta empresas
+rechazadas y devuelve conflicto si hay datos operacionales o referencias que
+impiden la eliminacion. La migracion de esquema v25 desacopla la FK de
+`actividad.company_id` para preservar la auditoria historica.
 
 Pendiente o recomendable:
 
